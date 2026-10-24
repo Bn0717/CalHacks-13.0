@@ -12,6 +12,7 @@ import type { Executor } from "../core/runner.js";
 import { findAppBundles } from "../core/uninstall.js";
 import { findOfficialSource } from "../droid/research.js";
 import { listOutputs, setOutput } from "../mac/audio.js";
+import { actCommand, actOn, listWindow, typeInto } from "../mac/ui.js";
 import type { ScreenDeps } from "./autopilot.js";
 import { folderPath } from "./danger.js";
 import { listFilesIn, type AppInfo, type MacDeps } from "./tools.js";
@@ -136,10 +137,13 @@ export async function installOfficialApp(appName: string): Promise<{ ok: boolean
 
 /** The real Mac. `trash` comes from Electron (shell.trashItem) in the app, or Finder in the terminal. */
 export function realMac(opts: { execute: Executor; trash: (path: string) => Promise<void>; protectedApps?: string[]; screen?: ScreenDeps }): MacDeps {
+  // The window reader goes with screen access: both are part of "CalHack can work on your screen".
+  const ui = opts.screen ? { list: listWindow, act: actOn, type: typeInto, command: actCommand } : undefined;
   const home = homedir();
   return {
     home,
     screen: opts.screen,
+    ui,
     protectedApps: ["Finder", "CalHack", "Electron", ...(opts.protectedApps ?? [])],
     sandboxed: (c, t) => runSandboxed(c, t),
     checkRunner: realCheckRunner,

@@ -55,6 +55,8 @@ export interface MacDeps {
   now(): number;
   /** Lets CalHack see the screen so it can finish a step itself. Missing = it asks the person instead. */
   screen?: ScreenDeps;
+  /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
+  ui?: import("./uipilot.js").UiDeps;
   home: string;
   /** Apps CalHack must never close: Finder, CalHack itself, and (while developing) the app it was started from. */
   protectedApps: string[];
@@ -196,7 +198,7 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
