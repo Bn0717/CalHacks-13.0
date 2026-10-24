@@ -26,8 +26,8 @@ export interface RecipeOutcome {
 
 type Result = Omit<RecipeOutcome, "evidence" | "ranBy" | "log">;
 
-/** Apps we never open for someone: they can run anything. */
-export const NEVER_OPEN = new Set(["terminal", "iterm", "script editor", "automator", "system settings", "system preferences", "disk utility", "keychain access"]);
+/** Apps we never open for someone: they can run anything. (System Settings is fine: opening it changes nothing.) */
+export const NEVER_OPEN = new Set(["terminal", "iterm", "script editor", "automator", "disk utility", "keychain access"]);
 
 /** Apps whose file name differs from the name people use. */
 const APP_FILE_NAMES: Record<string, string> = { zoom: "zoom.us", "microsoft teams": "Microsoft Teams", chrome: "Google Chrome", "google chrome": "Google Chrome", vscode: "Visual Studio Code", "vs code": "Visual Studio Code" };
@@ -194,7 +194,7 @@ async function soundOutput(deps: RecipeDeps, trail: Trail): Promise<Result> {
     now = (await deps.outputs.list()).find((o) => o.default);
   }
   const ok = now?.id === target.id;
-  trail.evidence.push({ kind: "run", command: "switch sound output", code: ok ? 0 : 1, output: `in use: ${now?.name ?? "?"}` });
+  trail.evidence.push({ kind: "after", checkId: "sound-output-in-use", outcome: ok ? "passed" : "failed", command: "list sound outputs", code: ok ? 0 : 1, output: `in use: ${now?.name ?? "?"}` });
   return ok ? { ok: true, message: `Sound now plays from “${target.name}”.` } : { ok: false, message: `The sound didn't switch; “${now?.name ?? "?"}” is still in use.` };
 }
 

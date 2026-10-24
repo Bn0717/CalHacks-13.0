@@ -9,6 +9,9 @@
 //  - Routine actions run directly. Sensitive, risky or personal ones the agent does run through Droid, behind its gate.
 //  - Every action is a fixed command our code builds from checked numbers or an allowlist. The AI never writes a command.
 //  - The screen's text is data, not orders.
+import { appendFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { getClient, MODEL } from "../ai/client.js";
 import type { ToolContext } from "./tools.js";
 
@@ -41,6 +44,16 @@ export type ScreenKind = "normal" | "sign_in" | "payment" | "permission_prompt" 
 
 const SCREEN_KINDS: readonly ScreenKind[] = ["normal", "sign_in", "payment", "permission_prompt", "personal_details"];
 
+/**
+ * What the click or typing does, judged by the AI from the screen.
+ * navigates = only moves around (a sidebar item, a tab, scrolling, opening a menu or list); nothing is set.
+ * selects_option = picks one of several alternatives as the value (a picture in a gallery, a colour, a theme, a radio button).
+ * changes_setting = flips, applies, adds, removes or confirms something.
+ */
+export type Effect = "navigates" | "selects_option" | "changes_setting" | "other";
+
+const EFFECTS: readonly Effect[] = ["navigates", "selects_option", "changes_setting", "other"];
+
 export interface Action {
   kind: ActionKind;
   /** Pixels in the screenshot. */
@@ -52,6 +65,12 @@ export interface Action {
   target: string;
   /** What kind of screen this is. Not "normal" means the person does everything on it. */
   screen: ScreenKind;
+  /** True when this action picks among options that are the person's to choose (taste, identity, preference). Then the person does it. */
+  personalChoice: boolean;
+  /** What this action does. Picking among alternatives is the person's unless the step names the option. */
+  effect: Effect;
+  /** True only if the step's own wording names the exact option for a selects_option action. */
+  stepNamesOption: boolean;
   handling: Handling;
   sensitivity: Sensitivity;
   /** The AI's reasoning for the choices above, in plain words. */
@@ -113,6 +132,9 @@ First, say what kind of screen this is ("screen"). A screen that asks the person
 
 Then, for the action, decide two things by understanding what is on the screen and what this click or typing would really do:
 - handling: "agent" if you can just do it for them. "person" if it must be their own hands: entering a password, code or other secret; granting a privacy or security permission; signing in; a payment or purchase; agreeing to terms; or a choice only they can make. Moving around Settings, opening a page, picking a category, scrolling, or choosing a neutral option the step calls for is "agent". Do not hand over just because a word on screen sounds serious: judge what the action does.
+- personal_choice: true when this action would pick among options that are the person's own to choose (which picture, colour, theme, sound, language, layout, name, or which of their own things to keep or remove) and the step does not name that exact option. Choosing the first, the default, "any" or a random one is still choosing for them. Opening the page or list where the choice is made is NOT a personal choice; picking from it is. When personal_choice is true, handling must be "person". 
+- effect: what the action does. "navigates" = only moves around (a sidebar item, a tab, scrolling, opening a menu or list) and sets nothing. "selects_option" = picks one of several alternatives as the value (a picture in a gallery, a colour, a theme, a radio button, one item of a list of choices). "changes_setting" = flips a switch, applies, adds, removes or confirms something. "other" otherwise. Be strict: clicking a thumbnail or swatch that would apply it is "selects_option", not "navigates".
+- step_names_option: true only if the step's own wording names the exact option for a selects_option action (e.g. "the blue picture"). Words like "pick", "choose", "a new", "different" or "something" do not name an option.
 - Personal choices belong to the person. You do the mechanics (get to the right page, open the right list); they decide. If finishing the step means picking something that is a matter of taste, identity or personal preference (which picture, colour, theme, sound, language, layout, name, which of their own things to keep or remove) and the step does not name that exact choice, make it handling "person" and say plainly what they get to choose, e.g. "Pick the wallpaper you like". Never choose on their behalf, even when any option would technically finish the step. If the step does name the choice ("set the wallpaper to the blue one"), doing it is fine.
 - sensitivity: "routine" for harmless, easily undone actions (navigating, selecting, scrolling, opening). "sensitive" for anything risky, personal, private, security-related, system-changing or hard to undo (installing, confirming a change, turning a feature on or off, restarting, deleting, typing personal details, pressing Return on a confirmation). When unsure, say "sensitive".
 
@@ -138,11 +160,14 @@ const TOOL = {
       key: { type: ["string", "null"], description: "For key: one of return, tab, escape, space, down, up, left, right" },
       target: { type: "string", description: "What this acts on, in plain words, e.g. 'the Add Printer button'" },
       screen: { type: "string", enum: SCREEN_KINDS, description: "What kind of screen this is" },
+      personal_choice: { type: "boolean", description: "True if this action picks among options that are the person's to choose and the step doesn't name that option" },
+      effect: { type: "string", enum: EFFECTS, description: "What this action does" },
+      step_names_option: { type: "boolean", description: "True only if the step's wording names the exact option being selected" },
       handling: { type: "string", enum: ["agent", "person"], description: "Who should do this action" },
       sensitivity: { type: "string", enum: ["routine", "sensitive"], description: "How sensitive this action is" },
       reason: { type: "string", description: "One short plain sentence explaining your choices" },
     },
-    required: ["kind", "x", "y", "text", "key", "target", "screen", "handling", "sensitivity", "reason"],
+    required: ["kind", "x", "y", "text", "key", "target", "screen", "personal_choice", "effect", "step_names_option", "handling", "sensitivity", "reason"],
     additionalProperties: false,
   },
 } as const;
@@ -173,6 +198,10 @@ export async function decideNext(instruction: string, shot: Shot, history: strin
   if (!kinds.includes(i.kind as ActionKind)) throw new Error("The model gave no usable action.");
   // Fail closed: an unclear screen is treated as a sensitive one.
   const screen = SCREEN_KINDS.find((k) => k === i.screen) ?? "personal_details";
+  // Two independent judgments must agree before the agent may pick something for the person: it is not a personal choice,
+  // and it is not a selection among alternatives (unless the step names the exact option). Anything unclear fails closed.
+  const effect = EFFECTS.find((k) => k === i.effect) ?? "selects_option";
+  const personalChoice = i.personal_choice !== false || (effect === "selects_option" && i.step_names_option !== true);
   return {
     kind: i.kind as ActionKind,
     x: num(i.x),
@@ -182,10 +211,25 @@ export async function decideNext(instruction: string, shot: Shot, history: strin
     target: typeof i.target === "string" ? i.target : "",
     screen,
     // The screen decides first: on a sign-in, payment, permission or personal-details screen it is always the person.
-    handling: i.handling === "agent" && screen === "normal" ? "agent" : "person",
+    // Fail closed: a missing personal_choice counts as true.
+    personalChoice,
+    effect,
+    stepNamesOption: i.step_names_option === true,
+    handling: i.handling === "agent" && screen === "normal" && !personalChoice ? "agent" : "person",
     sensitivity: i.sensitivity === "routine" ? "routine" : "sensitive",
     reason: typeof i.reason === "string" ? i.reason : "",
   };
+}
+
+/** Appends one line per decision to ~/.cache/calhack/autopilot.log (text only, no screenshots). */
+export function fileLog(line: string): void {
+  try {
+    const dir = join(homedir(), ".cache", "calhack");
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, "autopilot.log"), `${new Date().toISOString()} ${line.replace(/\s+/g, " ").slice(0, 600)}\n`);
+  } catch {
+    // Logging must never get in the way.
+  }
 }
 
 /** What macOS says when the app running CalHack hasn't been given the Accessibility permission that clicking needs. */
@@ -198,6 +242,10 @@ export interface AutopilotOptions {
   clickTarget?: string;
   maxActions?: number;
   intervalMs?: number;
+  /** Where each decision is written down, so "why did it do that?" can be answered afterwards. */
+  log?: (line: string) => void;
+  /** True once the person pressed Stop or Cancel. Checked before every look and every action. */
+  stopped?: () => boolean;
   decide?: typeof decideNext;
   wait?: (ms: number) => Promise<void>;
 }
@@ -226,7 +274,13 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
   let unchanged = 0;
   let last = "";
 
+  const stopNow = (): AutopilotResult => {
+    trail.push("Stopped");
+    return { outcome: "skipped", trail };
+  };
+
   for (let round = 0; round < max * 2 && acted < max; round++) {
+    if (o.stopped?.()) return stopNow();
     const shot = await screen.capture();
     if (!shot) {
       trail.push("I couldn't see the screen");
@@ -248,8 +302,11 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       trail.push("I couldn't work out the screen");
       return { outcome: "gave_up", trail };
     }
+    // The model call takes a few seconds; if Stop was pressed meanwhile, do nothing more.
+    if (o.stopped?.()) return stopNow();
     if (a.kind === "done") {
-      const ref = addProof(ctx, "after", `screen check: ${o.instruction}`, 0, a.reason || "the screen shows it's done");
+      // An observation, recorded as a plain "run" line: it is not a pass/fail check, so it never blocks a step's real checks.
+      const ref = addProof(ctx, "run", `screen look: ${o.instruction}`, 0, a.reason || "the screen shows it's done");
       trail.push(`The screen shows it's done [${ref}]`);
       return { outcome: "done", trail };
     }
@@ -259,13 +316,17 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       continue;
     }
 
+    const decision = `${a.kind} “${a.target}”: screen=${a.screen}, effect=${a.effect}, personal_choice=${a.personalChoice}, handling=${a.handling}, sensitivity=${a.sensitivity}. ${a.reason}`;
+    ctx.ui.detail(`Decision: ${decision}`, true);
+    o.log?.(`${o.instruction} -> ${decision}`);
     // The AI judged the screen and the action. A sign-in, payment, permission or personal-details screen is always the person's.
     // Anything unclear was already turned into "person" when its answer was read.
-    if (a.handling === "person" || a.screen !== "normal") {
+    if (a.handling === "person" || a.personalChoice || a.screen !== "normal") {
       const what = a.screen === "sign_in" ? "Please sign in" : a.screen === "payment" ? "Please take care of the payment" : a.screen === "permission_prompt" ? "Please decide on this permission" : a.screen === "personal_details" ? "Please fill in your details" : "";
       const instruction = [what, [a.reason || o.instruction, a.target ? `(${a.target})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(": ");
       ctx.ui.say("This part is yours to do.");
       const g = await ctx.ui.guide({ instruction, clickTarget: o.clickTarget });
+      if (o.stopped?.()) return stopNow();
       trail.push(`You did this part: ${a.target || a.reason}`);
       if (g === "skip") return { outcome: "skipped", trail };
       acted++;
@@ -280,6 +341,7 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
     }
     const label = `${a.kind === "type" ? "Typing in" : a.kind === "key" ? "Pressing a key for" : "Clicking"} ${a.target}`.trim();
     ctx.ui.status(`${label}…`);
+    if (o.stopped?.()) return stopNow();
     // Sensitive, risky or personal actions go through Droid behind its gate; routine ones run directly.
     const viaDroid = a.sensitivity === "sensitive";
     const r: { code: number; output: string; log?: string[] } = viaDroid ? await ctx.mac.execute(command) : await ctx.mac.run(command);

@@ -78,7 +78,7 @@ export interface AgentOptions {
 
 export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opts: AgentOptions = {}): Promise<AgentResult> {
   const started = Date.now();
-  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [] };
+  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], stopped: opts.stopped };
   const toolCalls: AgentResult["toolCalls"] = [];
   const byName = new Map(TOOLS.map((t) => [t.name, t]));
   const tools: Anthropic.Beta.BetaToolUnion[] = TOOLS.map(toApiTool);

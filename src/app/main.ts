@@ -29,7 +29,7 @@ import type { Evidence, GoalVerification, InstructionSource, PlannedStep, Step, 
 import { reviewRun } from "../ai/review.js";
 import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
-import { autopilot } from "../agent/autopilot.js";
+import { autopilot, fileLog } from "../agent/autopilot.js";
 import { offlineGuide } from "../agent/offline.js";
 import { TOOLS as AGENT_TOOLS, type AgentUI } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
@@ -868,7 +868,8 @@ function runHooks(j: Job): RunHooks {
       const ui = {
         status: (line: string) => showWorking(j, planned, line),
         say: (text: string) => say(text, "queue"),
-        detail: () => {},
+        // Shown under "See steps → Details", so it's clear why CalHack did or didn't do each thing.
+        detail: (text: string, mono?: boolean) => void j.extraDetail.push({ text, mono }),
         // A private moment in the middle: the person does just that part, then it carries on.
         guide: (g: { instruction: string }) =>
           new Promise<"done" | "skip">((resolve0) => {
@@ -882,7 +883,7 @@ function runHooks(j: Job): RunHooks {
             say(g.instruction, "now");
           }),
       } as unknown as AgentUI;
-      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [] }, { instruction, clickTarget: s.clickTarget });
+      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [] }, { instruction, clickTarget: s.clickTarget, stopped: () => stopRequested || !live(), log: fileLog });
       if (r.outcome === "done") return { handled: "done", evidence };
       if (r.outcome === "skipped") return { handled: "skip", evidence };
       return { handled: false, evidence, note: r.needsAccessibility ? `${r.trail.at(-1)}.` : r.trail.length ? `I tried and couldn't finish: ${r.trail.at(-1)}.` : undefined };

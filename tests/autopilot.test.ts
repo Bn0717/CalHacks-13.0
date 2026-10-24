@@ -3,7 +3,7 @@ import { actionCommand, autopilot, type Action, type Shot } from "../src/agent/a
 import type { AgentUI, MacDeps, ToolContext } from "../src/agent/tools.js";
 
 const shot = (n = 0): Shot => ({ data: "img" + n, mediaType: "image/jpeg", width: 1000, height: 600, toScreen: 2 });
-const act = (a: Partial<Action>): Action => ({ kind: "click", target: "the Add button", screen: "normal", handling: "agent", sensitivity: "routine", reason: "", x: 100, y: 50, ...a });
+const act = (a: Partial<Action>): Action => ({ kind: "click", target: "the Add button", screen: "normal", personalChoice: false, effect: "navigates", stepNamesOption: false, handling: "agent", sensitivity: "routine", reason: "", x: 100, y: 50, ...a });
 
 function setup(actions: Action[], guideAnswers: ("done" | "skip")[] = []) {
   const ran: string[] = [];
@@ -50,7 +50,7 @@ describe("autopilot loop: the AI's judgment decides the route", () => {
     expect(t.direct).toHaveLength(1);
     expect(t.ran).toEqual([]);
     expect(t.guided).toEqual([]);
-    expect(t.ctx.evidence.at(-1)).toMatchObject({ kind: "after", code: 0 });
+    expect(t.ctx.evidence.at(-1)).toMatchObject({ kind: "run", code: 0 });
   });
 
   it("sensitive actions the agent handles go through Droid", async () => {
@@ -85,6 +85,31 @@ describe("autopilot loop: the AI's judgment decides the route", () => {
     expect(t.direct).toEqual([]);
     expect(t.ran).toEqual([]);
     expect(t.guided).toHaveLength(3);
+  });
+
+  it("leaves a personal choice (like which wallpaper) to the person even if the AI said the agent could", async () => {
+    const t = setup([act({ target: "the pink wallpaper", personalChoice: true, handling: "agent" }), act({ kind: "done" })]);
+    await t.run();
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+    expect(t.guided).toHaveLength(1);
+  });
+
+  it("stops at once when Stop is pressed: no more clicks, and the person isn't asked again", async () => {
+    let stop = false;
+    const t = setup([act({ target: "one" }), act({ target: "two" }), act({ target: "three" })]);
+    const r = await autopilot(t.ctx, { instruction: "x", intervalMs: 0, wait: async () => {}, stopped: () => stop, decide: async () => { const a = act({ target: "next" }); stop = t.direct.length >= 1; return a; } });
+    expect(r.outcome).toBe("skipped");
+    expect(t.direct).toHaveLength(1);
+    expect(t.guided).toEqual([]);
+  });
+
+  it("does not click when Stop was pressed while the model was thinking", async () => {
+    let stop = false;
+    const t = setup([]);
+    const r = await autopilot(t.ctx, { instruction: "x", intervalMs: 0, wait: async () => {}, stopped: () => stop, decide: async () => { stop = true; return act({}); } });
+    expect(r.outcome).toBe("skipped");
+    expect(t.direct).toEqual([]);
   });
 
   it("stops if the person skips", async () => {

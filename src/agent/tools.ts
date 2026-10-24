@@ -13,7 +13,7 @@ import { OFFICIAL_PUBLISHERS } from "../core/official.js";
 import { NEVER_OPEN, realRecipeDeps, recipeNormal, runRecipe } from "../core/recipes.js";
 import { uninstallApp } from "../core/uninstall.js";
 import { matchOutput, type SoundOutput } from "../mac/audio.js";
-import { autopilot, type ScreenDeps } from "./autopilot.js";
+import { autopilot, fileLog, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 
 export interface AppInfo {
@@ -95,6 +95,8 @@ export interface ToolContext {
   diagnoses: Map<string, Diagnosis>;
   /** Before → after rows for the receipt. */
   beforeAfter: { label: string; before: string; after: string }[];
+  /** True once the person pressed Stop or Cancel. Long loops check it before every action. */
+  stopped?: () => boolean;
 }
 
 export interface AgentTool {
@@ -187,7 +189,7 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, stopped: ctx.stopped, log: fileLog });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
@@ -457,9 +459,7 @@ const openApp: AgentTool = {
     if ("problem" in app) return app.problem;
     const name = appLabel(app.path);
     if (NEVER_OPEN.has(name.toLowerCase())) {
-      return name.toLowerCase() === "system settings"
-        ? "Use open_settings to open System Settings (it opens the right page)."
-        : `Not opened: ${name} can run anything on the Mac, so CalHack never opens it for someone. Tell the person why.`;
+      return `Not opened: ${name} can run anything on the Mac, so CalHack never opens it for someone. Tell the person why.`;
     }
     // Opening an app is routine, so it runs directly; "is it running?" is checked in the read-only box.
     const r = await runRecipe({ id: "open-app", label: "Open", app: name }, recipeDeps(ctx));
@@ -488,7 +488,7 @@ const openSettings: AgentTool = {
       if (i) await new Promise((x) => setTimeout(x, 600));
       up = (await ctx.mac.sandboxed("pgrep -x 'System Settings'")).code === 0;
     }
-    const ref = addEvidence(ctx, { kind: "after", command: "pgrep -x 'System Settings'", code: up ? 0 : 1, output: up ? "System Settings is open" : "System Settings did not start" });
+    const ref = addEvidence(ctx, { kind: "after", outcome: up ? "passed" : "failed", command: "pgrep -x 'System Settings'", code: up ? 0 : 1, output: up ? "System Settings is open" : "System Settings did not start" });
     return `[${ref}] ${up ? "System Settings is open at that page." : "I ran the command but System Settings didn't appear."}`;
   },
 };

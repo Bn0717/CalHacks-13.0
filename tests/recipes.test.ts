@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addPrinterCommand, parsePrinterList, printerDisplayName, printerQueueName, realRecipeDeps, recipeFor, runRecipe, type RecipeDeps } from "../src/core/recipes.js";
+import { verifiedStep } from "../src/core/verification.js";
 import { planSteps } from "../src/core/plan.js";
 import { runPlannedStep, type RunHooks } from "../src/core/runner.js";
 import type { Step } from "../src/core/types.js";
@@ -30,10 +31,10 @@ describe("which click steps we can do ourselves", () => {
     expect(recipeFor(manual("Open Printers & Scanners"))?.id).toBe("add-printer");
     expect(recipeFor(manual("Remove the old printer"))).toBeUndefined();
   });
-  it("opens normal apps, but not Terminal or Settings", () => {
+  it("opens normal apps and System Settings, but not Terminal", () => {
     expect(recipeFor(manual("Open Zoom"))).toMatchObject({ id: "open-app", app: "Zoom" });
     expect(recipeFor(manual("Open Terminal"))).toBeUndefined();
-    expect(recipeFor(manual("Open System Settings"))).toBeUndefined();
+    expect(recipeFor(manual("Open System Settings"))).toMatchObject({ id: "open-app", app: "System Settings" });
     expect(recipeFor(manual("Open Zoom; rm -rf ~"))).toBeUndefined();
   });
   it("does nothing on a scam page", () => {
@@ -148,5 +149,24 @@ describe("sound-output recipe", () => {
   it("is chosen for the 'pick where sound plays' step", () => {
     const step = { id: "1", title: "Pick where sound plays", kind: "manual" as const, explanation: "Pick your Mac's speakers" };
     expect(recipeFor(step)?.id).toBe("sound-output");
+  });
+});
+
+describe("checks stay verifiable", () => {
+  it("the sound recipe leaves a passed check, so the step counts as verified", async () => {
+    let current = 1;
+    const outs = () => [
+      { id: 1, name: "AirPods", transport: "bluetooth", default: current === 1 },
+      { id: 2, name: "MacBook Air Speakers", transport: "built-in", default: current === 2 },
+    ];
+    const deps = { ...realRecipeDeps, wait: async () => {}, outputs: { list: async () => outs(), set: async (id: number) => void (current = id) } };
+    const r = await runRecipe({ id: "sound-output", label: "x" }, deps);
+    expect(verifiedStep({ id: "1", status: "done", message: "", evidence: r.evidence })).toBe(true);
+  });
+
+  it("a screen look from autopilot does not stop a real passing check from verifying the step", () => {
+    const look = { kind: "run" as const, command: "screen look: Add the printer", code: 0, output: "printer shown" };
+    const check = { kind: "after" as const, outcome: "passed" as const, command: "lpstat -p X", code: 0, output: "idle" };
+    expect(verifiedStep({ id: "1", status: "done", message: "", evidence: [look, check] })).toBe(true);
   });
 });
