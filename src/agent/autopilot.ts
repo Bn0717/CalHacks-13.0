@@ -64,6 +64,24 @@ function shq(text: string): string {
   return "'" + text.replace(/'/g, "'\\''") + "'";
 }
 
+/**
+ * A real mouse click at a screen point, like a person's: move there, pause, press, release (twice for a double-click).
+ * It does not use System Events' "click at", which presses whatever accessibility element is under the point and fails on
+ * list rows (like Settings' sidebar) that have no press action. Fails with the usual Accessibility message when not allowed.
+ */
+export function mouseClickCommand(x: number, y: number, times: 1 | 2 = 1): string {
+  const js = [
+    'ObjC.import("ApplicationServices");',
+    `const X = ${x}, Y = ${y}, N = ${times};`,
+    'if (!$.AXIsProcessTrusted()) throw new Error("not allowed assistive access (-25211)");',
+    "const post = (type, n) => { const e = $.CGEventCreateMouseEvent($(), type, $.CGPointMake(X, Y), $.kCGMouseButtonLeft); if (n) $.CGEventSetIntegerValueField(e, $.kCGMouseEventClickState, n); $.CGEventPost($.kCGHIDEventTap, e); };",
+    "const nap = (s) => $.NSThread.sleepForTimeInterval(s);",
+    "post($.kCGEventMouseMoved); nap(0.2);",
+    "for (let i = 1; i <= N; i++) { post($.kCGEventLeftMouseDown, i); nap(0.05); post($.kCGEventLeftMouseUp, i); nap(0.1); }",
+  ].join(" ");
+  return `osascript -l JavaScript -e ${shq(js)}`;
+}
+
 function script(...lines: string[]): string {
   return `osascript -e ${shq(`tell application "System Events"\n${lines.join("\n")}\nend tell`)}`;
 }
@@ -75,8 +93,7 @@ export function actionCommand(a: Action, shot: Pick<Shot, "width" | "height" | "
     if (a.x! < 0 || a.y! < 0 || a.x! > shot.width || a.y! > shot.height) return null;
     const x = Math.round(a.x! * shot.toScreen);
     const y = Math.round(a.y! * shot.toScreen);
-    const click = `click at {${x}, ${y}}`;
-    return a.kind === "double_click" ? script(click, "delay 0.1", click) : script(click);
+    return mouseClickCommand(x, y, a.kind === "double_click" ? 2 : 1);
   }
   if (a.kind === "type") {
     const text = a.text ?? "";
@@ -100,7 +117,7 @@ Then, for the action, decide two things by understanding what is on the screen a
 - sensitivity: "routine" for harmless, easily undone actions (navigating, selecting, scrolling, opening). "sensitive" for anything risky, personal, private, security-related, system-changing or hard to undo (installing, confirming a change, turning a feature on or off, restarting, deleting, typing personal details, pressing Return on a confirmation). When unsure, say "sensitive".
 
 Rules:
-- Coordinates are pixels in the screenshot you are given (x right, y down), aimed at the middle of the thing to click.
+- Coordinates are pixels in the screenshot you are given (x right, y down), aimed at the middle of the thing to click (for a list row, the middle of its label text). Pick the row whose label matches the step exactly, not a neighbouring one.
 - Use kind "done" only when the screen clearly shows the step is complete. Use "wait" when something is loading.
 - Never type a password, code or secret yourself: make that action handling "person".
 - Click only what the step needs. If you are unsure which control is right, make it handling "person" and say what to click in "reason".
@@ -218,7 +235,7 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
     unchanged = shot.data === last ? unchanged + 1 : 0;
     last = shot.data;
     if (unchanged >= 3) {
-      trail.push("The screen stopped changing");
+      trail.push("The screen stopped changing after my clicks (macOS may be blocking them, so check Accessibility is on for the app running CalHack)");
       return { outcome: "gave_up", trail };
     }
 

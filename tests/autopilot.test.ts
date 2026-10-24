@@ -23,7 +23,12 @@ function setup(actions: Action[], guideAnswers: ("done" | "skip")[] = []) {
 }
 
 describe("autopilot commands", () => {
-  it("scales screenshot pixels to screen points", () => expect(actionCommand(act({ x: 100, y: 50 }), shot())).toContain("click at {200, 100}"));
+  it("scales screenshot pixels to screen points", () => {
+    const c = actionCommand(act({ x: 100, y: 50 }), shot())!;
+    expect(c).toContain("const X = 200, Y = 100, N = 1;");
+    expect(c).toContain("AXIsProcessTrusted");
+    expect(actionCommand(act({ kind: "double_click", x: 100, y: 50 }), shot())).toContain("N = 2;");
+  });
   it("refuses clicks outside the screenshot, odd keys and long or control-character text", () => {
     expect(actionCommand(act({ x: 5000 }), shot())).toBeNull();
     expect(actionCommand(act({ kind: "key", key: "cmd+q" }), shot())).toBeNull();
