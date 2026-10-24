@@ -2,13 +2,17 @@
 import { assessCommand } from "./risk.js";
 import { runAsAdmin, runNormally, runSandboxed, type ExecResult } from "./exec.js";
 import { downloadAndVerify } from "./download.js";
+import { recipeKey, runRecipe, type RecipeDeps } from "./recipes.js";
 import type { PlannedStep, StepResult } from "./types.js";
 
 export interface RunHooks {
   /** Ask the user to approve a step. Resolves true for yes. */
   approve(planned: PlannedStep, detail: string): Promise<boolean>;
-  /** For "you click this" steps: point the way, then resolve when the user says they're done. */
-  waitForUser(planned: PlannedStep): Promise<"done" | "skip">;
+  /**
+   * For "you click this" steps: point the way, then resolve when the user says they're done.
+   * `note` says why we couldn't do it for them, when we tried.
+   */
+  waitForUser(planned: PlannedStep, note?: string): Promise<"done" | "skip">;
   /** A short progress line, e.g. "Checking if it's already done…". */
   progress?(planned: PlannedStep, message: string): void;
 }
@@ -16,13 +20,18 @@ export interface RunHooks {
 export interface RunOptions {
   /** Use the newer form of an outdated command (built by our rules, not the AI). */
   useUpdatedCommand?: boolean;
+  /** Fixed actions already tried in this run, so steps that share one only try it once. */
+  recipesTried?: Map<string, { stepId: string; ok: boolean }>;
+  /** For tests. */
+  recipeDeps?: RecipeDeps;
 }
 
 function tail(output: string, lines = 12): string {
   return output.trim().split("\n").slice(-lines).join("\n");
 }
 
-async function check(planned: PlannedStep): Promise<boolean | null> {
+/** Runs the step's read-only check in the locked box. True = already done, null = no check. */
+export async function check(planned: PlannedStep): Promise<boolean | null> {
   if (!planned.checkUsable || !planned.step.checkCommand) return null;
   const r = await runSandboxed(planned.step.checkCommand);
   return r.code === 0;
@@ -54,9 +63,23 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
   }
 
   // 2. Do the step.
+  let note: string | undefined;
+  if (step.kind === "manual" && planned.recipe) {
+    // A fixed action from our own code can do this step, so the person doesn't have to click.
+    const key = recipeKey(planned.recipe);
+    const earlier = options.recipesTried?.get(key);
+    if (earlier?.ok) return { id, status: "done", message: `Done together with step ${earlier.stepId}.` };
+    if (!earlier) {
+      say(planned.recipe.label + "…");
+      const outcome = await runRecipe(planned.recipe, options.recipeDeps);
+      options.recipesTried?.set(key, { stepId: id, ok: outcome.ok });
+      if (outcome.ok) return { id, status: "done", message: outcome.message, output: outcome.output };
+      note = outcome.message;
+    }
+  }
   if (step.kind === "manual") {
     say("Waiting for you…");
-    const answer = await hooks.waitForUser(planned);
+    const answer = await hooks.waitForUser(planned, note);
     if (answer === "skip") return { id, status: "skipped", message: "You skipped this step." };
   } else if (step.kind === "download" && step.url) {
     if (!(await hooks.approve(planned, `Download ${step.url}`))) {

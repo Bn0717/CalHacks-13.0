@@ -1,0 +1,55 @@
+{
+  "goal": "Snap windows to the side on Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Add the Homebrew Cask tap",
+      "explanation": "This adds a software source to Homebrew. The page says you only need to do it once, and it may no longer be needed on newer Homebrew.",
+      "kind": "command",
+      "command": "brew tap caskroom/cask",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "concerns": []
+    },
+    {
+      "title": "Install Rectangle",
+      "explanation": "This downloads and installs the free Rectangle app, which lets you snap windows to the sides of the screen.",
+      "kind": "command",
+      "command": "brew cask install rectangle",
+      "url": null,
+      "check_command": "test -d /Applications/Rectangle.app",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "concerns": []
+    },
+    {
+      "title": "Allow Rectangle in Accessibility settings",
+      "explanation": "Open Rectangle from your Applications folder. Then allow it under Accessibility in System Settings, so it can move windows. The page uses older menu names.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Accessibility",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      "risk_opinion": "ask",
+      "concerns": []
+    },
+    {
+      "title": "Snap a window to the left half",
+      "explanation": "Press Control, Option and Left Arrow together to snap the active window to the left half of the screen.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "goal": "Install Steam on this Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Click the Install Steam button on the page",
+      "explanation": "This page is mostly an advert for Steam. It has no step-by-step install instructions. The Install Steam button should take you to the download.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": "test -d /Applications/Steam.app",
+      "click_target": "Install Steam",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    }
+  ]
+}

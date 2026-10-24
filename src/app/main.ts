@@ -1,16 +1,20 @@
-// CalHack desktop app: press ⌃⌥D on any how-to, see a checked plan, and run it step by step.
+// CalHack desktop app: press the shortcut (⌃⌥D by default) on any how-to, tap "Do it", and it does the steps,
+// only stopping for steps the safety rules flag. At the end it shows proof that it worked.
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, systemPreferences, Tray } from "electron";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeEnvironment, probeEnvironment, type Environment } from "../core/probe.js";
 import { planSteps, type Plan } from "../core/plan.js";
-import { runPlannedStep } from "../core/runner.js";
+import { check, runPlannedStep } from "../core/runner.js";
+import { runSandboxed } from "../core/exec.js";
 import { assessCommand } from "../core/risk.js";
 import type { InstructionSource, PlannedStep, StepResult, StepStatus } from "../core/types.js";
 import { stricter } from "../core/types.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
-import { locateOnScreen } from "../ai/locate.js";
+import { locateOnScreen, type ScreenLocation } from "../ai/locate.js";
 import { frontAppName } from "../mac/front.js";
 import { describeSource, gatherInstructions } from "./gather.js";
 
@@ -19,7 +23,11 @@ const ROOT = join(here, "..", "..");
 process.env.CALHACK_ROOT ??= ROOT;
 loadEnv(ROOT);
 
-const HOTKEY = "Control+Alt+D";
+// The shortcut can be changed with CALHACK_HOTKEY in .env (Electron format, e.g. "Control+Alt+Command+D").
+const HOTKEY = process.env.CALHACK_HOTKEY?.trim() || "Control+Alt+D";
+const KEY_SYMBOLS: Record<string, string> = { control: "⌃", ctrl: "⌃", alt: "⌥", option: "⌥", shift: "⇧", command: "⌘", cmd: "⌘", commandorcontrol: "⌘", cmdorctrl: "⌘" };
+/** "Control+Alt+D" → "⌃⌥D" */
+const KEY_LABEL = HOTKEY.split("+").map((k) => KEY_SYMBOLS[k.toLowerCase()] ?? k.toUpperCase()).join("");
 const UI = (name: string) => join(here, "ui", name);
 const PRELOAD = join(here, "preload.cjs");
 const OWN_APP_NAMES = new Set(["Electron", "CalHack"]);
@@ -35,6 +43,12 @@ interface Session {
   plan: Plan;
   useUpdated: Set<string>;
   results: Map<string, StepResult>;
+  /** Fixed actions tried in the current run (see core/recipes.ts). */
+  recipesTried: Map<string, { stepId: string; ok: boolean }>;
+  /** Why we couldn't do a click step for them, by step id. */
+  notes: Map<string, string>;
+  /** Shown when a run ends: proof that it worked, or why it didn't. */
+  proof: { ok: boolean; lines: string[] } | null;
 }
 let session: Session | null = null;
 let busy = false;
@@ -95,6 +109,7 @@ function showPanel(): void {
 
 function send(channel: string, data: unknown): void {
   const p = ensurePanel();
+  if (channel === "state") data = { ...(data as object), hotkey: KEY_LABEL };
   const go = () => p.webContents.send(channel, data);
   if (p.webContents.isLoading()) p.webContents.once("did-finish-load", go);
   else go();
@@ -122,7 +137,9 @@ function pointAt(x: number, y: number, label: string): void {
 }
 
 function hidePointer(): void {
-  if (overlay && !overlay.isDestroyed()) overlay.hide();
+  if (!overlay || overlay.isDestroyed()) return;
+  overlay.webContents.send("point-hide", {});
+  overlay.hide();
 }
 
 function showWarning(data: { reasons: string[]; command: string }): void {
@@ -190,6 +207,8 @@ function stepView(p: PlannedStep, s: Session) {
     url: p.step.url ?? null,
     clickTarget: p.step.clickTarget ?? null,
     hasSettingsLink: !!safeSettingsUrl(p.step.settingsUrl),
+    recipe: p.recipe?.label ?? null,
+    note: s.notes.get(p.step.id) ?? null,
     level: p.level,
     reasons: p.reasons,
     outdated: p.assessment.outdated ?? null,
@@ -197,6 +216,8 @@ function stepView(p: PlannedStep, s: Session) {
     needsReview: p.needsReview,
     checkCommand: p.checkUsable ? p.step.checkCommand : null,
     useUpdated: s.useUpdated.has(p.step.id),
+    flags: p.flags,
+    notNeeded: p.assessment.outdated?.suggestion === "",
     status: r?.status ?? null,
     message: r?.message ?? null,
     output: r?.output ?? null,
@@ -208,6 +229,7 @@ function sendPlan(): void {
   const s = session;
   send("state", {
     phase: "plan",
+    proof: s.proof,
     goal: s.parse.goal,
     sourceLabel: describeSource(s.source),
     location: s.source.location ?? null,
@@ -260,7 +282,7 @@ async function onHotkey(): Promise<void> {
       return;
     }
     if (source.kind === "screenshot" && !shot) {
-      send("state", { phase: "error", message: "Couldn't read anything. Copy the instructions (⌘C) and press ⌃⌥D again, or allow Screen Recording." });
+      send("state", { phase: "error", message: `Couldn't read anything. Copy the instructions (⌘C) and press ${KEY_LABEL} again, or allow Screen Recording.` });
       return;
     }
     const env = await getEnvironment();
@@ -271,11 +293,28 @@ async function onHotkey(): Promise<void> {
       allowCache: true,
     });
     const plan = planSteps(parse.steps, source);
-    // Page-wide worries from the AI can only make steps stricter.
-    if (parse.pageConcerns.length || !parse.appliesToThisComputer) {
-      for (const p of plan.steps) if (p.step.kind === "command" || p.step.kind === "download") p.level = stricter(p.level, "ask");
+    // Page-wide worries from the AI can only make steps stricter, and flag every step that runs something.
+    const pageFlag = parse.pageConcerns.length ? "See the warning at the top" : !parse.appliesToThisComputer ? "May not be for this Mac" : null;
+    if (pageFlag) {
+      for (const p of plan.steps) {
+        if (p.step.kind !== "command" && p.step.kind !== "download") continue;
+        p.level = stricter(p.level, "ask");
+        if (!p.flags.includes(pageFlag)) p.flags.push(pageFlag);
+      }
     }
-    session = { source, parse, plan, useUpdated: new Set(), results: new Map() };
+    // Start with "Use the updated command" on wherever our rules built a newer form.
+    // The newer command is still checked again and still asks before it runs.
+    const useUpdated = new Set(plan.steps.filter((p) => p.assessment.outdated?.suggestion).map((p) => p.step.id));
+    // Find steps that are already done, so the list only shows what's left.
+    send("state", { phase: "reading", message: "Checking your Mac…" });
+    const results = new Map<string, StepResult>();
+    await Promise.all(
+      plan.steps.map(async (p) => {
+        if (p.assessment.wrongPlatform || p.step.kind === "info") return;
+        if ((await check(p).catch(() => null)) === true) results.set(p.step.id, { id: p.step.id, status: "already-done", message: "Already done on this Mac, so we skipped it." });
+      }),
+    );
+    session = { source, parse, plan, useUpdated, results, recipesTried: new Map(), notes: new Map(), proof: null };
     sendPlan();
   } catch (error) {
     send("state", { phase: "error", message: friendlyError(error) });
@@ -291,6 +330,9 @@ async function runAll(): Promise<void> {
   const s = session;
   running = true;
   stopRequested = false;
+  s.proof = null;
+  s.recipesTried.clear();
+  s.notes.clear();
   sendPlan();
   try {
     for (const p of s.plan.steps) {
@@ -302,11 +344,14 @@ async function runAll(): Promise<void> {
         {
           approve: (planned, detail) =>
             new Promise((resolve) => {
+              // The person already OK'd the list. Only flagged steps ask again.
+              if (planned.flags.length === 0 && !planned.needsReview) return resolve(true);
               approvals.set(planned.step.id, resolve);
               send("approve-request", { id: planned.step.id, detail, needsReview: planned.needsReview });
             }),
-          waitForUser: (planned) =>
+          waitForUser: (planned, note) =>
             new Promise((resolve) => {
+              if (note) s.notes.set(planned.step.id, note);
               manualWaits.set(planned.step.id, resolve);
               send("manual-request", { id: planned.step.id });
               const link = safeSettingsUrl(planned.step.settingsUrl);
@@ -315,7 +360,7 @@ async function runAll(): Promise<void> {
             }),
           progress: (planned, message) => send("step-progress", { id: planned.step.id, message }),
         },
-        { useUpdatedCommand: s.useUpdated.has(p.step.id) },
+        { useUpdatedCommand: s.useUpdated.has(p.step.id), recipesTried: s.recipesTried },
       );
       s.results.set(p.step.id, result);
       hidePointer();
@@ -323,6 +368,7 @@ async function runAll(): Promise<void> {
       // Stop at the first problem so nothing builds on a broken step.
       if (["failed", "blocked", "declined"].includes(result.status)) break;
     }
+    if (!stopRequested) s.proof = await finalProof(s);
   } finally {
     running = false;
     approvals.clear();
@@ -332,30 +378,106 @@ async function runAll(): Promise<void> {
   }
 }
 
-async function showMe(id: string): Promise<void> {
-  if (!session) return;
-  const p = session.plan.steps.find((x) => x.step.id === id);
-  if (!p?.step.clickTarget) return;
-  hidePointer();
-  send("step-progress", { id, message: "Looking for it on your screen…" });
-  const shot = await captureScreen();
-  if (!shot) {
-    send("step-progress", { id, message: "Can't see your screen. Allow Screen Recording to get an arrow." });
-    return;
+const STOPPED: StepStatus[] = ["failed", "blocked", "declined", "waiting-for-user"];
+
+/**
+ * One or two plain lines that prove the goal is done, e.g. "✅ wget is installed and works".
+ * The final check comes from the AI, so it only runs if our rules say it's read-only, and only in the locked box.
+ */
+async function finalProof(s: Session): Promise<Session["proof"]> {
+  const steps = s.plan.steps.filter((p) => p.step.kind !== "info");
+  const bad = steps.find((p) => STOPPED.includes(s.results.get(p.step.id)?.status as StepStatus));
+  if (bad || steps.some((p) => !s.results.get(p.step.id))) return null; // The step list already says where it stopped.
+
+  // What our own fixed actions found, e.g. "Printer “HP” is added and shows as Ready."
+  const lines = steps
+    .filter((p) => p.recipe && s.results.get(p.step.id)?.status === "done")
+    .map((p) => s.results.get(p.step.id)!.message)
+    .filter((m) => !m.startsWith("Done together"));
+
+  const finish = s.parse.finish;
+  const a = finish ? assessCommand(finish.command) : null;
+  if (finish && a?.level === "safe" && a.readOnly) {
+    const r = await runSandboxed(finish.command).catch(() => null);
+    if (r?.code === 0) return { ok: true, lines: [finish.message.replace(/^./, (c) => c.toUpperCase()), ...lines] };
+    return { ok: false, lines: ["The steps ran, but my final check says it isn't done yet.", ...lines] };
+  }
+  if (lines.length) return { ok: true, lines };
+  const allChecked = steps.every((p) => ["done", "already-done", "skipped", "not-for-this-computer"].includes(s.results.get(p.step.id)!.status));
+  return { ok: true, lines: [allChecked ? "All done, and I checked each step worked." : "All done."] };
+}
+
+/**
+ * Opens what the AI says would show the target. Only safe things: installed apps,
+ * System Settings pages, and https pages from the same site as the instructions.
+ */
+async function openSafely(open: NonNullable<ScreenLocation["open_first"]>, s: Session): Promise<string | null> {
+  if (open.kind === "settings") {
+    const link = safeSettingsUrl(open.target);
+    if (!link) return null;
+    await shell.openExternal(link);
+    return "System Settings";
+  }
+  if (open.kind === "app") {
+    if (!/^[\w .&+'-]{1,60}$/.test(open.target)) return null;
+    const dirs = ["/Applications", "/System/Applications", "/System/Applications/Utilities", join(homedir(), "Applications")];
+    const path = dirs.map((d) => join(d, open.target + ".app")).find((p) => existsSync(p));
+    if (!path) return null;
+    if (await shell.openPath(path)) return null;
+    return open.target;
   }
   try {
-    const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target: p.step.clickTarget, stepTitle: p.step.title });
-    // The overlay covers the main display exactly, so screenshot pixels × toScreen = overlay position.
-    if (loc.found) pointAt(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), p.step.clickTarget);
-    send("step-progress", { id, message: loc.hint });
-  } catch (error) {
-    send("step-progress", { id, message: friendlyError(error) });
+    const url = new URL(open.target);
+    const pageHost = s.source.location ? new URL(s.source.location).hostname : null;
+    const fromPage = s.source.text.includes(open.target);
+    if (url.protocol !== "https:" || !(fromPage || (pageHost && url.hostname === pageHost))) return null;
+    await shell.openExternal(url.toString());
+    return url.hostname;
+  } catch {
+    return null;
   }
+}
+
+async function showMe(id: string): Promise<void> {
+  if (!session) return;
+  const s = session;
+  const p = s.plan.steps.find((x) => x.step.id === id);
+  if (!p?.step.clickTarget) return;
+  hidePointer();
+  // Look, and if it isn't there, open what would show it and look again (twice at most).
+  for (let attempt = 0; attempt < 3; attempt++) {
+    send("step-progress", { id, message: attempt ? "Looking again…" : "Looking at your screen…" });
+    const shot = await captureScreen();
+    if (!shot) {
+      send("step-progress", { id, message: "I can't see your screen yet.", needsScreen: true });
+      return;
+    }
+    try {
+      const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target: p.step.clickTarget, stepTitle: p.step.title });
+      if (loc.found) {
+        // The overlay covers the main display exactly, so screenshot pixels × toScreen = overlay position.
+        pointAt(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), p.step.clickTarget);
+        send("step-progress", { id, message: "👉 " + loc.hint });
+        return;
+      }
+      const opened = loc.open_first && attempt < 2 ? await openSafely(loc.open_first, s) : null;
+      if (!opened) {
+        send("step-progress", { id, message: loc.hint + " Then press Show me again." });
+        return;
+      }
+      send("step-progress", { id, message: `Opening ${opened}…` });
+      await new Promise((r) => setTimeout(r, 1800));
+    } catch (error) {
+      send("step-progress", { id, message: friendlyError(error) });
+      return;
+    }
+  }
+  send("step-progress", { id, message: "I couldn't find it. Look for “" + p.step.clickTarget + "”." });
 }
 
 // ---------- Copy guard ----------
 
-const SAFE_NOTE = "# CalHack stopped a dangerous command from being pasted. Press ⌃⌥D for details.";
+const SAFE_NOTE = `# CalHack stopped a dangerous command from being pasted. Press ${KEY_LABEL} for details.`;
 let lastClip = "";
 let lastClipAt = 0;
 let blockedClip: string | null = null;
@@ -437,7 +559,7 @@ ipcMain.on("warning-restore", () => {
 function buildTrayMenu(): void {
   tray?.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Do this for me  (⌃⌥D)`, click: () => void onHotkey() },
+      { label: `Do this for me  (${KEY_LABEL})`, click: () => void onHotkey() },
       { label: "Show panel", click: () => showPanel() },
       { type: "separator" },
       { label: "Warn me about dangerous copies", type: "checkbox", checked: guardOn, click: (item) => (guardOn = item.checked) },
@@ -455,10 +577,12 @@ if (!app.requestSingleInstanceLock()) {
     app.dock?.hide();
     tray = new Tray(nativeImage.createEmpty());
     tray.setTitle("🛡️ CalHack");
-    tray.setToolTip("CalHack: press ⌃⌥D on any how-to");
+    tray.setToolTip(`CalHack: press ${KEY_LABEL} on any how-to`);
     buildTrayMenu();
-    if (!globalShortcut.register(HOTKEY, () => void onHotkey())) {
-      console.error(`Couldn't register ${HOTKEY}. Another app may be using it.`);
+    if (globalShortcut.register(HOTKEY, () => void onHotkey())) {
+      console.log(`CalHack shortcut: ${KEY_LABEL}`);
+    } else {
+      console.error(`Couldn't register ${KEY_LABEL}. Another app is using it. Set CALHACK_HOTKEY in .env to pick another.`);
     }
     watchClipboard();
     showPanel();

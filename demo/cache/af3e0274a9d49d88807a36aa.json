@@ -1,0 +1,55 @@
+{
+  "goal": "Add a printer to your Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Open Printers & Scanners settings",
+      "explanation": "Open System Settings from the Apple menu, then click Printers & Scanners in the sidebar.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Printers & Scanners",
+      "settings_url": "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension",
+      "risk_opinion": "safe",
+      "concerns": []
+    },
+    {
+      "title": "Start adding a printer",
+      "explanation": "Click the Add Printer, Scanner or Fax button so your Mac can look for printers nearby.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Add Printer, Scanner or Fax…",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    },
+    {
+      "title": "Choose your printer and add it",
+      "explanation": "Pick your printer from the list shown, then click Add.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Add",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    },
+    {
+      "title": "Check the printer was added",
+      "explanation": "Run this read-only command in Terminal. If the printer was added, its name will appear in the output.",
+      "kind": "command",
+      "command": "lpstat -p",
+      "url": null,
+      "check_command": "lpstat -p",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    }
+  ]
+}

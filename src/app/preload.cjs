@@ -5,7 +5,7 @@ const TO_APP = new Set([
   "run-all", "stop", "approve-response", "manual-response", "show-me", "open-settings",
   "toggle-updated", "close-panel", "open-privacy", "warning-close", "warning-restore",
 ]);
-const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "point", "warning"]);
+const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "point", "point-hide", "warning"]);
 
 contextBridge.exposeInMainWorld("calhack", {
   send(channel, data) {

@@ -1,5 +1,6 @@
 // Turns steps from the AI into a checked plan. Code makes every safety decision here.
 import { assessCommand, assessDownload } from "./risk.js";
+import { recipeFor } from "./recipes.js";
 import { appearsInSource, scanForScamSigns } from "./source.js";
 import type { Assessment, Finding, InstructionSource, PlannedStep, RiskLevel, Step } from "./types.js";
 import { stricter } from "./types.js";
@@ -19,6 +20,45 @@ function hostOf(location?: string): string | undefined {
   }
 }
 
+/** Normal changes. The person's OK on the plan covers these, so they aren't flagged. */
+const ROUTINE_RULES = new Set(["installs-software", "changes-something", "vendor-download"]);
+
+/** A few words for each safety rule, for the plan list. Long reasons stay in the details. */
+const SHORT: Record<string, string> = {
+  "download-and-run": "Downloads and runs code from the internet",
+  "official-installer": "Runs an installer script from the internet",
+  "decode-and-run": "Runs hidden code",
+  "pipe-to-shell": "Runs code you can't see",
+  "run-generated-code": "Runs code you can't see",
+  eval: "Runs code you can't see",
+  "applescript-shell": "Runs hidden code",
+  applescript: "Controls other apps",
+  admin: "Needs your Mac password",
+  delete: "Deletes files",
+  wipe: "Could erase your files",
+  "erase-disk": "Could erase your disk",
+  "raw-disk-write": "Could erase your disk",
+  autostart: "Starts by itself every time",
+  "remove-quarantine": "Skips the Mac's app safety check",
+  "disable-gatekeeper": "Turns off Mac security",
+  "disable-sip": "Turns off Mac security",
+  "disable-quarantine": "Turns off Mac security",
+  "disable-defender": "Turns off antivirus",
+  "password-access": "Goes after your passwords",
+  "password-check": "Goes after your passwords",
+  "secret-files": "Goes after your passwords and keys",
+  "fake-password-box": "Fake password pop-up",
+  "suspicious-host": "Uses a shady website",
+  "unknown-host": "Uses a website we don't know",
+  "insecure-download": "Download isn't secure",
+  "long-encoded-text": "Has hidden text",
+  "hex-escapes": "Has hidden text",
+  "invisible-characters": "Has hidden characters",
+  unreadable: "We couldn't read this command",
+  "bad-url": "Bad web address",
+  "scam-page": "This page looks like a scam",
+};
+
 const NOTHING_TO_RUN: Assessment = { level: "safe", findings: [], readOnly: true };
 
 export function planSteps(steps: Step[], source: InstructionSource): Plan {
@@ -28,6 +68,7 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
 
   const planned = steps.map((step): PlannedStep => {
     const reasons: string[] = [];
+    const flags: string[] = [];
     let assessment: Assessment = NOTHING_TO_RUN;
     let inSource = true;
 
@@ -40,6 +81,7 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
     }
     let level: RiskLevel = assessment.level;
     reasons.push(...assessment.findings.map((f) => f.reason));
+    for (const f of assessment.findings) if (!ROUTINE_RULES.has(f.rule)) flags.push(SHORT[f.rule] ?? f.reason);
 
     const runsSomething = step.kind === "command" || step.kind === "download";
 
@@ -47,6 +89,7 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
     if (runsSomething && !inSource) {
       level = "blocked";
       reasons.unshift("This isn't in the instructions word for word, so we won't run it. We only run what the post actually shows.");
+      flags.unshift("Not in the instructions word for word");
     }
 
     // Text read from a picture can be misread, so a person must look at it first.
@@ -54,12 +97,14 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
     if (needsReview) {
       level = stricter(level, "ask");
       reasons.push("We read this from a screenshot, so please check it matches the instructions exactly.");
+      flags.push("Read from a picture, so check it");
     }
 
-    // A scam page taints every command on it.
+    // A scam page taints every command on it (and we won't do its click steps either, see below).
     if (runsSomething && pageWarnings.length > 0) {
       level = "blocked";
       reasons.unshift(...pageWarnings.map((w) => w.reason));
+      flags.unshift(SHORT["scam-page"]);
     }
 
     // The AI can make a step stricter, never safer.
@@ -67,15 +112,20 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
     if (step.aiConcerns?.length && runsSomething) {
       level = stricter(level, "ask");
       reasons.push(...step.aiConcerns);
+      flags.push(...step.aiConcerns);
     }
+    if (step.aiRisk === "blocked" && runsSomething) flags.push("AI thinks this is unsafe");
 
-    if (assessment.wrongPlatform) reasons.unshift(assessment.wrongPlatform.reason);
+    if (assessment.wrongPlatform) {
+      reasons.unshift(assessment.wrongPlatform.reason);
+      flags.unshift(assessment.wrongPlatform.platform === "windows" ? "This is for Windows, not Mac" : "This is for Linux, not Mac");
+    }
     if (assessment.outdated) reasons.push(assessment.outdated.reason);
 
     // A check command is only used when it is itself read-only.
     const checkUsable = !!step.checkCommand && assessCommand(step.checkCommand).level === "safe";
 
-    return { step, assessment, level, reasons: [...new Set(reasons)], inSource, checkUsable, needsReview };
+    return { step, assessment, level, reasons: [...new Set(reasons)], inSource, checkUsable, needsReview, flags: runsSomething ? [...new Set(flags)] : [], recipe: pageWarnings.length ? undefined : recipeFor(step) };
   });
 
   return { steps: planned, pageWarnings };

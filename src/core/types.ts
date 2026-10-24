@@ -30,6 +30,15 @@ export interface Assessment {
 
 export type StepKind = "command" | "download" | "manual" | "info";
 
+/** A fixed action (built by our code, see recipes.ts) that does a manual step for the person. */
+export interface Recipe {
+  id: "add-printer" | "open-app";
+  /** Short label, e.g. "Add your network printer". */
+  label: string;
+  /** For open-app: the app's name. */
+  app?: string;
+}
+
 /** One step taken from a set of instructions. */
 export interface Step {
   id: string;
@@ -85,6 +94,13 @@ export interface PlannedStep {
   checkUsable: boolean;
   /** True when the user must look over the command before it can run. */
   needsReview: boolean;
+  /**
+   * Short safety flags, e.g. "Needs your Mac password". Empty means the step is a normal
+   * change (like an install) that runs once the person OKs the plan. A flagged step asks again.
+   */
+  flags: string[];
+  /** For manual steps: a fixed action that does it for the person. Falls back to pointing if it can't. */
+  recipe?: Recipe;
 }
 
 export type StepStatus =

@@ -1,0 +1,43 @@
+{
+  "goal": "Install Steam on this Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Download the Steam installer for Mac",
+      "explanation": "Click the Install Steam button on the page to download the Steam app for Mac.",
+      "kind": "download",
+      "command": null,
+      "url": "https://store.steampowered.com/about/",
+      "check_command": "test -d /Applications/Steam.app",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    },
+    {
+      "title": "Open the downloaded file and drag Steam to Applications",
+      "explanation": "Open the downloaded file from your Downloads folder. Drag the Steam icon into the Applications folder.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": "test -d /Applications/Steam.app",
+      "click_target": "Steam",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "concerns": []
+    },
+    {
+      "title": "Open Steam and sign in",
+      "explanation": "Open Steam from your Applications folder. Sign in with your account, or create a new one.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": "test -d /Applications/Steam.app",
+      "click_target": "Sign in",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    }
+  ]
+}

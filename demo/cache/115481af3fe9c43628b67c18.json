@@ -1,0 +1,45 @@
+{
+  "goal": "Install wget",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Install Homebrew (already installed)",
+      "explanation": "Homebrew is a free helper for installing command-line tools. This Mac already has it, so you can skip this step. The command downloads and runs a script from the internet, so do not run it unless you need it.",
+      "kind": "command",
+      "command": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
+      "url": null,
+      "check_command": "command -v brew",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "blocked",
+      "concerns": [
+        "Downloads and runs a script from the internet without you checking it"
+      ]
+    },
+    {
+      "title": "Install wget",
+      "explanation": "This uses Homebrew to add the wget program to your Mac. It only adds this one tool.",
+      "kind": "command",
+      "command": "brew install wget",
+      "url": null,
+      "check_command": "command -v wget",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "concerns": []
+    },
+    {
+      "title": "Check that wget works",
+      "explanation": "This asks wget for its version number. If a number appears, the install worked.",
+      "kind": "command",
+      "command": "wget --version",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    }
+  ]
+}

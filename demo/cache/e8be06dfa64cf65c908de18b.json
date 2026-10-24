@@ -1,0 +1,19 @@
+{
+  "goal": "Verify you are human on a website",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Nothing to install or change here",
+      "explanation": "This page is only a website check asking you to confirm you are a person. It does not ask you to download anything or run any commands on your Mac. You can do the check in your browser if you want to continue.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "concerns": []
+    }
+  ]
+}

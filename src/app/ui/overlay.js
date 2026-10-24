@@ -3,9 +3,27 @@ const ring = document.getElementById("ring");
 const arrow = document.getElementById("arrow");
 const label = document.getElementById("label");
 
+const parts = [ring, arrow, label];
+
 window.calhack.on("point", ({ x, y, label: text }) => {
   const w = window.innerWidth;
   const h = window.innerHeight;
+
+  // Start everything near the panel (top right), then glide to the target so the eye can follow.
+  const shown = ring.style.display === "block";
+  if (!shown) {
+    for (const p of parts) p.style.transition = "none";
+    ring.style.left = w - 240 + "px";
+    ring.style.top = "120px";
+    arrow.style.left = w - 390 + "px";
+    arrow.style.top = "-30px";
+    label.style.left = w - 420 + "px";
+    label.style.top = "60px";
+    for (const p of parts) p.style.display = "block";
+    void ring.offsetWidth; // apply the start position before moving
+    for (const p of parts) p.style.transition = "";
+  }
+
   ring.style.left = x + "px";
   ring.style.top = y + "px";
 
@@ -24,4 +42,9 @@ window.calhack.on("point", ({ x, y, label: text }) => {
 
   ring.style.display = "block";
   arrow.style.display = "block";
+});
+
+// Hidden between steps, so the next arrow glides in again.
+window.calhack.on("point-hide", () => {
+  for (const p of parts) p.style.display = "none";
 });

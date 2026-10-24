@@ -60,3 +60,20 @@ label.switch { display: flex; gap: 6px; align-items: center; margin-top: 4px; cu
 kbd { font: 12px -apple-system; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 6px; }
 .spacer { height: 10px; }
+h1 { font-size: 20px; margin: 4px 0; }
+.line { font-size: 12.5px; margin-top: 4px; }
+.line.good, .banner.good { color: var(--safe); }
+.line.warn { color: var(--ask); }
+.line.bad { color: var(--blocked); }
+.line.neutral { color: var(--muted); }
+.banner.good { background: rgba(52,199,89,0.12); border: 1px solid rgba(52,199,89,0.4); }
+details { margin-top: 6px; font-size: 12px; color: var(--muted); }
+details summary { cursor: pointer; }
+details p, details li { color: var(--fg); }
+.sticky { position: sticky; bottom: -12px; background: var(--bg); padding: 10px 0; margin-top: 4px; }
+button.big { padding: 9px 22px; font-size: 14px; }
+.working { display: flex; gap: 12px; align-items: center; padding: 14px 4px; }
+.working .spinner { flex: none; }
+.banner.proof b { font-size: 14px; }
+.steps-fold { margin-top: 12px; }
+.steps-fold > .step:first-of-type { margin-top: 8px; }
