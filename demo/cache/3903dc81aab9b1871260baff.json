@@ -1,0 +1,49 @@
+{
+  "verdict": "not-done",
+  "headline": "Not finished. Java, Python, and internet access check out.",
+  "proofs": [
+    {
+      "claim": "Apple's command line tools are installed",
+      "evidence_refs": [
+        "E1"
+      ]
+    },
+    {
+      "claim": "Java is installed and runs",
+      "evidence_refs": [
+        "E2"
+      ]
+    },
+    {
+      "claim": "Python 3 is installed and runs",
+      "evidence_refs": [
+        "E3"
+      ]
+    },
+    {
+      "claim": "Python can reach the Berkeley course website",
+      "evidence_refs": [
+        "E4"
+      ]
+    },
+    {
+      "claim": "The SSH settings folder exists",
+      "evidence_refs": [
+        "E5"
+      ]
+    },
+    {
+      "claim": "The SSH settings file includes the CS61C entry",
+      "evidence_refs": [
+        "E6"
+      ]
+    }
+  ],
+  "problems": [
+    "The test connection to a hive machine was declined, so it was never checked.",
+    "Steps 11 through 19 were not run, including the passwordless login setup and the GitHub key steps.",
+    "The campus VPN and CS61C account were marked done, but nothing proves them.",
+    "Java 17 was not confirmed. A newer Java (version 25) is installed instead, which was not checked against the course's needs.",
+    "The final check passed, but the shortcut and login steps that depend on it were not run, so the connection is unproven."
+  ]
+}

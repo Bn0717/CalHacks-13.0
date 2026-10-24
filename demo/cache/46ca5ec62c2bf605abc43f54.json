@@ -1,0 +1,23 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm battery health. The apps opened, but no battery reading was checked.",
+  "proofs": [
+    {
+      "claim": "System Settings is open and running",
+      "evidence_refs": [
+        "E2"
+      ]
+    },
+    {
+      "claim": "System Information is open and running",
+      "evidence_refs": [
+        "E6"
+      ]
+    }
+  ],
+  "problems": [
+    "No final check confirmed the battery health goal.",
+    "Opening Battery Health details was not verified, so it's unclear whether the details screen actually appeared.",
+    "The battery condition was not read, and the cycle count was not found, so no battery health result is known."
+  ]
+}

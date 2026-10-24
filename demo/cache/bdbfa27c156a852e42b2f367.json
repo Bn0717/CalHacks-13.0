@@ -1,0 +1,10 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm the wallpaper was changed. No final check was run.",
+  "proofs": [],
+  "problems": [
+    "No final check confirmed the wallpaper changed.",
+    "Opening System Settings and the Wallpaper page were done but never checked.",
+    "Picking a new wallpaper was skipped, so the wallpaper was not changed."
+  ]
+}

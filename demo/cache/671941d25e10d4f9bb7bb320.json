@@ -1,0 +1,10 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. The Bluetooth page opened, but the switch state wasn't checked.",
+  "proofs": [],
+  "problems": [
+    "No final check confirmed Bluetooth is on or off, so the goal can't be verified.",
+    "The steps ran, but their outcomes weren't verified, so nothing proves the switch changed.",
+    "The helper said it left the switch for you to flip, so Bluetooth may not have been turned on or off at all."
+  ]
+}

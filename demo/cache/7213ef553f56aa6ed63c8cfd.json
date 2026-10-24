@@ -1,0 +1,18 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm the wallpaper was changed. System Settings opened, but no new wallpaper was picked.",
+  "proofs": [
+    {
+      "claim": "System Settings is open and running",
+      "evidence_refs": [
+        "E2"
+      ]
+    }
+  ],
+  "problems": [
+    "The final check to confirm the wallpaper changed was not supplied, so the goal can't be verified.",
+    "Opening the Wallpaper page was never checked. It only shows as finished, with no proof.",
+    "Picking a new wallpaper was skipped, so the wallpaper was not changed.",
+    "The helper's note that the Wallpaper page was already open is not proof; no check backs it up."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Battery cycle count found, but the health condition was never read.",
+  "proofs": [
+    {
+      "claim": "Battery has been charged and used 991 cycles.",
+      "evidence_refs": [
+        "E4"
+      ]
+    }
+  ],
+  "problems": [
+    "The battery condition (like Normal or Service Recommended) was never read, so overall health is not confirmed.",
+    "Opening Battery Health and System Settings could not be double-checked.",
+    "The Power section was skipped, so the battery details were not viewed there."
+  ]
+}

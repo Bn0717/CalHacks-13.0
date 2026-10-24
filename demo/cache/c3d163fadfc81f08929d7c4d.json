@@ -1,0 +1,10 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. Bluetooth looks off, but no check proved it.",
+  "proofs": [],
+  "problems": [
+    "The final check to confirm Bluetooth is off could not run, so there is no proof.",
+    "Both steps finished, but their results were not checked, so they cannot prove anything on their own.",
+    "The helper said the Bluetooth switch already shows off, but that observation was not verified."
+  ]
+}

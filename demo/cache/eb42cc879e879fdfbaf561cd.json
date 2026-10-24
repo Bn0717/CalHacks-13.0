@@ -1,0 +1,10 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. The steps ran, but no check showed the wallpaper changed.",
+  "proofs": [],
+  "problems": [
+    "No final check confirmed the wallpaper changed.",
+    "Opening Wallpaper settings ran, but its result was not checked.",
+    "Opening the Dynamic Wallpapers section ran, but no wallpaper was picked or confirmed as set."
+  ]
+}

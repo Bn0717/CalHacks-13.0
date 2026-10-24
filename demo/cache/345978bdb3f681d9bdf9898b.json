@@ -1,0 +1,78 @@
+{
+  "goal": "Check battery health",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Open System Settings",
+      "explanation": "Open the System Settings app on your Mac. It is the gear icon in the Dock.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "System Settings",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open Battery Health details",
+      "explanation": "Click Battery in the left list. Then click the small i button next to Battery Health.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Battery Health (i button)",
+      "settings_url": "x-apple.systempreferences:com.apple.preference.battery",
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Read your battery condition",
+      "explanation": "Look at Battery Condition. If it says Normal, the battery is fine. If it says Service Recommended, check the Maximum Capacity. Under 80% means it may need replacing.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open System Information",
+      "explanation": "To see the charge cycle count, hold down the Option key and click the Apple menu in the top left. Then choose System Information. Without Option, you will see About This Mac instead.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "System Information",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Find the cycle count",
+      "explanation": "Click Power under Hardware on the left. Under Health Information, look for Cycle Count. Modern MacBooks are rated for about 1000 cycles.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

@@ -1,0 +1,19 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. System Settings opened, but no check shows the wallpaper changed.",
+  "proofs": [
+    {
+      "claim": "System Settings is open",
+      "evidence_refs": [
+        "E2",
+        "E3"
+      ]
+    }
+  ],
+  "problems": [
+    "No final check confirmed the desktop wallpaper actually changed.",
+    "Clicking Wallpaper in the sidebar was not checked, so it is unproven.",
+    "Picking a new wallpaper was not checked, so it is unproven.",
+    "The helper's notes say the wallpaper changed, but no passed check backs that up."
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. The Battery page was opened, but nothing checked it.",
+  "proofs": [],
+  "problems": [
+    "No final check confirmed the battery condition was read or the goal met.",
+    "Opening Battery settings was never verified; the click ran but its result wasn't checked.",
+    "The Battery Health status was skipped, so the battery's condition was not read."
+  ]
+}

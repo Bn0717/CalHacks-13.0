@@ -1,0 +1,50 @@
+{
+  "goal": "Turn Bluetooth on or off",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Open System Settings",
+      "explanation": "Click the Apple menu in the top-left corner, then choose System Settings.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "System Settings",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open Bluetooth in the sidebar",
+      "explanation": "In System Settings, click Bluetooth in the left sidebar. You may need to scroll down to find it.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Bluetooth",
+      "settings_url": "x-apple.systempreferences:com.apple.BluetoothSettings",
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Turn Bluetooth on or off",
+      "explanation": "Click the Bluetooth switch to turn Bluetooth on or off. Turning it off may stop features like Handoff and Instant Hotspot from working.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

@@ -1,0 +1,298 @@
+{
+  "goal": "Set up CS61C lab tools on this Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [
+    {
+      "concern": "Asks you to run a script from the internet with curl and bash",
+      "steps": [
+        13
+      ]
+    },
+    {
+      "concern": "Asks you to type a password-based copy command that changes your account",
+      "steps": [
+        14
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "title": "Install Apple's command line tools",
+      "explanation": "This adds the developer tools that the lab needs. A window may pop up asking you to confirm.",
+      "kind": "command",
+      "command": "xcode-select --install",
+      "url": null,
+      "check_command": "xcode-select -p",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Check your Java version",
+      "explanation": "This shows whether Java is already installed. If nothing is installed, a pop-up may appear.",
+      "kind": "command",
+      "command": "java -version",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Install Java 17 if needed",
+      "explanation": "Only do this if the Java check did not show version 16 or higher. Get the Adoptium OpenJDK 17 .pkg installer for Apple silicon (aarch64).",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Check your Python version",
+      "explanation": "This shows which Python version is installed. Version 3.6 or higher is needed.",
+      "kind": "command",
+      "command": "python3 --version",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Check Python's security certificates",
+      "explanation": "This tests that Python can connect to secure websites. If nothing is printed, it is working.",
+      "kind": "command",
+      "command": "python3 -c 'import urllib.request; urllib.request.urlopen(\"https://inst.eecs.berkeley.edu\")'",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Fix certificates if an error shows",
+      "explanation": "If you see a certificate error, open the Python folder in Applications and run Install Certificates.command. Then open a new Terminal and run the check again.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Install the campus VPN",
+      "explanation": "The VPN lets you reach the course computers from anywhere. Follow the bSecure Remote Access VPN instructions from the course page and make sure there are no errors.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "here",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Sign up for your CS61C account",
+      "explanation": "Go to WebAccount and sign up for a CS61C instructional account. It may take a day or two before you can create it.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Sign up for a cs61c instructional account on WebAccount",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Test a connection to a hive machine",
+      "explanation": "Replace cs61c-??? with your account username. Make sure the VPN is connected. You will be asked for your password, and nothing will show as you type.",
+      "kind": "command",
+      "command": "ssh cs61c-???@hive2.cs.berkeley.edu",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Asks for your account password"
+      ]
+    },
+    {
+      "title": "Create the SSH settings folder",
+      "explanation": "This makes a folder where your SSH shortcut settings will go. It is safe to run even if the folder exists.",
+      "kind": "command",
+      "command": "mkdir -p ~/.ssh",
+      "url": null,
+      "check_command": "test -d ~/.ssh",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Add the SSH shortcut settings",
+      "explanation": "Open the file ~/.ssh/config in the vim editor. Paste the CS61C config from the course page and replace cs61c-??? with your username. Then save and quit.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Test the shortcut connection",
+      "explanation": "This connects to hive7 using the shortcut you just set up. Type exit when you are done.",
+      "kind": "command",
+      "command": "ssh hive7",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Asks for your account password"
+      ]
+    },
+    {
+      "title": "Make a passwordless login key",
+      "explanation": "This prints or creates an SSH key on your account. The course page asks you to run it straight from the internet.",
+      "kind": "command",
+      "command": "curl -sS https://raw.githubusercontent.com/61c-teach/fa26-lab-starter/main/lab00/get-ssh-key.sh | bash",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "blocked",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Downloads and runs a script from the internet without showing it first"
+      ]
+    },
+    {
+      "title": "Copy your key to your account",
+      "explanation": "This copies your key to the course computer so you can log in without a password. It asks for your password.",
+      "kind": "command",
+      "command": "ssh-copy-id hive3",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "blocked",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Asks for your password and changes your account"
+      ]
+    },
+    {
+      "title": "Test passwordless login",
+      "explanation": "You should connect to hive5 without being asked for a password. Type exit when you are done.",
+      "kind": "command",
+      "command": "ssh hive5",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Show your public key",
+      "explanation": "Open Terminal and print your public key. Replace path_to_ssh_key with the file location shown earlier and add .pub at the end.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Add your key to GitHub",
+      "explanation": "In your browser, go to GitHub Settings, then SSH and GPG Keys, and add a new key with your public key. Give it a name that helps you remember it.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "New SSH key",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Test the GitHub connection",
+      "explanation": "This checks that GitHub accepts your key. A success message shows your username.",
+      "kind": "command",
+      "command": "ssh -T git@github.com",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Finish the rest on the course computers",
+      "explanation": "The remaining Git exercises and the lab files run on the hive machines, so do them after an SSH login.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": {
+    "command": "grep -q 'CS61C hive machine config' ~/.ssh/config",
+    "message": "CS61C hive shortcut settings are in place"
+  }
+}

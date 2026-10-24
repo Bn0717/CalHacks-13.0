@@ -1,0 +1,11 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm the battery check. The Battery page may be open, but nothing proves it.",
+  "proofs": [],
+  "problems": [
+    "The click on Battery in System Settings ran, but no check confirmed the Battery page actually opened.",
+    "The screen check that would confirm the page opened could not run, because it was not allowed to be read-only.",
+    "No final check confirmed the battery condition, so the goal is not proven.",
+    "Reading the Battery Health status was skipped, so the battery condition itself was never looked at."
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm the wallpaper changed. Steps ran, but no check proved it.",
+  "proofs": [],
+  "problems": [
+    "The final check to confirm the wallpaper changed was not available, so the result can't be verified.",
+    "All three steps ran, but none of their outcomes were checked.",
+    "The screen notes say the Wallpaper page opened and a picture was clicked, but these notes are not proof that the desktop picture actually changed."
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "goal": "Check Mac laptop battery condition",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Open Battery settings",
+      "explanation": "Opens the Battery page in System Settings so you can see your battery's condition.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Battery",
+      "settings_url": "x-apple.systempreferences:com.apple.Battery-Settings.extension",
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Look at Battery Health",
+      "explanation": "Find the Battery Health line. It says Normal or Service recommended, which tells you how well the battery is working.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

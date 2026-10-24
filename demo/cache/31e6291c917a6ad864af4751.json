@@ -1,0 +1,17 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm Bluetooth was turned on or off.",
+  "proofs": [
+    {
+      "claim": "System Settings opened and is running",
+      "evidence_refs": [
+        "E2"
+      ]
+    }
+  ],
+  "problems": [
+    "No final check confirmed Bluetooth's switch position, so we can't tell if it was turned on or off.",
+    "Clicking Bluetooth in the sidebar and the Bluetooth switch were never checked; their results are unverified.",
+    "The helper's notes say the switch was already handled, but the screen shows a VS Code window with no Bluetooth control, so that claim is unsupported."
+  ]
+}

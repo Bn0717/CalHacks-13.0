@@ -1,0 +1,53 @@
+{
+  "goal": "Update Python 3",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Update the Homebrew package list",
+      "explanation": "This refreshes the list of available software so Homebrew knows the newest Python version. It does not install anything yet.",
+      "kind": "command",
+      "command": "brew update",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Upgrade Python 3 to the latest version",
+      "explanation": "This installs the newest version of Python 3 through Homebrew. Your current Python 3 is replaced with the newer one.",
+      "kind": "command",
+      "command": "brew upgrade python3",
+      "url": null,
+      "check_command": "test -z \"$(brew outdated --quiet python3)\"",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Check the new Python version",
+      "explanation": "This shows which Python 3 version is now active on your Mac. It only reads information.",
+      "kind": "command",
+      "command": "python3 --version",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": {
+    "command": "test -z \"$(brew outdated --quiet python3)\"",
+    "message": "Python 3 is up to date with Homebrew"
+  }
+}

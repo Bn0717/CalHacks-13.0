@@ -1,0 +1,143 @@
+{
+  "goal": "Set up and run CalHack",
+  "applies_to_this_computer": true,
+  "page_concerns": [
+    {
+      "concern": "Downloads and runs code from an unknown GitHub project",
+      "steps": [
+        2,
+        3
+      ]
+    },
+    {
+      "concern": "Asks for Screen Recording and Accessibility access",
+      "steps": [
+        8
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "title": "Install the Droid helper tool",
+      "explanation": "Installs Droid, the tool CalHack uses to run approved steps on your Mac.",
+      "kind": "command",
+      "command": "brew install --cask droid",
+      "url": null,
+      "check_command": "brew list --cask droid",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Adds a third-party tool that can run commands on your Mac"
+      ]
+    },
+    {
+      "title": "Install the project's packages",
+      "explanation": "Downloads the parts the app needs to run.",
+      "kind": "command",
+      "command": "npm install",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Needs Node.js and npm, which may not be on this Mac",
+        "Runs code from an unknown project with few stars"
+      ]
+    },
+    {
+      "title": "Download the Electron framework",
+      "explanation": "Downloads the app framework the first time it is needed.",
+      "kind": "command",
+      "command": "npx electron --version",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Create your settings file",
+      "explanation": "Copies the example settings file so you can add your keys.",
+      "kind": "command",
+      "command": "cp .env.example .env",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Add your API keys to the settings file",
+      "explanation": "Open the .env file and paste your Anthropic key from console.anthropic.com. Also add your Factory key.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Keep these keys private; they may cost money"
+      ]
+    },
+    {
+      "title": "Start the demo pages",
+      "explanation": "Starts sample web pages on this computer. This is optional and only for trying examples.",
+      "kind": "command",
+      "command": "npm run demo:pages",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Start CalHack",
+      "explanation": "Starts the app. Its shield icon appears in the menu bar at the top of the screen.",
+      "kind": "command",
+      "command": "npm start",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Allow the macOS permissions",
+      "explanation": "When macOS asks, click Allow so CalHack can see your screen and work with other apps.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Allow",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Gives the app access to see your screen"
+      ]
+    }
+  ],
+  "finish_check": null
+}

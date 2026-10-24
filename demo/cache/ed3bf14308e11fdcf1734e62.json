@@ -1,0 +1,9 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Couldn't confirm the wallpaper changed. No checks were run.",
+  "proofs": [],
+  "problems": [
+    "Opening System Settings, clicking Wallpaper, and picking a picture were reported as done, but none of these steps could be double-checked.",
+    "No evidence was collected, so there is no proof the desktop wallpaper actually changed."
+  ]
+}

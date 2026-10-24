@@ -1,0 +1,11 @@
+{
+  "verdict": "not-done",
+  "headline": "Not done. The Python 3 update failed and nothing was confirmed.",
+  "proofs": [],
+  "problems": [
+    "The Homebrew package list refreshed, but that was not checked, so it proves nothing on its own.",
+    "Upgrading Python 3 failed with an error saying Python 3 is not installed through Homebrew.",
+    "The final check that Python 3 is up to date could not run, so there is no proof of the goal.",
+    "The new Python version was never checked because the process stopped at the failed upgrade."
+  ]
+}

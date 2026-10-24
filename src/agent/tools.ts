@@ -12,6 +12,8 @@ import { buildFixes, diagnose, getGuide, verifyFix, type CheckRunner, type Diagn
 import { OFFICIAL_PUBLISHERS } from "../core/official.js";
 import { NEVER_OPEN, realRecipeDeps, recipeNormal, runRecipe } from "../core/recipes.js";
 import { uninstallApp } from "../core/uninstall.js";
+import { BLUETOOTH_STATE_CHECK, bluetoothSetCommand, parseBluetooth } from "../mac/bluetooth.js";
+import { parsePower, parseWifiDevice, safeDevice } from "../core/fixes/wifi.js";
 import { matchOutput, type SoundOutput } from "../mac/audio.js";
 import { autopilot, fileLog, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
@@ -96,6 +98,8 @@ export interface ToolContext {
   diagnoses: Map<string, Diagnosis>;
   /** Before → after rows for the receipt. */
   beforeAfter: { label: string; before: string; after: string }[];
+  /** A tool sets this when the run must end now without another call to Claude (e.g. Wi-Fi was just switched off). */
+  autoFinish?: { headline: string; details: string[]; proofRefs: { ref: string; shows: string }[] };
   /** True once the person pressed Stop or Cancel. Long loops check it before every action. */
   stopped?: () => boolean;
   /** Aborted the moment the person presses Stop: requests in flight are cancelled and loops end at once. */
@@ -586,6 +590,84 @@ const setSoundOutput: AgentTool = {
   },
 };
 
+const setWifi: AgentTool = {
+  name: "set_wifi",
+  kind: "act",
+  description: "Turn Wi-Fi on or off. This is an ordinary setting, so just do it when the person asks (no need to ask first), then it is checked. Turning Wi-Fi off can cut the internet, which also ends this conversation; that is handled for you.",
+  input_schema: obj({ on: { type: "boolean", description: "true = turn Wi-Fi on, false = turn it off" } }),
+  label: (i) => `Turning Wi-Fi ${i.on === false ? "off" : "on"}…`,
+  async run(input, ctx) {
+    const want = input.on !== false;
+    const ports = await ctx.mac.sandboxed("networksetup -listallhardwareports");
+    const dev = parseWifiDevice(ports.output);
+    if (!dev) return "This Mac has no Wi-Fi.";
+    const power = `networksetup -getairportpower ${safeDevice(dev)}`;
+    const was = parsePower((await ctx.mac.sandboxed(power)).output);
+    if (was === want) {
+      const ref = addEvidence(ctx, { kind: "after", outcome: "passed", command: power, code: 0, output: `Wi-Fi is already ${want ? "on" : "off"}` });
+      return `[${ref}] Wi-Fi was already ${want ? "on" : "off"}.`;
+    }
+    // Is this Mac online through Wi-Fi? Then switching it off ends our connection to Claude.
+    const route = want ? "" : (await ctx.mac.sandboxed("route -n get default")).output;
+    const viaWifi = new RegExp(`interface:\\s*${dev}\\b`).test(route);
+    const r = await ctx.mac.execute(`networksetup -setairportpower ${safeDevice(dev)} ${want ? "on" : "off"}`);
+    for (const l of r.log ?? []) ctx.ui.detail(l, true);
+    addEvidence(ctx, { kind: "run", command: `networksetup -setairportpower ${dev} ${want ? "on" : "off"}`, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `That didn't work: ${tail(r.output, 2)}`;
+    await new Promise((x) => setTimeout(x, 800));
+    const now = parsePower((await ctx.mac.sandboxed(power)).output);
+    const ok = now === want;
+    const ref = addEvidence(ctx, { kind: "after", outcome: ok ? "passed" : "failed", command: power, code: ok ? 0 : 1, output: `Wi-Fi is ${now === null ? "unknown" : now ? "on" : "off"}` });
+    if (ok) ctx.beforeAfter.push({ label: "Wi-Fi", before: was === null ? "Unknown" : was ? "On" : "Off", after: want ? "On" : "Off" });
+    if (ok && !want && viaWifi) {
+      ctx.autoFinish = { headline: "Done. Wi-Fi is off.", details: ["You'll be offline until you turn it back on. Just ask me, or use the Wi-Fi icon in the menu bar."], proofRefs: [{ ref, shows: "Wi-Fi is off" }] };
+    }
+    return `[${ref}] ${ok ? `Wi-Fi is now ${want ? "on" : "off"}.` : `It didn't switch; Wi-Fi is still ${now ? "on" : "off"}.`}`;
+  },
+};
+
+const setBluetooth: AgentTool = {
+  name: "set_bluetooth",
+  kind: "act",
+  description: "Turn Bluetooth on or off. This is an ordinary setting, so just do it when the person asks (no need to ask first); it is checked afterwards. If a Bluetooth keyboard, mouse or trackpad is connected, turning Bluetooth off would cut it off, so CalHack asks first in that case.",
+  input_schema: obj({ on: { type: "boolean", description: "true = turn Bluetooth on, false = turn it off" } }),
+  label: (i) => `Turning Bluetooth ${i.on === false ? "off" : "on"}…`,
+  async run(input, ctx) {
+    const want = input.on !== false;
+    const read = async () => parseBluetooth((await ctx.mac.sandboxed(BLUETOOTH_STATE_CHECK, 30_000)).output);
+    const was = await read();
+    if (was.on === want) {
+      const ref = addEvidence(ctx, { kind: "after", outcome: "passed", command: BLUETOOTH_STATE_CHECK, code: 0, output: `Bluetooth is already ${want ? "on" : "off"}` });
+      return `[${ref}] Bluetooth was already ${want ? "on" : "off"}.`;
+    }
+    // Turning it off would cut off a Bluetooth keyboard or mouse. If we can't tell what's connected, ask too.
+    if (!want && (was.on === null || was.inputDevices.length > 0)) {
+      const names = was.inputDevices.length ? was.inputDevices.join(", ") : "";
+      const ok = await ctx.ui.confirm({
+        title: "Turn Bluetooth off?",
+        message: names ? `${names} ${was.inputDevices.length > 1 ? "are" : "is"} connected over Bluetooth. If you turn it off, you may not be able to type or click until you turn it back on.` : "I couldn't tell what's connected over Bluetooth. If your keyboard or mouse uses it, turning it off would cut it off.",
+        yes: "Yes, turn it off",
+        no: "No, leave it on",
+      });
+      if (!ok) return "The person said no. Bluetooth was left as it is.";
+    }
+    const r = await ctx.mac.execute(bluetoothSetCommand(want));
+    for (const l of r.log ?? []) ctx.ui.detail(l, true);
+    addEvidence(ctx, { kind: "run", command: `bluetooth ${want ? "on" : "off"}`, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `That didn't work: ${tail(r.output, 2)}. The person can use the Bluetooth switch in System Settings (open_settings).`;
+    // A different tool than the one that made the change reads the result back.
+    let now = await read();
+    for (let i = 0; i < 4 && now.on !== want; i++) {
+      await new Promise((x) => setTimeout(x, 700));
+      now = await read();
+    }
+    const ok = now.on === want;
+    const ref = addEvidence(ctx, { kind: "after", outcome: ok ? "passed" : "failed", command: BLUETOOTH_STATE_CHECK, code: ok ? 0 : 1, output: `Bluetooth is ${now.on === null ? "unknown" : now.on ? "on" : "off"}` });
+    if (ok) ctx.beforeAfter.push({ label: "Bluetooth", before: was.on === null ? "Unknown" : was.on ? "On" : "Off", after: want ? "On" : "Off" });
+    return `[${ref}] ${ok ? `Bluetooth is now ${want ? "on" : "off"}.` : `It didn't switch; Bluetooth is still ${now.on ? "on" : "off"}.`}`;
+  },
+};
+
 const fixProblem: AgentTool = {
   name: "fix_problem",
   kind: "act",
@@ -823,7 +905,7 @@ const finish: AgentTool = {
 
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
-  quitApp, openApp, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, fixProblem, installApp, trashFiles, runCommand,
+  quitApp, openApp, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
   guidePerson, askPerson, explainIrreversible, finish,
 ];
 

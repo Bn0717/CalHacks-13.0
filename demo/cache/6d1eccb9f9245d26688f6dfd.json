@@ -1,0 +1,18 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. System Settings opened, but the wallpaper change wasn't checked.",
+  "proofs": [
+    {
+      "claim": "System Settings is open and running",
+      "evidence_refs": [
+        "E2"
+      ]
+    }
+  ],
+  "problems": [
+    "No final check confirmed the desktop wallpaper actually changed.",
+    "Clicking Wallpaper in the sidebar was not verified; the click ran but its result was never checked.",
+    "Picking a new wallpaper was not verified; the helper said it changed, but no check proved it.",
+    "The helper's notes say the Tahoe wallpaper was picked, but that claim has no passing evidence behind it."
+  ]
+}
