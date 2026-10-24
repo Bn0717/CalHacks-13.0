@@ -570,6 +570,6 @@ p { margin: 6px 0; }
 .confirm-type { width: 100%; margin-top: 4px; }
 .teach-steps { padding-left: 22px; font-size: 17px; line-height: 1.5; }
 .teach-steps li { margin: 6px 0; }
-.btn.danger { background: var(--bad); color: #fff; border-color: transparent; }
+.btn.danger { background: #b3402f; color: #fff; border-color: transparent; } /* same strong red in light and dark, for readable white text */
 .btn.danger:disabled { opacity: 0.45; }
 .verdict.answered, .verdict.cant-do { color: var(--accent); }
