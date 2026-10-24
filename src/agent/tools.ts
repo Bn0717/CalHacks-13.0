@@ -82,7 +82,8 @@ export interface AgentUI {
   /** A teaching screen. Resolves when the person closes it. */
   explain(e: { title: string; paragraphs: string[]; steps?: string[] }): Promise<void>;
   /** Something only the person can click (macOS doesn't allow it by command). The bar tells them what to click. */
-  guide(g: { instruction: string; clickTarget?: string; settingsUrl?: string }): Promise<"done" | "skip">;
+  /** point: where on screen the thing to click is (screen points), so CalHack can point right at it. */
+  guide(g: { instruction: string; clickTarget?: string; settingsUrl?: string; point?: { x: number; y: number; label: string } }): Promise<"done" | "skip">;
   /** Details for "show what's happening". */
   detail(text: string, mono?: boolean): void;
 }
@@ -97,6 +98,8 @@ export interface ToolContext {
   beforeAfter: { label: string; before: string; after: string }[];
   /** True once the person pressed Stop or Cancel. Long loops check it before every action. */
   stopped?: () => boolean;
+  /** Aborted the moment the person presses Stop: requests in flight are cancelled and loops end at once. */
+  signal?: AbortSignal;
 }
 
 export interface AgentTool {
@@ -191,7 +194,7 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
   ctx.ui.say("Let me take care of that for you.");
   const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, stopped: ctx.stopped, log: fileLog });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
-  if (r.outcome === "skipped") return { result: "skip", by: "person", trail: r.trail };
+  if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
   const why = r.needsAccessibility ? `${r.trail.at(-1)}. For now: ` : "";
   return { result: await ctx.ui.guide({ ...g, instruction: why + g.instruction }), by: "person", trail: r.trail };

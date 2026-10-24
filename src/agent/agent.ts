@@ -70,6 +70,8 @@ export interface AgentOptions {
   /** Follow-ups the person typed while the agent works. Drained between turns. */
   inbox?: string[];
   stopped?: () => boolean;
+  /** Aborted when the person presses Stop: cancels the request to Claude that's in flight, right away. */
+  signal?: AbortSignal;
   model?: string;
   /** Web search on official sites (Claude's server tool). On by default. */
   webSearch?: boolean;
@@ -78,7 +80,8 @@ export interface AgentOptions {
 
 export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opts: AgentOptions = {}): Promise<AgentResult> {
   const started = Date.now();
-  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], stopped: opts.stopped };
+  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal, stopped: opts.stopped };
+  const stopped = () => !!opts.signal?.aborted || !!opts.stopped?.();
   const toolCalls: AgentResult["toolCalls"] = [];
   const byName = new Map(TOOLS.map((t) => [t.name, t]));
   const tools: Anthropic.Beta.BetaToolUnion[] = TOOLS.map(toApiTool);
@@ -107,9 +110,11 @@ export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opt
   let turns = 0;
 
   while (turns < maxTurns && !finishInput) {
-    if (opts.stopped?.()) break;
+    if (stopped()) break;
     turns++;
-    const response = await getClient().beta.messages.create({
+    let response: Anthropic.Beta.BetaMessage;
+    try {
+      response = await getClient().beta.messages.create({
       model: opts.model ?? process.env.CALHACK_AGENT_MODEL ?? MODEL(),
       max_tokens: 8000,
       system: SYSTEM,
@@ -118,7 +123,12 @@ export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opt
       output_config: { effort: "low" },
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-    } as Anthropic.Beta.MessageCreateParamsNonStreaming);
+    } as Anthropic.Beta.MessageCreateParamsNonStreaming, { signal: opts.signal });
+    } catch (e) {
+      // Stop cancels the request mid-way: that's not an error, just the end.
+      if (stopped()) break;
+      throw e;
+    }
 
     if (response.stop_reason === "refusal") throw new Error("Claude declined to help with this request.");
     messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
@@ -161,7 +171,7 @@ export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opt
     const lookResults = await Promise.all(looks.map(runOne));
     const otherResults: Anthropic.Beta.BetaToolResultBlockParam[] = [];
     for (const u of others) {
-      if (opts.stopped?.()) {
+      if (stopped()) {
         otherResults.push({ type: "tool_result", tool_use_id: u.id, content: "The person pressed Stop. Don't continue.", is_error: true });
         continue;
       }
@@ -184,8 +194,8 @@ export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opt
     .map((p) => ({ ...p, evidence: ctx.evidence[Number(p.ref.replace(/^E/, "")) - 1] }))
     .filter((p): p is { ref: string; shows: string; evidence: Evidence } => !!p.evidence && p.evidence.code === 0);
   let verdict = (["done", "answered", "not_done", "cant_do"].includes(String(f.verdict)) ? f.verdict : "not_done") as AgentResult["verdict"];
-  let headline = typeof f.headline === "string" && f.headline.trim() ? f.headline.trim() : opts.stopped?.() ? "Stopped. Nothing else was changed." : "I couldn't finish this one.";
-  if (!finishInput && !opts.stopped?.()) verdict = "not_done";
+  let headline = typeof f.headline === "string" && f.headline.trim() ? f.headline.trim() : stopped() ? "Stopped. Nothing else was changed." : "I couldn't finish this one.";
+  if (!finishInput) verdict = "not_done";
   // "Done" needs proof. Without it, say so honestly.
   if (verdict === "done" && proofs.length === 0) {
     verdict = "not_done";
