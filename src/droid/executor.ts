@@ -11,7 +11,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ExecResult } from "../core/exec.js";
+import { commandEnv, type ExecResult } from "../core/exec.js";
 import { normalizeCommand } from "../core/normalize.js";
 
 export interface DroidExecResult extends ExecResult {
@@ -98,11 +98,23 @@ export function exitCodeFrom(output: string): number | null {
   return m ? Number(m[1] ?? m[2]) : null;
 }
 
+/**
+ * Droid's shell doesn't pass our settings through, so our code puts them in front of the approved command.
+ * The gate then approves exactly this wrapped command. (SUDO_ASKPASS lets Homebrew show a password box.)
+ */
+export function withSettings(command: string, env: Record<string, string> = commandEnv()): string {
+  const keep = ["SUDO_ASKPASS", "HOMEBREW_NO_AUTO_UPDATE", "NONINTERACTIVE"].filter((k) => env[k]);
+  if (!keep.length) return command;
+  const q = (v: string) => "'" + v.replace(/'/g, "'\\''") + "'";
+  return `export ${keep.map((k) => `${k}=${q(env[k])}`).join(" ")}; ${command}`;
+}
+
 /** Only the shell tool stays on. No web, no file reading, no scripts, no sub-agents. */
 const KEEP_TOOLS = new Set(["Execute"]);
 
 /** Runs one approved command through Droid. Throws when Droid can't start, so the caller can fall back. */
-export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Promise<DroidExecResult> {
+export async function runWithDroid(approved: string, timeoutMs = 15 * 60_000): Promise<DroidExecResult> {
+  const command = withSettings(approved);
   const sdk = await import("@factory/droid-sdk/node");
   const { AutonomyLevel, DroidMessageType, OutputFormatType, ToolConfirmationOutcome, ToolConfirmationType, createSession } = sdk;
   if (ToolConfirmationType.Execute !== "exec") throw new Error("This Droid SDK version names its tools differently.");
@@ -121,7 +133,7 @@ export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Pr
     modelId: process.env.CALHACK_DROID_MODEL?.trim() || "claude-sonnet-5-5",
     autonomyLevel: AutonomyLevel.Off,
     disableBuiltinSkills: true,
-    env: { ...Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => typeof e[1] === "string")), HOMEBREW_NO_AUTO_UPDATE: "1", NONINTERACTIVE: "1" },
+    env: commandEnv(),
     abortSignal: abort.signal,
     permissionHandler({ toolUses }) {
       // Only the one approved command, only once. Everything else is refused.
@@ -140,7 +152,7 @@ export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Pr
     const off = tools.map((t) => t.id).filter((id) => !KEEP_TOOLS.has(id));
     await session.updateSettings({ disabledToolIds: off });
     log.push(`Droid's tools: only Execute is on (${off.length} others turned off)`);
-    log.push(`Droid got the step: ${short(command)}`);
+    log.push(`Droid got the step: ${short(approved)}`);
 
     // Every shell command Droid really starts. Droid's own settings auto-run some "harmless" commands
     // without asking, so this is checked too, not just the permission requests.
