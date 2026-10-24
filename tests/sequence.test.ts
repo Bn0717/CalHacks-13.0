@@ -3,6 +3,7 @@ import { runSequence } from "../src/core/sequence.js";
 import { collectEvidence, enforce, rulesReceipt } from "../src/core/receipt.js";
 import { approvedForms, exitCodeFrom, gate, sameCommand, withSettings } from "../src/droid/executor.js";
 import type { PlannedStep, Step, StepResult, StepStatus } from "../src/core/types.js";
+import { summarizeGoal } from "../src/core/verification.js";
 
 function planned(step: Partial<Step> & { id: string }): PlannedStep {
   return {
@@ -24,7 +25,7 @@ async function run(steps: PlannedStep[], outcome: Record<string, StepStatus>) {
     runOne: async (p) => {
       ran.push(p.step.id);
       const status = outcome[p.step.id] ?? "done";
-      return { id: p.step.id, status, message: status, evidence: [{ kind: "after", command: "check " + p.step.id, code: status === "done" ? 0 : 1, output: "" }] };
+      return { id: p.step.id, status, message: status, evidence: [{ kind: "after", command: "check " + p.step.id, code: status === "done" ? 0 : 1, output: "", outcome: status === "done" ? "passed" : "failed" }] };
     },
     onResult: () => {},
     stopped: () => false,
@@ -68,10 +69,10 @@ describe("running steps in order", () => {
 describe("the receipt", () => {
   const steps = [planned({ id: "1" }), planned({ id: "2" })];
   const results = new Map<string, StepResult>([
-    ["1", { id: "1", status: "done", message: "", evidence: [{ kind: "after", command: "command -v wget", code: 0, output: "" }] }],
+    ["1", { id: "1", status: "done", message: "", evidence: [{ kind: "after", command: "command -v wget", code: 0, output: "", outcome: "passed" }] }],
     ["2", { id: "2", status: "done-unverified", message: "", evidence: [{ kind: "run", command: "brew cleanup", code: 0, output: "" }] }],
   ]);
-  const final = { kind: "final" as const, command: "wget --version", code: 0, output: "GNU Wget 1.25" };
+  const final = summarizeGoal([{ kind: "final", command: "wget --version", code: 0, output: "GNU Wget 1.25", outcome: "passed" }]);
   const evidence = collectEvidence(steps, results, final);
 
   it("numbers every check that ran", () => {
@@ -79,13 +80,13 @@ describe("the receipt", () => {
   });
 
   it("drops proofs that point at nothing, and won't say done without proof", () => {
-    const r = enforce({ verdict: "done", headline: "Done!", proofs: [{ claim: "wget works", evidence_refs: ["E9"] }], problems: [] }, steps, results, evidence);
+    const r = enforce({ verdict: "done", headline: "Done!", proofs: [{ claim: "wget works", evidence_refs: ["E9"] }], problems: [] }, steps, results, evidence, final);
     expect(r.proofs).toEqual([]);
     expect(r.verdict).toBe("couldnt-verify");
   });
 
   it("keeps proofs backed by a passing check", () => {
-    const r = enforce({ verdict: "done", headline: "Done. wget works.", proofs: [{ claim: "wget works", evidence_refs: ["e3"] }], problems: [] }, steps, results, evidence);
+    const r = enforce({ verdict: "done", headline: "Done. wget works.", proofs: [{ claim: "wget works", evidence_refs: ["e3"] }], problems: [] }, steps, results, evidence, final);
     expect(r.verdict).toBe("done");
     expect(r.proofs[0].evidence[0].command).toBe("wget --version");
   });
@@ -94,13 +95,13 @@ describe("the receipt", () => {
     const failed = new Map(results);
     failed.set("2", { id: "2", status: "failed", message: "error 1" });
     const ev = collectEvidence(steps, failed, final);
-    const r = enforce({ verdict: "done", headline: "All good", proofs: [{ claim: "wget works", evidence_refs: ["E2"] }], problems: [] }, steps, failed, ev);
+    const r = enforce({ verdict: "done", headline: "All good", proofs: [{ claim: "wget works", evidence_refs: ["E2"] }], problems: [] }, steps, failed, ev, final);
     expect(r.verdict).toBe("not-done");
     expect(r.problems[0]).toMatch(/Step 2/);
   });
 
   it("works without Claude, from the checks alone", () => {
-    const r = rulesReceipt(steps, results, evidence, "wget is installed and works");
+    const r = rulesReceipt(steps, results, evidence, final, "wget is installed and works");
     expect(r.verdict).toBe("done");
     expect(r.headline).toBe("Done. Wget is installed and works.");
   });

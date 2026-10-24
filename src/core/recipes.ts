@@ -9,6 +9,7 @@ import { listOutputs, setOutput, type SoundOutput } from "../mac/audio.js";
 import { assessCommand } from "./risk.js";
 import { runNormally, runSandboxed, type ExecResult } from "./exec.js";
 import type { Evidence, Recipe, Step } from "./types.js";
+import { appProcessCheck, runOutcomeCheck } from "./verification.js";
 
 export interface RecipeOutcome {
   ok: boolean;
@@ -157,8 +158,12 @@ async function addPrinter(deps: RecipeDeps, trail: Trail): Promise<Result> {
   const added = await runOurs(addPrinterCommand(uri), deps, 90_000, trail);
   if (!added || added.code !== 0) return { ok: false, message: `I couldn't add “${name}” myself.`, output: added?.output.trim().slice(-800) };
 
-  const status = await runOurs(`lpstat -p ${queue}`, deps, 15_000, trail);
-  if (!status || status.code !== 0) return { ok: false, message: `I added “${name}”, but the Mac doesn't list it yet.`, output: status?.output.trim() };
+  const status = await runOutcomeCheck(`lpstat -p ${queue}`, "after", deps.sandboxed);
+  trail.evidence.push(status);
+  if (status.outcome !== "passed") {
+    status.outcome = "unknown";
+    return { ok: true, message: `The add-printer command finished; I couldn't verify that “${name}” was added.`, output: status.output };
+  }
   const ready = /\b(idle|enabled)\b/i.test(status.output) && !/\bdisabled\b/i.test(status.output);
   return {
     ok: true,
@@ -203,14 +208,14 @@ async function openApp(app: string, deps: RecipeDeps, trail: Trail): Promise<Res
   // Give it a moment to start, then check it's really running.
   for (let i = 0; i < 5; i++) {
     await deps.wait(1500);
-    // Match the app's program name (from its Info.plist), which also works for Apple's apps that live in the system.
-    const exe = await runOurs(`defaults read ${shellQuote(path + "/Contents/Info")} CFBundleExecutable`, deps, 5_000, trail);
-    const name = exe?.code === 0 ? exe.output.trim().split("\n")[0] : "";
-    const check = /^[A-Za-z0-9 ._+-]{1,80}$/.test(name) ? `pgrep -x ${shellQuote(name)}` : `pgrep -f ${shellQuote(path + "/Contents/MacOS/")}`;
-    const running = await runOurs(check, deps, 10_000, trail);
-    if (running?.code === 0) return { ok: true, message: `${app} is open and running.` };
+    const running = await runOutcomeCheck(appProcessCheck(path), "after", deps.sandboxed);
+    running.checkId = "app-running";
+    trail.evidence.push(running);
+    if (running.outcome === "passed") return { ok: true, message: `${app} is open and running.` };
   }
-  return { ok: true, message: `Opened ${app}. (It's still starting.)` };
+  const last = trail.evidence[trail.evidence.length - 1];
+  last.outcome = "unknown";
+  return { ok: true, message: `The launch command finished; I couldn't verify that ${app} is running.` };
 }
 
 export async function runRecipe(recipe: Recipe, deps: RecipeDeps = realRecipeDeps): Promise<RecipeOutcome> {

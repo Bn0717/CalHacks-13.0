@@ -3,7 +3,8 @@
 import { assessCommand } from "./risk.js";
 import { runAsAdmin, runNormally, runSandboxed, type ExecResult } from "./exec.js";
 import { downloadAndVerify } from "./download.js";
-import { realRecipeDeps, recipeKey, recipeNormal, runRecipe, type RecipeDeps } from "./recipes.js";
+import { realRecipeDeps, recipeKey, recipeNormal, runRecipe, type RecipeDeps, type RecipeOutcome } from "./recipes.js";
+import { currentStepChecks, runOutcomeCheck, verifiedStep } from "./verification.js";
 import type { Evidence, PlannedStep, StepResult } from "./types.js";
 
 export interface RunHooks {
@@ -32,7 +33,7 @@ export interface RunOptions {
   /** Let a fixed action from recipes.ts do a click step (on unless the person turned it off). */
   useRecipe?: boolean;
   /** Fixed actions already tried in this run, so steps that share one only try it once. */
-  recipesTried?: Map<string, { stepId: string; ok: boolean }>;
+  recipesTried?: Map<string, RecipeOutcome & { stepId: string }>;
   /** Runs approved commands that change something. Defaults to CalHack running them itself. */
   execute?: Executor;
   /** For tests. */
@@ -52,8 +53,27 @@ export interface CheckResult {
 export async function check(planned: PlannedStep, kind: "before" | "after" = "before"): Promise<CheckResult | null> {
   if (!planned.checkUsable || !planned.step.checkCommand) return null;
   const command = planned.step.checkCommand;
-  const r = await runSandboxed(command);
-  return { passed: r.code === 0, evidence: { kind, command, code: r.code, output: tail(r.output, 6) } };
+  const evidence = await runOutcomeCheck(command, kind);
+  return { passed: evidence.outcome === "passed", evidence };
+}
+
+/** Retry verification without repeating completed commands, recipes, or downloads. */
+export async function recheckPlannedStep(planned: PlannedStep, previous: StepResult, options: Pick<RunOptions, "recipesTried"> = {}): Promise<StepResult> {
+  if (previous.skipReason === "obsolete") return previous;
+  const checks = planned.checkUsable && planned.step.checkCommand
+    ? [await runOutcomeCheck(planned.step.checkCommand, "after")]
+    : await Promise.all(currentStepChecks(previous.evidence ?? []).map(async (e) => ({ ...await runOutcomeCheck(e.command, "after"), checkId: e.checkId })));
+  if (!checks.length) return previous;
+  const passed = checks.every((e) => e.outcome === "passed");
+  const failed = checks.some((e) => e.outcome === "failed");
+  const result: StepResult = { ...previous, evidence: [...(previous.evidence ?? []), ...checks],
+    status: passed ? "done" : failed ? "failed" : "done-unverified",
+    message: passed ? "The outcome was verified again." : failed ? "The action ran, but its outcome check failed." : "The action ran; its outcome could not be verified." };
+  if (planned.recipe) {
+    const cached = options.recipesTried?.get(recipeKey(planned.recipe));
+    if (cached?.ok) options.recipesTried!.set(recipeKey(planned.recipe), { ...cached, evidence: result.evidence!, message: result.message });
+  }
+  return result;
 }
 
 function usesAdmin(command: string): boolean {
@@ -70,7 +90,8 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
   const execute = options.execute ?? ourselves;
   let ranBy: StepResult["ranBy"];
   let log: string[] | undefined;
-  const result = (r: Omit<StepResult, "id" | "evidence" | "ranBy" | "log">): StepResult => ({ id, ...r, evidence, ranBy, log });
+  let actionCompleted = false;
+  const result = (r: Omit<StepResult, "id" | "evidence" | "ranBy" | "log">): StepResult => ({ id, ...r, evidence, ranBy, log, actionCompleted });
 
   if (assessment.wrongPlatform) {
     return result({ status: "not-for-this-computer", message: assessment.wrongPlatform.reason });
@@ -79,7 +100,7 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
     return result({ status: "blocked", message: planned.reasons[0] ?? "This step isn't safe to run." });
   }
   if (step.kind === "info") {
-    return result({ status: "skipped", message: "Just information, nothing to do." });
+    return result({ status: "skipped", skipReason: "information", message: "Just information, nothing to do." });
   }
 
   // 1. Already done?
@@ -97,16 +118,25 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
     // A fixed action from our own code can do this step, so the person doesn't have to click.
     const key = recipeKey(recipe);
     const earlier = options.recipesTried?.get(key);
-    if (earlier?.ok) return result({ status: "done", message: `Done together with step ${earlier.stepId}.` });
+    if (earlier?.ok) {
+      evidence.push(...earlier.evidence);
+      actionCompleted = true;
+      const status = verifiedStep({ id, status: "done", message: "", evidence }) ? "done"
+        : currentStepChecks(evidence).some((e) => e.kind === "after" && e.outcome === "failed") ? "failed" : "done-unverified";
+      return result({ status, message: `Performed together with step ${earlier.stepId}. ${status === "failed" ? "Its latest outcome check failed." : ""}`.trim() });
+    }
     if (!earlier) {
       say(recipe.label + "…");
       const deps = options.recipeDeps ?? { ...realRecipeDeps, normal: recipeNormal(execute) };
       const outcome = await runRecipe(recipe, deps);
-      options.recipesTried?.set(key, { stepId: id, ok: outcome.ok });
+      options.recipesTried?.set(key, { ...outcome, stepId: id });
       evidence.push(...outcome.evidence);
       ranBy = outcome.ranBy;
       log = outcome.log;
-      if (outcome.ok) return result({ status: "done", message: outcome.message, output: outcome.output });
+      if (outcome.ok) {
+        actionCompleted = true;
+        return result({ status: verifiedStep({ id, status: "done", message: "", evidence }) ? "done" : "done-unverified", message: outcome.message, output: outcome.output });
+      }
       note = outcome.message;
     }
   }
@@ -123,7 +153,8 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
       say("Waiting for you…");
       answer = await hooks.waitForUser(planned, note);
     }
-    if (answer === "skip") return result({ status: "skipped", message: "You skipped this step." });
+    if (answer === "skip") return result({ status: "skipped", skipReason: "user", message: "You skipped this step." });
+    actionCompleted = true;
   } else if (step.kind === "download" && step.url) {
     if (!(await hooks.approve(planned, `Download ${step.url}`))) {
       return result({ status: "declined", message: "You chose not to download this." });
@@ -131,6 +162,7 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
     say("Downloading and checking who made the file…");
     try {
       const dl = await downloadAndVerify(step.url);
+      actionCompleted = true;
       const ok = dl.signature.signed && dl.signature.signerMatchesSite !== false;
       if (!ok) {
         return result({ status: "failed", message: `Downloaded to ${dl.path}, but we stopped there. ${dl.signature.summary}` });
@@ -144,7 +176,7 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
   } else if (step.kind === "command" && step.command) {
     const outdated = assessment.outdated;
     if (outdated && outdated.suggestion === "") {
-      return result({ status: "skipped", message: outdated.reason });
+      return result({ status: "skipped", skipReason: "obsolete", message: outdated.reason });
     }
     const command = options.useUpdatedCommand && outdated?.suggestion ? outdated.suggestion : step.command;
     const now = command === step.command ? assessment : assessCommand(command);
@@ -178,8 +210,9 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
       if (/User cancell?ed|no password was provided|-128\)/i.test(r.output)) return result({ status: "declined", message: "You cancelled the password box." });
       return result({ status: "failed", message: `This step didn't work (error ${r.code}). We stopped here so nothing else goes wrong.`, output: tail(r.output) });
     }
+    actionCompleted = true;
     if (!planned.checkUsable) {
-      return result({ status: "done-unverified", message: "Done. (There was no way to double-check this one.)", output: tail(r.output, 4) });
+      return result({ status: "done-unverified", message: "The command finished; its outcome wasn't verified.", output: tail(r.output, 4) });
     }
   }
 
@@ -188,6 +221,6 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
   const after = await check(planned, "after");
   if (after) evidence.push(after.evidence);
   if (after?.passed) return result({ status: "done", message: "Done, and we checked that it worked." });
-  if (after) return result({ status: "failed", message: "The step finished, but our check says it didn't work. We stopped here." });
-  return result({ status: "done-unverified", message: "Done. (There was no way to double-check this one.)" });
+  if (after?.evidence.outcome === "failed") return result({ status: "failed", message: "The step finished, but our check says it didn't work. We stopped here." });
+  return result({ status: "done-unverified", message: "The action finished; its outcome wasn't verified." });
 }

@@ -84,6 +84,7 @@ export interface CheckResult {
   detail: string;
   /** What ran, or null when the check couldn't run. */
   command: string | null;
+  evidence?: Evidence;
 }
 
 export interface Diagnosis {
@@ -100,4 +101,4 @@ export interface Diagnosis {
 }
 
 /** Runs one check command. needsNetwork = it may use the internet (so it can't be sandboxed). */
-export type CheckRunner = (command: string, needsNetwork: boolean) => Promise<{ code: number; output: string }>;
+export type CheckRunner = (command: string, needsNetwork: boolean) => Promise<{ code: number; output: string; timedOut?: boolean }>;

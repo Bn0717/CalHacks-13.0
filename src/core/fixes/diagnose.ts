@@ -2,7 +2,8 @@
 // then (after fixing) runs the same checks again to prove it worked.
 import { assessCommand } from "../risk.js";
 import { runNormally, runSandboxed } from "../exec.js";
-import type { Assessment, Evidence } from "../types.js";
+import type { Assessment, Evidence, GoalVerification } from "../types.js";
+import { summarizeGoal } from "../verification.js";
 import type { CheckDef, CheckResult, CheckRunner, Diagnosis, Facts, FixDef, FixGuide, StatusRow } from "./types.js";
 
 function tail(output: string, lines = 8): string {
@@ -24,7 +25,7 @@ export function isReadOnlyCheck(command: string): boolean {
 export const realCheckRunner: CheckRunner = async (command, needsNetwork) => {
   if (!isReadOnlyCheck(command)) return { code: 126, output: "Refused: not a read-only command." };
   const r = needsNetwork ? await runNormally(command, 20_000) : await runSandboxed(command, 30_000);
-  return { code: r.code, output: r.output };
+  return r;
 };
 
 /**
@@ -40,7 +41,7 @@ export async function diagnose(
   const facts: Facts = {};
   const results: CheckResult[] = [];
   const evidence: Evidence[] = [];
-  const outputs = new Map<string, { code: number; output: string }>();
+  const outputs = new Map<string, { code: number; output: string; timedOut?: boolean; unavailable?: boolean }>();
 
   for (const check of guide.checks) {
     let result: CheckResult;
@@ -60,14 +61,23 @@ export async function diagnose(
         try {
           r = await run(command, !!check.needsNetwork);
         } catch (error) {
-          r = { code: 1, output: String((error as Error).message ?? error) };
+          r = { code: 127, output: String((error as Error).message ?? error), unavailable: true };
         }
         outputs.set(command, r);
-        evidence.push({ kind, command, code: r.code, output: tail(r.output) });
       }
-      const out = check.interpret(r, facts);
+      let out;
+      try {
+        out = r.timedOut || r.unavailable || [126, 127].includes(r.code)
+          ? { status: "unknown" as const, detail: "Couldn't run this check or it timed out." }
+          : check.interpret(r, facts);
+      } catch {
+        out = { status: "unknown" as const, detail: "Couldn't interpret this check." };
+      }
       Object.assign(facts, out.facts ?? {});
-      result = { id: check.id, label: check.label, status: out.status, detail: out.detail, command };
+      const observation: Evidence = { kind, command, code: r.code, output: tail(r.output), checkId: check.id,
+        outcome: out.status === "ok" ? "passed" : out.status === "problem" ? "failed" : "unknown" };
+      evidence.push(observation);
+      result = { id: check.id, label: check.label, status: out.status, detail: out.detail, command, evidence: observation };
     }
     results.push(result);
     onCheck?.(check.id, result);
@@ -87,6 +97,7 @@ export async function diagnose(
 
 export interface Verification {
   after: Diagnosis;
+  goal: GoalVerification;
   /** True when the same checks now find nothing wrong. */
   fixed: boolean;
   /** Before/after rows for the receipt. */
@@ -103,9 +114,11 @@ export async function verifyFix(
   onCheck?: (checkId: string, result: CheckResult) => void,
 ): Promise<Verification> {
   const after = await diagnose(guide, run, onCheck, "after");
-  // Fixed = no check finds a problem any more. (A "maybe" like "sound goes to your AirPods" doesn't count.)
-  const fixed = !after.results.some((r) => r.status === "problem");
-  return { after, fixed, rows: compareStatus(before.status, after.status), stillWrong: fixed ? null : after.problem };
+  const checks = after.evidence.map((e) => ({ ...e, kind: "final" as const }));
+  const unknown = after.results.filter((r) => r.status === "unknown");
+  const goal = summarizeGoal(checks, unknown.length ? unknown.map((r) => `${r.label}: ${r.detail}`).join("; ") : undefined);
+  const fixed = after.results.length > 0 && after.results.every((r) => r.status === "ok") && goal.status === "passed";
+  return { after, goal, fixed, rows: compareStatus(before.status, after.status), stillWrong: fixed ? null : after.problem || goal.reason || "Couldn't verify the fix." };
 }
 
 export function compareStatus(before: StatusRow[], after: StatusRow[]): { label: string; before: string; after: string }[] {

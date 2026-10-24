@@ -29,6 +29,8 @@ Made for people who aren't technical, like a parent who'd otherwise call their k
 
 **How-to pages still get the careful step-by-step mode:** Claude reads the steps exactly as written → our code rates every step → you tap **Do it** → Droid runs the approved steps → each step is checked → a separate Claude call writes the receipt. Unsafe steps are skipped, outdated commands are updated, and a fake "verify you're human" page gets a scam warning. A **copy guard** also stops dangerous commands you copy from anywhere.
 
+In step-by-step mode, **Done requires a passing final goal check**. A command exiting successfully is execution history, not proof. Missing or inconclusive final verification produces **Couldn't verify**, and intermediate actions keep their **Ran, not verified** label. Uncertain alternatives hold the page's other options; **Try again** refreshes outcome checks before considering further changes, and does not repeat completed actions just to obtain proof.
+
 **No internet?** Printer, sound and Wi-Fi problems are still checked and fixed: those guides run entirely on the Mac.
 
 ## Where Droid (Factory Droid SDK) is used
