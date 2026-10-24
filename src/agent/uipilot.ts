@@ -18,7 +18,9 @@ import type { ToolContext } from "./tools.js";
 
 export interface UiDeps {
   list(app?: string): Promise<UiWindow | { error: string }>;
-  act(app: string, item: UiItem, how: "press" | "select" | "focus"): Promise<{ ok: boolean; error?: string; did?: string }>;
+  act(app: string, item: UiItem, how: "press" | "select" | "focus" | "increase" | "decrease"): Promise<{ ok: boolean; error?: string; did?: string; value?: number }>;
+  /** A Control Center switch (e.g. Do Not Disturb). Optional: missing = not available. */
+  controlCenter?(moduleId: string, switchId: string, want: "on" | "off" | "status"): Promise<{ ok: boolean; error?: string; before?: number; after?: number }>;
   type(app: string, item: UiItem, text: string): Promise<{ ok: boolean; error?: string }>;
   /** The act as a shell command, so a sensitive one can run through Droid. */
   command(app: string, item: UiItem, how: string): string;
@@ -27,7 +29,7 @@ export interface UiDeps {
 export interface UiStep {
   /** Item number in the list given to the AI (1-based). */
   item: number;
-  do: "press" | "select" | "type";
+  do: "press" | "select" | "type" | "increase" | "decrease";
   text: string | null;
 }
 
@@ -66,13 +68,14 @@ export function windowSignature(w: UiWindow): string {
 const SYSTEM = `You are CalHack's hands on a Mac. Someone needs one step finished. Instead of a screenshot you get the front window's items as a numbered list (buttons, rows, text, switches, with "selected" and values). Plan the next actions that move toward finishing the step.
 
 Answer with:
-- status "act": the next 1-3 actions in order, each an item number from the list and "press" (buttons, menus, switches, checkboxes, links), "select" (sidebar or list rows: use the row's text item) or "type" (text and search boxes, with the text). Only plan several when you are sure the later items will still be there after the first.
+- status "act": the next 1-4 actions in order, each an item number from the list and "press" (buttons, menus, switches, checkboxes, links), "select" (sidebar or list rows: use the row's text item), "type" (text and search boxes, with the text), or "increase"/"decrease" (sliders: one step each; repeat the same slider for more steps). Only plan several when you are sure the later items will still be there after the first.
 - status "done": the list clearly shows the step is finished (e.g. the right page is open, the right option is "selected", the switch has the right value).
 - status "person": the next action is the person's (see below). Put the item to point at in point_at.
 - status "not_here": the list doesn't have what's needed (wrong app, the item isn't listed, or you can't tell). CalHack will then look at the screen instead.
 
 Judge each plan:
 - handling "person" when it needs their own hands: a password, code or other secret; a privacy or security permission; signing in; a payment or purchase; agreeing to terms; or a choice only they can make. Personal choices (which picture, colour, sound, name, which of their own things) are theirs unless the step names the exact choice. A "PASSWORD box" is always the person's.
+- "Bigger", "larger", "louder", "brighter", "smaller" name the choice: do it yourself (a clear change, about 2-3 slider steps), it is not the person's to pick.
 - Choosing is theirs. When the step is about something personal (wallpaper, picture, colour, theme, sound, name, which of their own things) and does not name the exact choice, you only do the mechanics: open the right page, then answer status "person" with point_at on the choices and target like "Pick a wallpaper you like". Example: "change my wallpaper" → select the Wallpaper row; then status "person", point at the wallpapers. Never pick one for them. If the step names it ("use the blue Sequoia wallpaper"), picking that one is fine.
 - sensitivity "routine" for harmless, easily undone actions (opening a page, choosing a sidebar row, a neutral option the step names). "sensitive" for anything risky, personal, security-related or hard to undo (turning a feature on or off, confirming, installing, deleting). When unsure, "sensitive".
 
@@ -94,7 +97,7 @@ const TOOL = {
         type: "array",
         items: {
           type: "object",
-          properties: { item: { type: "integer" }, do: { type: "string", enum: ["press", "select", "type"] }, text: { type: ["string", "null"] } },
+          properties: { item: { type: "integer" }, do: { type: "string", enum: ["press", "select", "type", "increase", "decrease"] }, text: { type: ["string", "null"] } },
           required: ["item", "do", "text"],
           additionalProperties: false,
         },
@@ -121,8 +124,8 @@ export async function decideUi(instruction: string, w: UiWindow, history: string
   });
   const status = (["act", "done", "person", "not_here"] as const).find((s) => s === i.status) ?? "not_here";
   const steps = (Array.isArray(i.steps) ? i.steps : [])
-    .filter((x): x is UiStep => !!x && typeof x === "object" && Number.isInteger((x as UiStep).item) && ["press", "select", "type"].includes((x as UiStep).do))
-    .slice(0, 3)
+    .filter((x): x is UiStep => !!x && typeof x === "object" && Number.isInteger((x as UiStep).item) && ["press", "select", "type", "increase", "decrease"].includes((x as UiStep).do))
+    .slice(0, 4)
     .map((x) => ({ item: x.item, do: x.do, text: typeof x.text === "string" ? x.text : null }));
   return {
     status,
@@ -140,7 +143,7 @@ export async function decideUi(instruction: string, w: UiWindow, history: string
 // Once a step worked, the clicks are remembered (by the item's role and name, never positions), so next time they replay
 // without asking Claude. A tiny JSON file; a replay that doesn't match the window is dropped and planned fresh.
 
-type Route = { role: string; name: string; do: "press" | "select" }[];
+type Route = { role: string; name: string; do: "press" | "select" | "increase" | "decrease" }[];
 const ROUTES = join(homedir(), ".cache", "calhack", "routes.json");
 
 function routeKey(app: string, instruction: string): string {
@@ -284,7 +287,7 @@ export async function uiPilot(ctx: ToolContext, ui: UiDeps, o: UiPilotOptions): 
       if (!steps.length) return result("fallback");
       for (const s of steps) {
         if (stopped()) return result("stopped");
-        const label = `${s.do === "type" ? "Typing in" : s.do === "select" ? "Opening" : "Clicking"} ${s.it.name || d.target}`;
+        const label = `${s.do === "type" ? "Typing in" : s.do === "select" ? "Opening" : s.do === "increase" ? "Turning up" : s.do === "decrease" ? "Turning down" : "Clicking"} ${s.it.name || d.target}`;
         ctx.ui.status(`${label}…`);
         let r: { ok: boolean; error?: string };
         if (s.do === "type") r = await ui.type(app, s.it, s.text ?? "");

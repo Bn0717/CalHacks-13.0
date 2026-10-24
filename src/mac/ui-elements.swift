@@ -2,7 +2,7 @@
 // and presses, selects or types into one of them directly. No screenshot, no mouse.
 //
 //   ui-elements list [app name]              → JSON: the app's front window, one entry per item you can act on
-//   ui-elements act  <app name> <path> <role> <name> <press|select|focus>
+//   ui-elements act  <app name> <path> <role> <name> <press|select|focus|increase|decrease>
 //   ui-elements type <app name> <path> <role> <name> <text>
 //
 // "path" is the item's position in the window ("0.3.1"), from list. Before acting, the item at that path must still have
@@ -39,6 +39,8 @@ func name(_ e: AXUIElement) -> String {
   if let t = attr(e, kAXTitleUIElementAttribute) { return str(t as! AXUIElement, kAXValueAttribute) }
   return ""
 }
+/** Names are shortened to 80 characters in the list, so they are compared shortened too. */
+func shortName(_ e: AXUIElement) -> String { String(name(e).prefix(80)) }
 func frame(_ e: AXUIElement) -> [String: Int] {
   var p = CGPoint.zero, s = CGSize.zero
   if let pv = attr(e, kAXPositionAttribute) { AXValueGetValue(pv as! AXValue, .cgPoint, &p) }
@@ -79,7 +81,7 @@ func find(_ window: AXUIElement, role want: String, name n: String) -> AXUIEleme
   var hit: AXUIElement?
   func walk(_ e: AXUIElement, _ d: Int) {
     if hit != nil || d > 40 { return }
-    if role(e) == want && name(e) == n { hit = e; return }
+    if role(e) == want && shortName(e) == n { hit = e; return }
     for c in children(e) { walk(c, d + 1) }
   }
   walk(window, 0)
@@ -87,6 +89,42 @@ func find(_ window: AXUIElement, role want: String, name n: String) -> AXUIEleme
 }
 
 let cmd = args[1]
+
+// Control Center switches that have no setting anywhere else (Do Not Disturb). Opens the panel, opens a module,
+// sets one switch on or off, reads it back, and closes the panel again.
+//   ui-elements controlcenter <module id> <switch id> <on|off|status>
+if cmd == "controlcenter" {
+  guard args.count >= 5 else { fail("usage: controlcenter <module id> <switch id> <on|off|status>", 2) }
+  guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.executableURL?.lastPathComponent == "ControlCenter" }) else { fail("Control Center isn't running.") }
+  let root = AXUIElementCreateApplication(app.processIdentifier)
+  guard let bar = attr(root, "AXExtrasMenuBar"), let icon = children(bar as! AXUIElement).first(where: { str($0, "AXIdentifier") == "com.apple.menuextra.controlcenter" }) else { fail("I couldn't find Control Center in the menu bar.") }
+  func byId(_ e: AXUIElement, _ id: String) -> AXUIElement? {
+    if str(e, "AXIdentifier") == id { return e }
+    for c in children(e) { if let f = byId(c, id) { return f } }
+    return nil
+  }
+  func panels() -> [AXUIElement] { children(root).filter { role($0) == "AXWindow" } }
+  func waitFor(_ id: String) -> AXUIElement? {
+    for _ in 0..<40 { if let f = panels().compactMap({ byId($0, id) }).first { return f }; Thread.sleep(forTimeInterval: 0.05) }
+    return nil
+  }
+  func closePanel() { for _ in 0..<3 where !panels().isEmpty { AXUIElementPerformAction(icon, kAXPressAction as CFString); Thread.sleep(forTimeInterval: 0.3) } }
+  let (moduleId, switchId, want) = (args[2], args[3], args[4])
+  if panels().isEmpty { AXUIElementPerformAction(icon, kAXPressAction as CFString) }
+  guard let module = waitFor(moduleId) else { closePanel(); fail("I couldn't find that part of Control Center.") }
+  AXUIElementPerformAction(module, kAXPressAction as CFString)
+  guard let sw = waitFor(switchId) else { closePanel(); fail("I couldn't find that switch in Control Center.") }
+  let before = (attr(sw, kAXValueAttribute) as? Int) ?? -1
+  if want != "status" && (before == 1) != (want == "on") {
+    AXUIElementPerformAction(sw, kAXPressAction as CFString)
+    Thread.sleep(forTimeInterval: 0.4)
+  }
+  let after = (attr(waitFor(switchId) ?? sw, kAXValueAttribute) as? Int) ?? -1
+  closePanel()
+  out(["ok": true, "before": before, "after": after])
+  exit(0)
+}
+
 if cmd == "list" {
   guard let app = appNamed(args.count > 2 ? args[2] : nil) else { fail("That app isn't running.") }
   guard let window = frontWindow(app) else { fail("\(app.localizedName ?? "The app") has no open window.") }
@@ -98,7 +136,7 @@ if cmd == "list" {
     let acts = actions(e)
     let secure = r == "AXSecureTextField" || str(e, kAXSubroleAttribute) == "AXSecureTextField"
     if ACTABLE.contains(r) && (!n.isEmpty || secure || r == "AXTextField" || r == "AXSearchField") && (r != "AXStaticText" || !n.isEmpty) {
-      var item: [String: Any] = ["path": path, "role": r, "name": String(n.prefix(80)), "frame": frame(e), "actions": acts]
+      var item: [String: Any] = ["path": path, "role": r, "name": shortName(e), "frame": frame(e), "actions": acts]
       if secure { item["secure"] = true }
       if let sel = attr(e, kAXSelectedAttribute) as? Bool, sel { item["selected"] = true }
       if let en = attr(e, kAXEnabledAttribute) as? Bool, !en { item["disabled"] = true }
@@ -117,9 +155,19 @@ guard let app = appNamed(args[2]), let window = frontWindow(app) else { fail("Th
 let (path, wantRole, wantName, last) = (args[3], args[4], args[5], args[6])
 // The item must still be the same one; if the window changed, look it up again by role and name.
 var target = at(window, path)
-if target == nil || role(target!) != wantRole || name(target!) != wantName { target = find(window, role: wantRole, name: wantName) }
+if target == nil || role(target!) != wantRole || shortName(target!) != wantName { target = find(window, role: wantRole, name: wantName) }
 guard var e = target else { fail("I couldn't find \(wantName.isEmpty ? wantRole : wantName) any more.") }
 let secure = role(e) == "AXSecureTextField" || str(e, kAXSubroleAttribute) == "AXSecureTextField"
+
+// Sliders (pointer size, text size, volume…): one step up or down, like pressing the arrow keys on them.
+if last == "increase" || last == "decrease" {
+  guard role(e) == "AXSlider" else { fail("Only a slider can be made bigger or smaller this way.") }
+  let action = last == "increase" ? kAXIncrementAction : kAXDecrementAction
+  let r = AXUIElementPerformAction(e, action as CFString)
+  if r != .success { fail("Moving the slider didn't work (\(r.rawValue)).") }
+  out(["ok": true, "did": last, "value": (attr(e, kAXValueAttribute) as? NSNumber) ?? 0])
+  exit(0)
+}
 
 if cmd == "type" {
   if secure { fail("That's a password box. Only the person types there.") }

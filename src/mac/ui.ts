@@ -83,9 +83,15 @@ export async function listWindow(app?: string): Promise<UiWindow | { error: stri
 }
 
 /** Press a button, select a row, or focus a field. Text and cells act through the row or button that holds them. */
-export async function actOn(app: string, item: UiItem, how: "press" | "select" | "focus" = "press"): Promise<{ ok: boolean; error?: string; did?: string }> {
+export async function actOn(app: string, item: UiItem, how: "press" | "select" | "focus" | "increase" | "decrease" = "press"): Promise<{ ok: boolean; error?: string; did?: string; value?: number }> {
   const r = await call(["act", app, item.path, item.role, item.name, how]);
-  return { ok: !!r.ok, error: r.error ? String(r.error) : undefined, did: r.did ? String(r.did) : undefined };
+  return { ok: !!r.ok, error: r.error ? String(r.error) : undefined, did: r.did ? String(r.did) : undefined, value: typeof r.value === "number" ? r.value : undefined };
+}
+
+/** A Control Center switch with no setting anywhere else (Do Not Disturb): set it and read it back. 1 = on, 0 = off. */
+export async function controlCenter(moduleId: string, switchId: string, want: "on" | "off" | "status"): Promise<{ ok: boolean; error?: string; before?: number; after?: number }> {
+  const r = await call(["controlcenter", moduleId, switchId, want]);
+  return { ok: !!r.ok, error: r.error ? String(r.error) : undefined, before: typeof r.before === "number" ? r.before : undefined, after: typeof r.after === "number" ? r.after : undefined };
 }
 
 /** Types into a text field (never a password box: the helper refuses). */
