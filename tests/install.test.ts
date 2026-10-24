@@ -1,5 +1,8 @@
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { findInstalledApp, installFromOfficial, signerMatches, type InstallDeps } from "../src/core/install.js";
+import { findInstalledApp, installFromOfficial, signerMatches, stagePackage, type InstallDeps } from "../src/core/install.js";
 
 const ok = (output = "") => ({ code: 0, output, timedOut: false });
 
@@ -7,6 +10,7 @@ function deps(signer: string | undefined, over: Partial<InstallDeps> = {}) {
   const ran: string[] = [];
   let installed = false;
   const d: InstallDeps = {
+    stagePackage: (path) => ({ path, cleanup() {} }),
     download: async () => ({ path: "/tmp/Zoom.pkg", bytes: 1, sha256: "", signature: { signed: !!signer, signer, summary: signer ? `Signed by "${signer}"` : "Not signed." } }),
     admin: async (c) => (ran.push("admin: " + c), (installed = true), ok()),
     normal: async (c) => (ran.push(c), ok()),
@@ -34,7 +38,7 @@ describe("installing from the official site", () => {
     const { d, ran } = deps("Developer ID Installer: Zoom Video Communications, Inc.");
     const r = await installFromOfficial({ url: "https://zoom.us/client/latest/Zoom.pkg", publisher: "Zoom", appName: "Zoom" }, undefined, d);
     expect(r.ok).toBe(true);
-    expect(ran[0]).toBe("admin: installer -pkg '/tmp/Zoom.pkg' -target /");
+    expect(ran[0]).toBe("admin: /usr/sbin/installer -pkg '/tmp/Zoom.pkg' -target /");
     expect(r.appPath).toBe("/Applications/zoom.us.app");
     expect(r.evidence.some((e) => e.kind === "after" && e.code === 0)).toBe(true);
   });
@@ -47,5 +51,35 @@ describe("installing from the official site", () => {
     const r = await installFromOfficial({ url: "https://zoom.us/x/Zoom.pkg", publisher: "Zoom", appName: "Zoom" }, undefined, other.d);
     expect(r.message).toMatch(/not Zoom/);
     expect(other.ran).toEqual([]);
+  });
+});
+
+
+describe("package staging", () => {
+  it("copies the package bytes out of Downloads and removes the temporary copy", () => {
+    const dir = mkdtempSync(join(tmpdir(), "calhack-stage-test-"));
+    try {
+      const original = join(dir, "Zoom's installer 2.pkg");
+      writeFileSync(original, "package bytes");
+      const staged = stagePackage(original);
+      try {
+        expect(staged.path).not.toBe(original);
+        expect(readFileSync(staged.path, "utf8")).toBe("package bytes");
+      } finally { staged.cleanup(); }
+      expect(existsSync(staged.path)).toBe(false);
+      expect(existsSync(original)).toBe(true);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it.each([0, 1, -128])("uses the staged path and cleans up after installer exit %s", async (code) => {
+    let cleaned = false;
+    let command = "";
+    const { d } = deps("Developer ID Installer: Zoom", {
+      stagePackage: () => ({ path: "/private/tmp/staged/installer.pkg", cleanup() { cleaned = true; } }),
+      admin: async (c) => { command = c; return { code, output: code === -128 ? "User cancelled (-128)" : "", timedOut: false }; },
+    });
+    await installFromOfficial({ url: "https://zoom.us/Zoom.pkg", publisher: "Zoom", appName: "Zoom" }, undefined, d);
+    expect(command).toBe("/usr/sbin/installer -pkg '/private/tmp/staged/installer.pkg' -target /");
+    expect(cleaned).toBe(true);
   });
 });

@@ -169,7 +169,11 @@ async function openApp(app: string, deps: RecipeDeps, trail: Trail): Promise<Res
   // Give it a moment to start, then check it's really running.
   for (let i = 0; i < 5; i++) {
     await deps.wait(1500);
-    const running = await runOurs(`pgrep -f ${shellQuote(path + "/Contents/MacOS/")}`, deps, 10_000, trail);
+    // Match the app's program name (from its Info.plist), which also works for Apple's apps that live in the system.
+    const exe = await runOurs(`defaults read ${shellQuote(path + "/Contents/Info")} CFBundleExecutable`, deps, 5_000, trail);
+    const name = exe?.code === 0 ? exe.output.trim().split("\n")[0] : "";
+    const check = /^[A-Za-z0-9 ._+-]{1,80}$/.test(name) ? `pgrep -x ${shellQuote(name)}` : `pgrep -f ${shellQuote(path + "/Contents/MacOS/")}`;
+    const running = await runOurs(check, deps, 10_000, trail);
     if (running?.code === 0) return { ok: true, message: `${app} is open and running.` };
   }
   return { ok: true, message: `Opened ${app}. (It's still starting.)` };

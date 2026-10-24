@@ -107,13 +107,16 @@
     enterkeyhint: "send",
   });
   const sendBtn = el("button", { type: "button", class: "send", "aria-label": "Send", title: "Send", disabled: true }, icon("send"));
-  const micBtn = el("button", { type: "button", class: "mic", "aria-label": "Hold to talk", title: "Hold to talk" }, icon("mic"));
+  const micBtn = el("button", { type: "button", class: "mic talk", "aria-label": "Hold to talk", title: "Hold this button while you talk" }, icon("mic"), el("span", { class: "talk-label" }, "Hold to talk"));
   const heard = el("div", { class: "heard", hidden: true });
   const hint = el("div", { class: "hint" });
   const chips = el("div", { class: "chips" });
+  const askRow = el("div", { class: "ask-row" }, el("div", { class: "ask-field" }, input, sendBtn), mic ? micBtn : null);
+  // On every other screen the same box sits at the bottom, so the person can ask a follow-up any time.
+  const followRow = el("div", { class: "follow", hidden: true });
   const askBox = el("div", { class: "ask" },
     heard,
-    el("div", { class: "ask-row" }, el("div", { class: "ask-field" }, input, sendBtn), mic ? micBtn : null),
+    askRow,
     hint,
     chips,
   );
@@ -142,20 +145,21 @@
   let micBy = "pointer"; // pointer | key
   let micStarted = null; // promise from CalhackMic.start()
   let micDownAt = 0;
-  let swallowUp = false;
 
   function setMicLook() {
     const s = state.phase === "ask" ? state : {};
     const listening = micMode !== "idle" || !!s.listening;
     micBtn.classList.toggle("is-listening", listening);
     micBtn.classList.toggle("is-transcribing", !listening && !!s.transcribing);
-    micBtn.setAttribute("aria-label", micMode === "latched" ? "Tap to finish talking" : "Hold to talk");
+    micBtn.setAttribute("aria-label", "Hold to talk");
+    const label = micBtn.querySelector(".talk-label");
+    if (label) label.textContent = listening ? "Listening… let go when done" : s.transcribing ? "Writing it down…" : "Hold to talk";
     micBtn.setAttribute("aria-pressed", listening ? "true" : "false");
     if (!listening) micBtn.style.setProperty("--level", "0");
   }
 
   function micStart(by) {
-    if (!mic || micMode !== "idle" || state.phase !== "ask") return;
+    if (!mic || micMode !== "idle" || state.phase === "hidden") return;
     micMode = "holding";
     micBy = by;
     micDownAt = Date.now();
@@ -166,10 +170,10 @@
       micStarted = Promise.reject(err);
     }
     send("bar-mic-start");
-    micStarted.catch(() => {
+    micStarted.catch((err) => {
       if (micMode === "idle") return;
       micMode = "idle";
-      micProblem = "I couldn't hear the microphone. You can type instead.";
+      micProblem = (err && err.message) || "I couldn't hear the microphone. You can type instead.";
       send("bar-mic-cancel");
       render();
     });
@@ -201,29 +205,28 @@
   }
 
   if (mic) {
+    // Hold to talk: talking starts when the button is pressed and stops when it's let go.
+    // The pointer is captured, so a finger drifting off the button doesn't cut the person off.
     micBtn.addEventListener("pointerdown", (e) => {
       if (e.button > 0) return;
       e.preventDefault();
-      if (micMode === "latched") {
-        swallowUp = true;
-        micFinish();
-        return;
-      }
+      try { micBtn.setPointerCapture(e.pointerId); } catch { /* fine */ }
       micStart("pointer");
     });
-    micBtn.addEventListener("pointerup", () => {
-      if (swallowUp) { swallowUp = false; return; }
+    const release = () => {
       if (micMode !== "holding" || micBy !== "pointer") return;
-      if (Date.now() - micDownAt < 350) {
-        micMode = "latched"; // a quick tap: keep listening until the next tap
+      if (Date.now() - micDownAt < 400) {
+        // Too short to be speech: explain instead of sending silence.
+        micCancel();
+        micProblem = "Keep holding the button while you talk, then let go.";
         render();
-      } else {
-        micFinish();
+        return;
       }
-    });
-    const leave = () => { if (micMode === "holding" && micBy === "pointer") micCancel(); };
-    micBtn.addEventListener("pointerleave", leave);
-    micBtn.addEventListener("pointercancel", leave);
+      micFinish();
+    };
+    micBtn.addEventListener("pointerup", release);
+    micBtn.addEventListener("lostpointercapture", release);
+    micBtn.addEventListener("pointercancel", () => { if (micMode === "holding" && micBy === "pointer") micCancel(); });
     micBtn.addEventListener("contextmenu", (e) => e.preventDefault());
     // Keyboard users: Enter/Space on the focused mic toggles it.
     micBtn.addEventListener("keydown", (e) => {
@@ -310,7 +313,7 @@
       return {
         eyebrow: "",
         title: [s.question || "Hi! What's going on?"],
-        body: [askBox],
+        body: s.note ? [el("p", { class: "confirm-msg ask-note" }, s.note), askBox] : [askBox],
         now: line,
         live: !!line,
         buttons: [], // the ✕ in the corner closes it
@@ -368,6 +371,7 @@
     working(s) {
       const steps = s.steps || [];
       const total = s.total || steps.length || 1;
+      const openEnded = !!s.openEnded;
       const current = Math.max(1, Math.min(total, s.current || 1));
       const step = steps.find((x) => x.status === "running") || steps[current - 1];
       let progress;
@@ -383,7 +387,7 @@
         eyebrow: "Working on it",
         title: [s.goal],
         body: [
-          el("div", { class: "progress-row" }, el("div", { class: "progress-label" }, `Step ${current} of ${total}`), progress),
+          el("div", { class: "progress-row" }, el("div", { class: "progress-label" }, openEnded ? `Step ${current}` : `Step ${current} of ${total}`), progress),
           step ? el("div", { class: "current-step" }, step.text) : null,
         ].filter(Boolean),
         now: s.line,
@@ -422,15 +426,58 @@
       };
     },
 
+    confirm(s) {
+      const parts = [];
+      if (s.message) parts.push(el("p", { class: "confirm-msg" }, s.message));
+      const details = (s.details || []).filter(Boolean);
+      if (details.length) parts.push(el("ul", { class: "confirm-details" }, details.map((d) => el("li", {}, d))));
+      let typed = null;
+      const yes = button(s.yes || "Yes", () => send("bar-confirm", { yes: true, typed: typed ? typed.value : undefined }), (s.tone === "danger" ? "danger" : "primary") + " grow");
+      if (s.typeToConfirm) {
+        typed = el("input", { type: "text", class: "ask-input confirm-type", placeholder: `Type ${s.typeToConfirm}`, "aria-label": `Type ${s.typeToConfirm} to confirm`, autocomplete: "off" });
+        const check = () => { yes.disabled = typed.value.trim().toLowerCase() !== String(s.typeToConfirm).toLowerCase(); };
+        typed.addEventListener("input", check);
+        typed.addEventListener("keydown", (e) => { if (e.key === "Enter" && !yes.disabled) yes.click(); });
+        check();
+        parts.push(typed);
+        setTimeout(() => typed && typed.focus(), 50);
+      }
+      return {
+        eyebrow: s.tone === "danger" ? "Please read carefully" : "Before I go on",
+        title: [s.title],
+        body: parts,
+        now: null,
+        buttons: [yes, button(s.no || "No", () => send("bar-confirm", { yes: false }))],
+      };
+    },
+
+    explain(s) {
+      const parts = (s.paragraphs || []).map((p) => el("p", { class: "confirm-msg" }, p));
+      const steps = (s.steps || []).filter(Boolean);
+      if (steps.length) parts.push(el("ol", { class: "teach-steps" }, steps.map((x) => el("li", {}, x))));
+      return {
+        eyebrow: "Learn how",
+        title: [s.title],
+        body: parts,
+        now: null,
+        buttons: [button("Got it", () => send("bar-explain-ok"), "primary grow")],
+      };
+    },
+
     done(s) {
       const r = s.receipt || { verdict: "couldnt-verify", headline: "Finished.", beforeAfter: [], proofs: [], problems: [], reviewedBy: "rules" };
       const VERDICT = {
         done: ["check", "All done"],
+        answered: ["check", "Here's what I found"],
         "not-done": ["cross", "Not finished"],
+        "cant-do": ["shield", "I won't do this one"],
         "couldnt-verify": ["question", "I couldn't check this"],
       };
       const [vIcon, vWord] = VERDICT[r.verdict] || VERDICT["couldnt-verify"];
       const parts = [];
+
+      // The answer, in plain lines (from the agent).
+      if (r.lines && r.lines.length) parts.push(el("ul", { class: "lines" }, r.lines.map((l) => el("li", {}, l))));
 
       if (r.beforeAfter && r.beforeAfter.length) {
         parts.push(el("table", { class: "ba" + (r.verdict === "done" ? " good" : "") },
@@ -470,10 +517,10 @@
       }
 
       parts.push(el("div", { class: "reviewed" }, icon("shield", "sm"),
-        r.reviewedBy === "claude" ? "Checked by a separate Claude review" : "Checked by CalHack's rules"));
+        r.reviewedBy === "claude" ? "Checked by a separate Claude review" : r.reviewedBy === "agent" ? "Every ✓ is a check that really ran on your Mac" : "Checked by CalHack's rules"));
 
       const btns = [];
-      const good = r.verdict === "done";
+      const good = r.verdict === "done" || r.verdict === "answered";
       btns.push(button("Close", () => send("bar-cancel"), good || !s.canRetry ? "primary" : ""));
       if (s.canRetry) btns.push(button("Try again", () => send("bar-retry"), good ? "" : "primary"));
       if (s.canSendSummary) {
@@ -607,6 +654,26 @@
     now.classList.toggle("only-toggle", !line);
 
     actions.replaceChildren(...(view.buttons || []).filter(Boolean));
+    // The ask box: in the body on the "ask" screen, at the bottom on every other screen (except confirmations).
+    if (!followRow.isConnected) actions.after(followRow);
+    const followHere = !["ask", "confirm", "explain", "hidden"].includes(phase);
+    if (followHere) {
+      if (askRow.parentNode !== followRow) followRow.replaceChildren(askRow);
+      input.placeholder = phase === "working" ? "Add something, or ask a question…" : "Ask me something else…";
+    } else if (phase === "ask") {
+      if (askRow.parentNode !== askBox) askBox.insertBefore(askRow, hint);
+      input.placeholder = "Type it here…";
+    }
+    followRow.hidden = !followHere;
+    if (followHere) {
+      const note = micProblem || (state.heard ? `You said: “${state.heard}”` : "");
+      let n = followRow.querySelector(".follow-note");
+      if (note) {
+        if (!n) { n = el("div", { class: "follow-note" }); followRow.append(n); }
+        n.textContent = note;
+      } else if (n) n.remove();
+      setMicLook();
+    }
     // The ✕ only where leaving is always safe (not mid-run).
     closeBtn.hidden = !CLOSABLE.has(phase);
 
@@ -675,6 +742,19 @@
 
   const synth = window.speechSynthesis || null;
   const speech = { queue: [], current: null, timer: 0, speaking: false, voice: null, muted: false };
+  let heartAudio = null;
+  let heartUrl = null;
+  function stopHeart() {
+    if (heartAudio) {
+      heartAudio.onended = null;
+      heartAudio.onerror = null;
+      heartAudio.pause();
+      heartAudio.removeAttribute("src");
+      heartAudio = null;
+    }
+    if (heartUrl) URL.revokeObjectURL(heartUrl);
+    heartUrl = null;
+  }
   try { speech.muted = localStorage.getItem("calhack.muted") === "1"; } catch { /* no storage */ }
 
   // Silly or robotic macOS voices we never want.
@@ -683,6 +763,10 @@
     if (!synth) return null;
     const voices = synth.getVoices().filter((v) => /^en([-_]|$)/i.test(v.lang));
     if (!voices.length) return null;
+    // Electron's default can differ from the voice selected in macOS settings.
+    // Only voices exposed by speechSynthesis are usable here.
+    const systemVoice = voices.find((v) => v.default && !NOVELTY.test(v.name));
+    if (systemVoice) return systemVoice;
     const score = (v) => {
       let s = 0;
       if (/premium/i.test(v.name)) s += 100;
@@ -723,6 +807,7 @@
       speech.queue.length = 0;
       const wasTalking = !!speech.current;
       speech.current = null;
+      stopHeart();
       clearTimeout(speech.timer);
       if (synth && wasTalking) {
         try { synth.cancel(); } catch { /* ignore */ }
@@ -737,7 +822,8 @@
     if (!speech.current) next();
   }
 
-  function next() {
+  async function next() {
+    stopHeart();
     clearTimeout(speech.timer);
     const item = speech.queue.shift();
     speech.current = item || null;
@@ -749,8 +835,32 @@
     showCaption(item.text);
     const finish = () => { if (!item.cancelled && speech.current === item) next(); };
 
-    if (speech.muted || !synth || typeof SpeechSynthesisUtterance !== "function") {
+    if (speech.muted) {
       // Captions only: give people time to read before the next one.
+      setSpeaking(false);
+      speech.timer = setTimeout(finish, Math.max(1800, item.text.length * 65));
+      return;
+    }
+    if (typeof api.synthesize === "function") {
+      try {
+        const base64 = await api.synthesize(item.text);
+        if (speech.current !== item || item.cancelled || speech.muted) return;
+        const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        heartUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        const audio = new Audio(heartUrl);
+        heartAudio = audio;
+        audio.onended = finish;
+        audio.onerror = finish;
+        await audio.play();
+        if (speech.current === item && !item.cancelled) setSpeaking(true);
+        return;
+      } catch (error) {
+        if (speech.current !== item || item.cancelled || speech.muted) return;
+        stopHeart();
+        console.warn("Kokoro unavailable; using system speech:", error);
+      }
+    }
+    if (!synth || typeof SpeechSynthesisUtterance !== "function") {
       setSpeaking(false);
       speech.timer = setTimeout(finish, Math.max(1800, item.text.length * 65));
       return;
@@ -775,6 +885,7 @@
   }
 
   function stopSpeech(clear) {
+    stopHeart();
     speech.queue.length = 0;
     speech.current = null;
     clearTimeout(speech.timer);
@@ -803,6 +914,7 @@
       // Stop the voice, keep the caption on screen.
       const keep = speech.current;
       keep.cancelled = true; // ignore the "end" that cancel() fires
+      stopHeart();
       clearTimeout(speech.timer);
       try { synth && synth.cancel(); } catch { /* ignore */ }
       setSpeaking(false);

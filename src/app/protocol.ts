@@ -11,7 +11,8 @@ export type BarState =
   /** Just pressed the hotkey: "Let me take a look…" */
   | { phase: "looking"; message: string }
   /** Nothing useful on screen, or the person tapped the mic/typing box: Siri-style question. */
-  | { phase: "ask"; question: string; suggestions: string[]; listening: boolean; transcribing: boolean; heard?: string }
+  /** note: a short explanation shown under the question (the question itself stays short, and is what's spoken). */
+  | { phase: "ask"; question: string; note?: string; suggestions: string[]; listening: boolean; transcribing: boolean; heard?: string }
   /** Running read-only checks for a problem, one by one. */
   | { phase: "checking"; title: string; checks: CheckLine[] }
   /** Ready to act: the goal, what's wrong (for fixes), the plan in plain words, and OK. */
@@ -28,7 +29,12 @@ export type BarState =
       source?: string; // e.g. "From support.apple.com" or "From the page you're reading"
     }
   /** Working through the steps. */
-  | { phase: "working"; goal: string; current: number; total: number; line: string; steps: StepLine[]; detail: DetailLine[] }
+  /** openEnded: the agent doesn't know the number of steps ahead, so it shows "Step 3", not "Step 3 of 3". */
+  | { phase: "working"; goal: string; current: number; total: number; line: string; steps: StepLine[]; detail: DetailLine[]; openEnded?: boolean }
+  /** A question that needs a clear yes or no. Big removals add typeToConfirm (the person types the folder's name). */
+  | { phase: "confirm"; title: string; message: string; details?: string[]; yes: string; no: string; typeToConfirm?: string; tone?: "normal" | "danger" }
+  /** A teaching screen: how to do something yourself (CalHack won't do it, e.g. it can't be undone). */
+  | { phase: "explain"; title: string; paragraphs: string[]; steps?: string[] }
   /** A step needs the person: an OK for a flagged step, or a click they must do themselves. */
   | { phase: "needs-you"; goal: string; stepId: string; kind: "approve" | "manual"; question: string; why: string[]; command?: string; showMe: boolean }
   /** Finished: the receipt. */
@@ -63,13 +69,16 @@ export interface DetailLine {
 }
 
 export interface ReceiptView {
-  verdict: "done" | "not-done" | "couldnt-verify";
+  /** answered = a question was answered; cant-do = CalHack won't do it (e.g. it can't be undone). */
+  verdict: "done" | "answered" | "not-done" | "cant-do" | "couldnt-verify";
+  /** The answer or what was done, in a few plain lines. */
+  lines?: string[];
   headline: string; // "Fixed. Your printer is Ready."
   /** Before/after for fixes, e.g. { label: "Printer", before: "Paused, 3 stuck jobs", after: "Ready" }. */
   beforeAfter: { label: string; before: string; after: string }[];
   proofs: { claim: string; checks: string[] }[]; // checks = the commands that passed
   problems: string[];
-  reviewedBy: "claude" | "rules";
+  reviewedBy: "claude" | "rules" | "agent";
 }
 
 // ---------------- App → helper bar: channel "say" ----------------
@@ -88,6 +97,8 @@ export interface SayMessage {
 
 export type BarToApp =
   | { channel: "bar-ok" } // the OK button on "plan"
+  | { channel: "bar-confirm"; data: { yes: boolean; typed?: string } } // the answer on "confirm"
+  | { channel: "bar-explain-ok" } // closes "explain"
   | { channel: "bar-cancel" }
   | { channel: "bar-stop" }
   | { channel: "bar-retry" }

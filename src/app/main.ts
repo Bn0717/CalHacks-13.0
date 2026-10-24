@@ -5,6 +5,9 @@
 // The helper bar (bottom-center) shows each moment, the buddy hops to where the work is, and a voice says what's happening.
 // Code decides what's safe. Droid (Factory) runs the approved commands. A separate Claude call writes the receipt.
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, session as electronSession, shell, systemPreferences, Tray } from "electron";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { findAppBundles, uninstallApp, uninstallRequest } from "../core/uninstall.js";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -23,6 +26,10 @@ import { checkOfficial } from "../core/official.js";
 import { buildFixes, diagnose, getGuide, guideMenu, realCheckRunner, verifyFix, type BuiltFix, type Diagnosis, type FixGuide } from "../core/fixes/index.js";
 import type { Evidence, InstructionSource, PlannedStep, Step, StepResult } from "../core/types.js";
 import { reviewRun } from "../ai/review.js";
+import { runAgent } from "../agent/agent.js";
+import { realMac } from "../agent/mac.js";
+import { offlineGuide } from "../agent/offline.js";
+import { TOOLS as AGENT_TOOLS, type AgentUI } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
@@ -32,7 +39,8 @@ import { findOfficialSource, type OfficialSource } from "../droid/research.js";
 import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
 import { describeSource, gatherInstructions } from "./gather.js";
-import { transcribe, voiceProblem } from "./voice-in.js";
+import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
+import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
 import { barLine, buddyHome, buddyPoint, buddyPose, buddyScanScreen, buddyTo, currentBar, dockSpot, ensureBar, focusBar, say, screenTopCenter, setBarRect, showBar, toBuddy } from "./windows.js";
@@ -244,8 +252,7 @@ async function onHotkey(): Promise<void> {
 
     showBar({ phase: "looking", message: "Let me take a look…" });
     say("Let me take a look.", "now");
-    buddyHome("scan");
-    buddyScanScreen();
+    buddyHome("think");
 
     if (!hasApiKey()) {
       showError("I need a Claude API key first. Put ANTHROPIC_API_KEY in the .env file, then restart me.");
@@ -261,18 +268,14 @@ async function onHotkey(): Promise<void> {
       return;
     }
 
-    const env = await getEnvironment();
-    const t = await triage({
-      screenText: lastLook.screenText,
-      screenshot: shot ? { data: shot.data, mediaType: shot.mediaType } : undefined,
-      guides: guideMenu(),
-      environment: describeEnvironment(env),
-    }).catch((): Triage => (source.text.trim() ? { kind: "instructions" } : { kind: "clarify", question: "Hi! What's going on?", suggestions: SUGGESTIONS, say: "Hi! What's going on?" }));
-
-    // A page full of steps is followed as written, not swapped for a web search (the person said nothing else).
+    // A how-to page on screen is followed as written (with its plan and OK). Anything else goes to the agent,
+    // which reads the screen (an error message, say) and helps, or asks what's going on.
     const pageWithSteps = source.kind !== "screenshot" && source.text.trim().length > 200 && /\b(step|install|click|open|run|terminal|download|settings)\b/i.test(source.text);
-    if ((t.kind === "instructions" && (source.text.trim() || shot)) || (t.kind === "search" && pageWithSteps)) await instructionsFlow(source, shot);
-    else await route(t);
+    if (pageWithSteps) await instructionsFlow(source, shot);
+    else {
+      busy = false;
+      await agentFlow("", lastLook);
+    }
   } catch (error) {
     showError(friendlyError(error));
   } finally {
@@ -282,28 +285,28 @@ async function onHotkey(): Promise<void> {
 
 /** Something the person typed or said, read together with what was on screen. */
 async function onAnswer(text: string): Promise<void> {
-  if (busy || running) return;
   const clean = text.trim();
   if (!clean) return;
+  // The agent asked something: this is the answer.
+  if (agentAsk) {
+    agentAsk(clean);
+    return;
+  }
+  // The agent is working: pass it along as a follow-up.
+  if (agentRunning) {
+    agentInbox.push(clean);
+    say("Got it.", "now");
+    return;
+  }
+  if (busy || running) return;
   if (/^(no|no thanks|nope|not now|cancel)\b/i.test(clean)) {
     showBar({ phase: "hidden" });
     return;
   }
   busy = true;
   try {
-    // "Yes, look it up" after a guide found nothing it could fix.
-    if (/^yes,? look it up/i.test(clean) && pendingLookup) {
-      const goal = pendingLookup;
-      pendingLookup = null;
-      await searchFlow({ kind: "search", goal, query: goal + " on a Mac", say: "I'll look up the official help." });
-      return;
-    }
-    showBar({ phase: "looking", message: `“${clean}”. Let me think…` });
-    buddyPose("think");
-    const env = await getEnvironment();
-    const t = await triage({ text: clean, screenText: lastLook.screenText, guides: guideMenu(), environment: describeEnvironment(env) });
-    if (t.kind === "instructions") await route({ kind: "search", goal: clean, query: clean, say: "Let me find the official steps for that." });
-    else await route(t);
+    busy = false;
+    await agentFlow(clean, lastLook);
   } catch (error) {
     showError(friendlyError(error));
   } finally {
@@ -317,10 +320,261 @@ async function route(t: Triage): Promise<void> {
     if (guide) return fixFlow(guide, t.say);
     return searchFlow({ kind: "search", goal: t.goal, query: t.goal, say: t.say });
   }
-  if (t.kind === "search") return searchFlow(t);
+  if (t.kind === "search") {
+    const removal = uninstallRequest(t.goal);
+    if (removal) return uninstallFlow(removal);
+    return searchFlow(t);
+  }
   if (t.kind === "clarify") return askWhat(t.question, t.suggestions.length ? t.suggestions : SUGGESTIONS);
   askWhat();
 }
+
+/** Direct requests authorize reversible removal; no researcher, page, or manual steps. */
+async function uninstallFlow(name: string): Promise<void> {
+  job = null;
+  running = true;
+  buddyHome("carry");
+  say(`I'll remove ${name} from Applications.`, "now");
+  try {
+    const result = await uninstallApp(name, {
+      find: findAppBundles,
+      exists: existsSync,
+      trash: (path) => shell.trashItem(path),
+      quit: async (path) => {
+        const literal = '"' + path.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+        // Checking `running` avoids launching the app just to close it.
+        const script = `with timeout of 15 seconds\nif application ${literal} is running then\ntell application ${literal} to quit\nrepeat 20 times\nif not (application ${literal} is running) then exit repeat\ndelay 0.25\nend repeat\nif application ${literal} is running then error "The app did not close, so it was not moved."\nend if\nend timeout`;
+        await promisify(execFile)("/usr/bin/osascript", ["-e", script], { timeout: 20_000 });
+      },
+    }, (message) => showBar({ phase: "looking", message }));
+    showBar({ phase: "done", receipt: {
+      verdict: result.ok ? "done" : "not-done", headline: result.message,
+      beforeAfter: [], proofs: result.ok && result.paths.length ? [{ claim: `${name} is no longer at its Applications location`, checks: result.paths.map((p) => `Confirmed absent: ${p}`) }] : [],
+      problems: result.ok ? [] : [result.message], reviewedBy: "rules",
+    }, steps: [], detail: [], canRetry: false, canSendSummary: false });
+    say(result.message, "now");
+    buddyHome(result.ok ? "celebrate" : "sad");
+  } finally { running = false; }
+}
+
+// ---------- The agent: understand → look → act → check → finish ----------
+
+/** Waiting on the person while the agent runs. */
+let agentAsk: ((answer: string) => void) | null = null;
+let agentConfirm: { resolve: (yes: boolean) => void; typeToConfirm?: string } | null = null;
+let agentExplain: (() => void) | null = null;
+let agentGuide: ((answer: "done" | "skip") => void) | null = null;
+let agentRunning = false;
+/** Follow-ups typed while the agent works. */
+const agentInbox: string[] = [];
+/** The last exchange, so a follow-up question has context. */
+let lastExchange: { request: string; headline: string; details: string[] } | null = null;
+
+/** Testing only: CALHACK_AUTO_ANSWERS="Yes|No|Never mind" answers the agent's questions and confirmations in order. */
+const autoAnswers = (process.env.CALHACK_AUTO_ANSWERS ?? "").split("|").map((x) => x.trim()).filter(Boolean);
+function autoAnswer(apply: (a: string) => void): void {
+  const a = autoAnswers.shift();
+  if (a !== undefined) setTimeout(() => apply(a), 1500);
+}
+
+function settleAgentWaits(): void {
+  agentAsk?.("Stop");
+  agentConfirm?.resolve(false);
+  agentExplain?.();
+  agentGuide?.("skip");
+  agentAsk = null;
+  agentConfirm = null;
+  agentExplain = null;
+  agentGuide = null;
+}
+
+function capitalize(text: string): string {
+  return text ? text[0].toUpperCase() + text.slice(1) : text;
+}
+
+/** Points the buddy at something on screen (found with a screenshot), for things only the person can click. */
+async function pointAtTarget(target: string, title: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const shot = await captureScreen();
+    if (!shot) return false;
+    try {
+      const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target, stepTitle: title });
+      if (loc.found) {
+        buddyPoint(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), target);
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    await sleep(1500);
+  }
+  return false;
+}
+
+async function agentFlow(request: string, look: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" }): Promise<void> {
+  job = null;
+  agentRunning = true;
+  running = true;
+  stopRequested = false;
+  agentInbox.length = 0;
+  const steps: StepLine[] = [];
+  const detail: DetailLine[] = [];
+  const goal = request ? capitalize(request.length > 70 ? request.slice(0, 67) + "…" : request) : "Helping you";
+  let line = "Let me look…";
+  const work = () =>
+    showBar({ phase: "working", goal, current: Math.max(1, steps.length), total: Math.max(1, steps.length), openEnded: true, line, steps: [...steps], detail: [...detail] });
+  const finishStep = () => {
+    for (const st of steps) if (st.status === "running") st.status = "done";
+  };
+
+  const ui: AgentUI = {
+    status: (l) => {
+      line = l;
+      work();
+    },
+    say: (t) => say(t, "queue"),
+    detail: (text, mono) => detail.push({ text, mono }),
+    buddy: (spot, pose) => {
+      if (spot === "bar") buddyHome(pose);
+      else if (spot === "work") {
+        const l = barLine();
+        buddyTo(l.x, l.y, pose);
+      } else if (spot === "top") {
+        const t = screenTopCenter();
+        buddyTo(t.x, t.y, pose);
+      } else {
+        const d = dockSpot();
+        buddyTo(d.x, d.y - 10, pose);
+      }
+    },
+    ask: (question, choices, note) =>
+      new Promise((resolve) => {
+        agentAsk = (a) => {
+          agentAsk = null;
+          resolve(a);
+          work();
+        };
+        showBar({ phase: "ask", question, note, suggestions: choices, listening: false, transcribing: false });
+        say(question, "now");
+        buddyHome("think");
+        focusBar();
+        autoAnswer((a) => agentAsk?.(a === "1" ? (choices[0] ?? a) : a));
+      }),
+    confirm: (c) =>
+      new Promise((resolve) => {
+        agentConfirm = {
+          typeToConfirm: c.typeToConfirm,
+          resolve: (yes) => {
+            agentConfirm = null;
+            resolve(yes);
+            work();
+          },
+        };
+        showBar({ phase: "confirm", title: c.title, message: c.message, details: c.details, yes: c.yes, no: c.no, typeToConfirm: c.typeToConfirm, tone: c.tone });
+        say(c.title, "now");
+        buddyHome(c.tone === "danger" ? "stop" : "think");
+        if (c.typeToConfirm) focusBar();
+        autoAnswer((a) => agentConfirm?.resolve(/^y/i.test(a)));
+      }),
+    explain: (e) =>
+      new Promise((resolve) => {
+        agentExplain = () => {
+          agentExplain = null;
+          resolve();
+          work();
+        };
+        showBar({ phase: "explain", title: e.title, paragraphs: e.paragraphs, steps: e.steps });
+        say(e.title, "now");
+        buddyHome("idle");
+        focusBar();
+        autoAnswer(() => agentExplain?.());
+      }),
+    guide: (g) =>
+      new Promise((resolve) => {
+        agentGuide = (a) => {
+          agentGuide = null;
+          buddyHome("idle");
+          resolve(a);
+          work();
+        };
+        const link = safeSettingsUrl(g.settingsUrl);
+        if (link) void shell.openExternal(link);
+        showBar({ phase: "needs-you", goal, stepId: "agent", kind: "manual", question: g.instruction, why: ["macOS only lets you do this part yourself. I'll show you where."], showMe: !!g.clickTarget });
+        say(g.clickTarget ? "This part only you can do. I'll show you where to click." : g.instruction, "now");
+        if (g.clickTarget) setTimeout(() => void pointAtTarget(g.clickTarget!, g.instruction), link ? 1800 : 300);
+        pendingGuideTarget = g.clickTarget ? { target: g.clickTarget, title: g.instruction } : null;
+      }),
+  };
+
+  buddyHome("scan");
+  work();
+  const toolLabel = (name: string, input: Record<string, unknown>) => AGENT_TOOLS.find((t) => t.name === name)?.label(input) ?? "Working…";
+  try {
+    const env = await getEnvironment();
+    const context = lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
+    // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
+    const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
+    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts });
+    const result = await runAgent(
+      { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
+      ui,
+      mac,
+      {
+        inbox: agentInbox,
+        stopped: () => stopRequested,
+        onTool: (name, input) => {
+          finishStep();
+          if (["ask_person", "explain_irreversible"].includes(name)) return;
+          steps.push({ id: String(steps.length + 1), text: toolLabel(name, input).replace(/…$/, ""), status: "running" });
+          line = toolLabel(name, input);
+          work();
+        },
+      },
+    );
+    finishStep();
+    lastExchange = { request: request || "(pressed the help key)", headline: result.headline, details: result.details };
+    const verdict = result.verdict === "done" ? "done" : result.verdict === "answered" ? "answered" : result.verdict === "cant_do" ? "cant-do" : "not-done";
+    const proofs = result.proofs.map((p) => ({ claim: capitalize(p.shows || p.evidence.output.split("\n")[0].slice(0, 90) || "Check passed"), checks: [p.evidence.command] }));
+    showBar({
+      phase: "done",
+      receipt: { verdict, headline: result.headline, lines: result.details, beforeAfter: result.beforeAfter, proofs, problems: [], reviewedBy: "agent" },
+      steps,
+      detail: [...detail, ...result.toolCalls.map((t) => ({ text: `${t.name} (${t.ms} ms): ${t.result.slice(0, 200)}`, mono: true }))],
+      canRetry: false,
+      canSendSummary: verdict === "not-done",
+    });
+    say(result.headline, "now");
+    buddyHome(verdict === "done" || verdict === "answered" ? "celebrate" : verdict === "cant-do" ? "stop" : "sad");
+    summaryText = [`CalHack summary: ${request || "Help"}`, `Result: ${result.headline}`, ...result.details, "What I did:", ...result.toolCalls.map((t) => `- ${t.name}: ${t.result.split("\n")[0].slice(0, 160)}`)].join("\n");
+  } catch (error) {
+    settleAgentWaits();
+    agentRunning = false;
+    running = false;
+    // No internet (or Claude unreachable): the built-in fix guides still work, because they run on the Mac.
+    const guide = offlineGuide(request);
+    if (guide && isConnectionError(error)) {
+      say("I can't reach the internet, but I can still check this on your Mac.", "now");
+      await fixFlow(guide, "Let me check a few things on your Mac.");
+      return;
+    }
+    showError(isConnectionError(error) && !request ? "I can't reach the internet right now. Tell me what's wrong: I can still check your printer, sound and Wi-Fi without it." : friendlyError(error));
+  } finally {
+    settleAgentWaits();
+    agentRunning = false;
+    running = false;
+  }
+}
+
+function isConnectionError(error: unknown): boolean {
+  const e = error as { name?: string; message?: string; constructor?: { name?: string } };
+  return /APIConnection|fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network/i.test(`${e?.constructor?.name ?? ""} ${e?.name ?? ""} ${e?.message ?? ""}`);
+}
+
+
+
+/** What "Send this to my son / IT" copies after an agent run. */
+let summaryText: string | null = null;
+let pendingGuideTarget: { target: string; title: string } | null = null;
 
 // ---------- Mode 1: follow the how-to on screen ----------
 
@@ -341,7 +595,7 @@ function newJob(mode: Job["mode"], goal: string, source: InstructionSource, plan
   };
 }
 
-async function instructionsFlow(source: InstructionSource, shot: Shot | null, sourceLabel?: string, extra: DetailLine[] = []): Promise<void> {
+async function instructionsFlow(source: InstructionSource, shot: Shot | null, sourceLabel?: string, extra: DetailLine[] = [], requestedGoal?: string): Promise<void> {
   showBar({ phase: "looking", message: `Reading ${describeSource(source)}…` });
   if (source.kind === "screenshot" && !shot) {
     askWhat("I couldn't read anything on your screen. What are you trying to do?");
@@ -350,6 +604,7 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
   const env = await getEnvironment();
   const parse = await parseInstructions({
     source,
+    requestedGoal,
     environment: describeEnvironment(env),
     screenshot: shot ? { data: shot.data, mediaType: shot.mediaType } : undefined,
     allowCache: true,
@@ -358,9 +613,13 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
     askWhat("I don't see any steps to follow here. What are you trying to do?");
     return;
   }
+  if (requestedGoal && /\b(uninstall|remove|delete)\b/i.test(requestedGoal) && parse.steps.some((s) => s.kind === "download")) {
+    showError("This page mixes removal with reinstalling. I couldn't isolate the removal steps, so I stopped without downloading anything.");
+    return;
+  }
   const plan = planSteps(parse.steps, source);
   applyAiConcerns(plan, parse.pageConcerns, parse.appliesToThisComputer);
-  const j = newJob("instructions", parse.goal, source, plan, sourceLabel ?? `From ${describeSource(source)}`);
+  const j = newJob("instructions", requestedGoal ?? parse.goal, source, plan, sourceLabel ?? `From ${describeSource(source)}`);
   j.parse = parse;
   j.extraDetail = extra;
 
@@ -378,7 +637,7 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
   const blocked = plan.steps.filter((p) => p.level === "blocked" && (p.step.kind === "command" || p.step.kind === "download")).length;
   const scam = plan.pageWarnings.some((w) => w.level === "blocked");
   if (scam) say("Careful. This page looks like a scam. I won't run anything from it.", "now");
-  else say(`Looks like you want to ${lower(parse.goal)}.${blocked ? " I'll skip a step that isn't safe." : ""} Ready when you are.`, "now");
+  else say(`Looks like you want to ${lower(j.goal)}.${blocked ? " I'll skip a step that isn't safe." : ""} Ready when you are.`, "now");
 }
 
 // ---------- Mode 2: fix a problem ----------
@@ -455,10 +714,7 @@ async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void>
     let url = page?.downloadUrl && checkOfficial(page).ok ? page.downloadUrl : null;
     const publisher = page?.publisher ?? known?.publisher ?? t.installApp;
     if (!url && known && checkOfficial({ url: known.url, downloadUrl: known.url, publisher: known.publisher, kind: "download" }).ok) url = known.url;
-    if (page) {
-      void shell.openExternal(page.url);
-      say(`Going to ${publisher}'s official website.`, "queue");
-    }
+
     if (!url) {
       showError(page ? `I opened ${publisher}'s official download page, but I couldn't find an installer link I trust. You can click Download there.` : `I couldn't find ${t.installApp}'s official website, so I stopped. I never download from other sites.`);
       return;
@@ -477,11 +733,10 @@ async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void>
     showError(`I found a page, but ${lower(verdict.reason)} So I stopped.`);
     return;
   }
-  void shell.openExternal(src.url);
-  say(`Going to ${src.publisher}'s official help page.`, "queue");
+  say(`Reading ${src.publisher}'s official help page.`, "queue");
   const text = await fetchPageText(src.url);
   const source: InstructionSource = { kind: "webpage", text, location: src.url, app: "CalHack" };
-  await instructionsFlow(source, null, `From ${verdict.host} (${src.publisher}'s official site)`, extra);
+  await instructionsFlow(source, null, `From ${verdict.host} (${src.publisher}'s official site)`, extra, t.goal);
 }
 
 const INSTALL_STEPS = (appName: string, publisher: string, host: string) => [
@@ -905,19 +1160,38 @@ function watchClipboard(): void {
 
 // ---------- Messages from the windows ----------
 
+ipcMain.handle("voice-synthesize", (event, text: string) => {
+  if (event.sender !== ensureBar().webContents || event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted speech request");
+  return synthesize(ROOT, text);
+});
 ipcMain.on("bar-ok", () => void runAll());
 ipcMain.on("bar-retry", () => {
   if (job && !running) void runAll();
   else if (!job) void onHotkey();
 });
+ipcMain.on("bar-confirm", (_e, data: { yes?: boolean; typed?: string }) => {
+  const c = agentConfirm;
+  if (!c) return;
+  // A typed confirmation must match, whatever the page says.
+  const ok = !!data?.yes && (!c.typeToConfirm || String(data.typed ?? "").trim().toLowerCase() === c.typeToConfirm.toLowerCase());
+  c.resolve(ok);
+});
+ipcMain.on("bar-explain-ok", () => agentExplain?.());
 ipcMain.on("bar-stop", () => {
   stopRequested = true;
+  settleAgentWaits();
   for (const [id, resolve] of approvals) {
     resolve(false);
     approvals.delete(id);
   }
 });
 ipcMain.on("bar-cancel", () => {
+  if (agentRunning) {
+    stopRequested = true;
+    settleAgentWaits();
+    showBar({ phase: "hidden" });
+    return;
+  }
   if (running) return;
   job = null;
   showBar({ phase: "hidden" });
@@ -928,12 +1202,27 @@ ipcMain.on("bar-approve", (_e, data: { stepId: string; yes: boolean }) => {
   approvals.delete(data.stepId);
 });
 ipcMain.on("bar-manual", (_e, data: { stepId: string; answer: "done" | "skip" }) => {
+  if (data.stepId === "agent") {
+    agentGuide?.(data.answer === "skip" ? "skip" : "done");
+    return;
+  }
   manualWaits.get(data.stepId)?.(data.answer === "skip" ? "skip" : "done");
   manualWaits.delete(data.stepId);
   buddyHome("idle");
 });
-ipcMain.on("bar-show-me", (_e, data: { stepId: string }) => void showMe(data.stepId));
+ipcMain.on("bar-show-me", (_e, data: { stepId: string }) => {
+  if (data.stepId === "agent") {
+    if (pendingGuideTarget) void pointAtTarget(pendingGuideTarget.target, pendingGuideTarget.title);
+    return;
+  }
+  void showMe(data.stepId);
+});
 ipcMain.on("bar-send-summary", () => {
+  if (!job && summaryText) {
+    void clipboard.writeText(summaryText);
+    say("Copied. Paste it in a message to someone who can help.", "now");
+    return;
+  }
   if (!job) return;
   void clipboard.writeText(helpSummary(job.goal, job.problem, job.plan.steps, job.results, job.receipt));
   say("Copied. Paste it in a message to someone who can help.", "now");
@@ -942,28 +1231,45 @@ ipcMain.on("bar-rect", (_e, rect: { x: number; y: number; width: number; height:
   if (rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) setBarRect(rect);
 });
 ipcMain.on("bar-speaking", (_e, data: { speaking: boolean }) => toBuddy({ type: "talking", on: !!data?.speaking }));
+/**
+ * Mic state for whichever screen is showing. On the "ask" screen it's part of the screen; on every other screen
+ * the bar's bottom row shows it, and what was heard appears there as a note.
+ */
+function micState(patch: { listening?: boolean; transcribing?: boolean; heard?: string }): void {
+  const cur = currentBar();
+  if (cur.phase === "ask") askState(patch);
+  else if (cur.phase !== "hidden") showBar({ ...cur, heard: patch.heard } as unknown as BarState);
+}
+
 ipcMain.on("bar-mic-start", async () => {
   const problem = voiceProblem();
   if (problem) {
-    askState({ listening: false, heard: "Voice isn't set up yet, so please type it." });
+    micState({ listening: false, heard: "Voice isn't set up yet, so please type it." });
     return;
   }
   if (!(await ensureMic())) {
-    askState({ listening: false, heard: "I can't hear you yet: please allow the microphone in System Settings → Privacy & Security → Microphone. You can type instead." });
+    micState({ listening: false, heard: "I can't hear you yet. Please allow the microphone in System Settings → Privacy & Security → Microphone. You can type instead." });
     return;
   }
-  askState({ listening: true, transcribing: false, heard: undefined });
+  if (currentBar().phase === "ask") askState({ listening: true, transcribing: false, heard: undefined });
   buddyPose("talk");
 });
-ipcMain.on("bar-mic-cancel", () => askState({ listening: false, transcribing: false }));
+ipcMain.on("bar-mic-cancel", () => {
+  if (currentBar().phase === "ask") askState({ listening: false, transcribing: false });
+});
 ipcMain.on("bar-mic-audio", async (_e, data: { wav: ArrayBuffer }) => {
-  askState({ listening: false, transcribing: true });
+  micState({ listening: false, transcribing: true });
   try {
-    const { text } = await transcribe(Buffer.from(data.wav));
-    askState({ transcribing: false, heard: text || "Sorry, I didn't catch that." });
+    const wav = Buffer.from(data.wav);
+    if (wavLoudness(wav) < QUIET) {
+      micState({ transcribing: false, heard: "I didn't hear anything. Hold the button and talk a little louder, or type it." });
+      return;
+    }
+    const { text } = await transcribe(wav);
+    micState({ transcribing: false, heard: text || "Sorry, I didn't catch that. Try holding the button a little longer." });
     if (text) await onAnswer(text);
   } catch (error) {
-    askState({ transcribing: false, heard: (error as Error).message });
+    micState({ transcribing: false, heard: (error as Error).message });
   }
 });
 ipcMain.on("warning-close", () => warning?.hide());
@@ -1029,6 +1335,23 @@ if (!app.requestSingleInstanceLock()) {
     if (!hasApiKey()) console.error("No ANTHROPIC_API_KEY in .env yet.");
     if (!screenAllowed()) console.log("Screen Recording is off: CalHack can read web pages, documents and copied text, and you can type what's wrong.");
     console.log(`Ready. Press ${KEY_LABEL}.`);
+    // Testing only: CALHACK_MIC_SELFTEST=1 records 2 seconds in the bar window, transcribes it, and logs what happened.
+    if (process.env.CALHACK_MIC_SELFTEST === "1") {
+      const w = ensureBar();
+      w.webContents.once("did-finish-load", async () => {
+        try {
+          const n = await w.webContents.executeJavaScript(
+            "CalhackMic.start().then(() => new Promise((r) => setTimeout(r, 2000))).then(() => CalhackMic.stop()).then((b) => { window.__wav = b; return b.byteLength; })",
+          );
+          console.log(`[mic] recorded ${n} bytes`);
+          const wav = await w.webContents.executeJavaScript("Array.from(new Uint8Array(window.__wav))");
+          const r = await transcribe(Buffer.from(wav as number[]));
+          console.log(`[mic] heard: "${r.text}" (${r.ms} ms, ${r.model})`);
+        } catch (e) {
+          console.log(`[mic] failed: ${(e as Error).message}`);
+        }
+      });
+    }
     // Testing only: CALHACK_AUTORUN=hotkey, or CALHACK_AUTORUN="ask:my printer won't print".
     const auto = process.env.CALHACK_AUTORUN;
     if (auto) {
@@ -1041,7 +1364,7 @@ if (!app.requestSingleInstanceLock()) {
       }, 2500);
     }
   });
-  app.on("will-quit", () => globalShortcut.unregisterAll());
+  app.on("will-quit", () => { globalShortcut.unregisterAll(); stopVoiceOut(); });
   app.on("window-all-closed", () => {
     // Stay in the menu bar.
   });

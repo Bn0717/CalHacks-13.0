@@ -14,7 +14,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "droid:check": "tsx src/cli/droid-check.ts",
     "eval": "tsx src/cli/eval.ts",
-    "voice:setup": "node scripts/voice-setup.mjs"
+    "voice:setup": "node scripts/voice-setup.mjs",
+    "voice:heart:setup": "python3 -m venv .kokoro && .kokoro/bin/pip install kokoro-onnx==0.6.1 soundfile && .kokoro/bin/python scripts/kokoro-setup.py",
+    "agent:sim": "tsx src/cli/agent-sim.ts"
   },
   "engines": {
     "node": ">=22"

@@ -114,3 +114,26 @@ function run(bin: string, args: string[]): Promise<string> {
     });
   });
 }
+
+/**
+ * How loud a 16-bit PCM WAV is (root mean square, 0-32767). Near-silent recordings make the speech model
+ * invent words, so callers skip them.
+ */
+export function wavLoudness(wav: Buffer): number {
+  // Find the "data" chunk; fall back to the standard 44-byte header.
+  let offset = 44;
+  const idx = wav.indexOf("data", 12, "ascii");
+  if (idx >= 0 && idx + 8 <= wav.length) offset = idx + 8;
+  let sum = 0;
+  let n = 0;
+  for (let i = offset; i + 1 < wav.length; i += 2) {
+    const v = wav.readInt16LE(i);
+    sum += v * v;
+    n++;
+  }
+  return n ? Math.sqrt(sum / n) : 0;
+}
+
+/** Below this, treat the recording as silence. */
+export const QUIET = 250;
+
