@@ -7,7 +7,7 @@ vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create }
 import { decideNext } from "../src/agent/autopilot.js";
 
 const shot = { data: "AAAA", mediaType: "image/png" as const, width: 100, height: 100, toScreen: 1 };
-const answer = (input: Record<string, unknown>) => create.mockResolvedValueOnce({ content: [{ type: "tool_use", name: "next_action", input }] });
+const answer = (input: Record<string, unknown>) => create.mockResolvedValueOnce({ content: [{ type: "text", text: JSON.stringify(input) }] });
 const base = { screen: "normal", kind: "click", x: 5, y: 5, text: null, key: null, target: "x", reason: "r" };
 
 describe("decideNext uses the model, not words", () => {
@@ -20,7 +20,9 @@ describe("decideNext uses the model, not words", () => {
     expect(req.messages[0].content[0]).toMatchObject({ type: "image", source: { data: "AAAA" } });
     expect(req.messages[0].content[1].text).toContain("Change desktop wallpaper");
     expect(req.messages[0].content[1].text).toContain("Clicked Sound");
-    expect(req.tool_choice).toEqual({ type: "tool", name: "next_action" });
+    // A fixed answer shape (structured output) rather than a forced tool, so it works on every model.
+    expect(req.output_config.format.type).toBe("json_schema");
+    expect(req.tool_choice).toBeUndefined();
   });
 
   it("a harmless-sounding step can be handed to the person, and a scary-sounding one can be done, as the model says", async () => {

@@ -997,7 +997,7 @@ function runHooks(j: Job): RunHooks {
             say(g.instruction, "now");
           }),
       } as unknown as AgentUI;
-      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [], signal: stopController.signal }, { instruction, clickTarget: s.clickTarget });
+      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [], signal: stopController.signal }, { instruction, clickTarget: s.clickTarget, app: link ? "System Settings" : undefined });
       if (r.outcome === "done") return { handled: "done", evidence };
       if (r.outcome === "skipped" || r.outcome === "stopped") return { handled: "skip", evidence };
       return { handled: false, evidence, note: r.needsAccessibility ? `${r.trail.at(-1)}.` : r.trail.length ? `I tried and couldn't finish: ${r.trail.at(-1)}.` : undefined };

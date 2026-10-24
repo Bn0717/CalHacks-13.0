@@ -55,6 +55,8 @@ export interface MacDeps {
   now(): number;
   /** Lets CalHack see the screen so it can finish a step itself. Missing = it asks the person instead. */
   screen?: ScreenDeps;
+  /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
+  ui?: import("./uipilot.js").UiDeps;
   home: string;
   /** Apps CalHack must never close: Finder, CalHack itself, and (while developing) the app it was started from. */
   protectedApps: string[];
@@ -196,7 +198,7 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
@@ -612,16 +614,114 @@ export const SETTINGS: Record<string, { label: string; values: string[]; set: (v
   },
 };
 
+/**
+ * Settings macOS has no command for, done through a fixed, tested route in the app itself (macOS 26): CalHack opens the
+ * page, moves the exact slider or switch by name through Accessibility, reads it back, and closes what it opened.
+ * No AI is involved in these clicks.
+ */
+type ScreenSettingResult = { ok: boolean; before: string; after: string; proof: string; error?: string };
+const ACCESSIBILITY_DISPLAY = "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?Display";
+
+async function waitForItem(ui: NonNullable<MacDeps["ui"]>, app: string, match: (i: import("../mac/ui.js").UiItem) => boolean, ms = 6000): Promise<import("../mac/ui.js").UiItem | null> {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const w = await ui.list(app);
+    if (!("error" in w)) {
+      const hit = w.items.find(match);
+      if (hit) return hit;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return null;
+}
+
+/** Opens a System Settings page, runs `work` on it, and closes System Settings again if it wasn't open before. */
+async function onSettingsPage<T>(ctx: ToolContext, url: string, work: (ui: NonNullable<MacDeps["ui"]>) => Promise<T>): Promise<T> {
+  const ui = ctx.mac.ui!;
+  const wasOpen = (await ctx.mac.sandboxed("pgrep -x 'System Settings'")).code === 0;
+  await ctx.mac.run(`open ${shq(url)}`);
+  try {
+    return await work(ui);
+  } finally {
+    if (!wasOpen) await ctx.mac.run(`osascript -e 'tell application "System Settings" to quit'`).catch(() => {});
+  }
+}
+
+/** Moves a slider a few steps up or down and reads it back. */
+async function stepSlider(ui: NonNullable<MacDeps["ui"]>, name: string, steps: number, up: boolean): Promise<{ before?: number; after?: number; error?: string }> {
+  const slider = await waitForItem(ui, "System Settings", (i) => i.role === "AXSlider" && i.name === name);
+  if (!slider) return { error: `I couldn't find the "${name}" slider.` };
+  const before = slider.value;
+  let current = slider;
+  for (let n = 0; n < steps; n++) {
+    const r = await ui.act("System Settings", current, up ? "increase" : "decrease");
+    if (!r.ok) return { before, error: r.error };
+  }
+  // Read it back from the window, not from what the action said.
+  current = (await waitForItem(ui, "System Settings", (i) => i.role === "AXSlider" && i.name === name, 2000)) ?? current;
+  return { before, after: current.value };
+}
+
+export const SCREEN_SETTINGS: Record<string, { label: string; values: string[]; apply: (ctx: ToolContext, value: string) => Promise<ScreenSettingResult> }> = {
+  pointer_size: {
+    label: "Mouse pointer size",
+    values: ["larger", "smaller"],
+    apply: (ctx, value) =>
+      onSettingsPage(ctx, ACCESSIBILITY_DISPLAY, async (ui) => {
+        // Each step is 0.3 of the normal size: "larger" goes three steps (about twice the size).
+        const r = await stepSlider(ui, "Pointer size", 3, value === "larger");
+        const ok = r.after !== undefined && r.before !== undefined && (value === "larger" ? r.after > r.before : r.after < r.before || r.before <= 1);
+        const show = (v?: number) => (v === undefined ? "Unknown" : v <= 1 ? "Normal" : `${Math.round(v * 10) / 10}× normal`);
+        return { ok, before: show(r.before), after: show(r.after), proof: `Pointer size slider reads ${r.after ?? "?"}`, error: r.error };
+      }),
+  },
+  text_size: {
+    label: "Text size",
+    values: ["larger", "smaller"],
+    apply: (ctx, value) =>
+      onSettingsPage(ctx, ACCESSIBILITY_DISPLAY, async (ui) => {
+        const button = await waitForItem(ui, "System Settings", (i) => i.role === "AXButton" && i.name.startsWith("Text size"));
+        if (!button) return { ok: false, before: "Unknown", after: "Unknown", proof: "", error: "I couldn't find the Text size page." };
+        const opened = await ui.act("System Settings", button, "press");
+        if (!opened.ok) return { ok: false, before: "Unknown", after: "Unknown", proof: "", error: opened.error };
+        const r = await stepSlider(ui, "Preferred reading size", 2, value === "larger");
+        const ok = r.after !== undefined && r.before !== undefined && (value === "larger" ? r.after > r.before : r.after < r.before);
+        return { ok, before: `Size ${r.before ?? "?"}`, after: `Size ${r.after ?? "?"}`, proof: `Preferred reading size slider reads ${r.after ?? "?"}`, error: r.error };
+      }),
+  },
+  do_not_disturb: {
+    label: "Do Not Disturb",
+    values: ["on", "off"],
+    apply: async (ctx, value) => {
+      const ui = ctx.mac.ui!;
+      if (!ui.controlCenter) return { ok: false, before: "Unknown", after: "Unknown", proof: "", error: "Control Center isn't available." };
+      const r = await ui.controlCenter("controlcenter-focus-modes", "focus-mode-activity-com.apple.donotdisturb.mode.default", value as "on" | "off");
+      const show = (v?: number) => (v === 1 ? "On" : v === 0 ? "Off" : "Unknown");
+      return { ok: r.ok && r.after === (value === "on" ? 1 : 0), before: show(r.before), after: show(r.after), proof: `Do Not Disturb switch in Control Center reads ${show(r.after)}`, error: r.error };
+    },
+  },
+};
+
 const changeSetting: AgentTool = {
   name: "change_setting",
   kind: "act",
-  description: `Change a Mac setting instantly with a tested command, and read it back to prove it took. Settings: ${Object.entries(SETTINGS).map(([k, v]) => `${k} (${v.values.join("/")})`).join(", ")}. Always try this before opening System Settings. Wallpaper, pointer size, text size, Do Not Disturb and brightness can't be changed by command: use open_settings + guide_person for those.`,
-  input_schema: obj({ setting: { type: "string", enum: Object.keys(SETTINGS) }, value: str("One of the values listed for that setting") }),
-  label: (i) => `Changing ${(SETTINGS[s(i, "setting")]?.label ?? "a setting").toLowerCase()}…`,
+  description: `Change a Mac setting yourself, by a tested route, and read it back to prove it took. Settings: ${[...Object.entries(SETTINGS), ...Object.entries(SCREEN_SETTINGS)].map(([k, v]) => `${k} (${v.values.join("/")})`).join(", ")}. Always use this for these (the person never has to do them). Wallpaper is a personal choice: use open_settings + guide_person so they pick.`,
+  input_schema: obj({ setting: { type: "string", enum: [...Object.keys(SETTINGS), ...Object.keys(SCREEN_SETTINGS)] }, value: str("One of the values listed for that setting") }),
+  label: (i) => `Changing ${(SETTINGS[s(i, "setting")]?.label ?? SCREEN_SETTINGS[s(i, "setting")]?.label ?? "a setting").toLowerCase()}…`,
   async run(input, ctx) {
     const key = s(input, "setting");
     const def = SETTINGS[key];
     const value = s(input, "value").toLowerCase();
+    // Settings with no command: a fixed route through the app, read back the same way.
+    const screenDef = SCREEN_SETTINGS[key];
+    if (screenDef) {
+      if (!screenDef.values.includes(value)) return `Refused: ${screenDef.label} can only be set to ${screenDef.values.join(" or ")}.`;
+      if (!ctx.mac.ui) return `I can't change ${screenDef.label.toLowerCase()} without the Accessibility permission. Use guide_person so the person can do it.`;
+      const r = await screenDef.apply(ctx, value);
+      const ref = addEvidence(ctx, { kind: "after", command: `read back: ${screenDef.label}`, code: r.ok ? 0 : 1, output: r.proof || r.error || "" });
+      if (r.ok) ctx.beforeAfter.push({ label: screenDef.label, before: r.before, after: r.after });
+      return r.ok ? `[${ref}] ${screenDef.label}: ${r.before} → ${r.after} (checked).` : `[${ref}] ${screenDef.label} didn't change${r.error ? `: ${r.error}` : ""}. Try open_settings + guide_person.`;
+    }
     if (!def) return `Refused: I don't have a tested command for "${key}". Use open_settings + guide_person instead.`;
     if (!def.values.includes(value)) return `Refused: ${def.label} can only be set to ${def.values.join(" or ")} by command.${key === "wifi" ? " (Turning Wi-Fi off would cut me off from helping.)" : ""}`;
     const before = await ctx.mac.run(def.read);

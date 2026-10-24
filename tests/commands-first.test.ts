@@ -129,3 +129,73 @@ describe("check_screen", () => {
     expect(await tool("check_screen").run({ question: "dark mode is on" }, t.ctx)).toMatch(/can't see the screen/);
   });
 });
+
+describe("settings with no command, done by CalHack in the app (no person needed)", () => {
+  function settingsMac(opts: { pointer?: number; reading?: number; dnd?: number; settingsOpen?: boolean } = {}) {
+    const state = { pointer: opts.pointer ?? 1, reading: opts.reading ?? 4, dnd: opts.dnd ?? 0, page: "display" as "display" | "text" };
+    const ran: string[] = [];
+    const items = (): import("../src/mac/ui.js").UiItem[] =>
+      state.page === "display"
+        ? [
+            { path: "1", role: "AXButton", name: "Text size, Set your preferred reading size for supported apps", frame: { x: 0, y: 0, w: 1, h: 1 } },
+            { path: "2", role: "AXSlider", name: "Pointer size", value: state.pointer, frame: { x: 0, y: 0, w: 1, h: 1 } },
+          ]
+        : [{ path: "3", role: "AXSlider", name: "Preferred reading size", value: state.reading, frame: { x: 0, y: 0, w: 1, h: 1 } }];
+    const mac = {
+      run: async (c: string) => (ran.push(c), { code: 0, output: "", timedOut: false }),
+      sandboxed: async () => ({ code: opts.settingsOpen ? 0 : 1, output: "", timedOut: false }),
+      ui: {
+        list: async () => ({ app: "System Settings", window: "", items: items() }),
+        act: async (_app: string, it: import("../src/mac/ui.js").UiItem, how: string) => {
+          if (it.name.startsWith("Text size")) state.page = "text";
+          if (it.name === "Pointer size") state.pointer = Math.round((state.pointer + (how === "increase" ? 0.3 : -0.3)) * 10) / 10;
+          if (it.name === "Preferred reading size") state.reading += how === "increase" ? 1 : -1;
+          return { ok: true };
+        },
+        type: async () => ({ ok: true }),
+        command: () => "",
+        controlCenter: async (_m: string, _s: string, want: string) => {
+          const before = state.dnd;
+          if (want !== "status") state.dnd = want === "on" ? 1 : 0;
+          return { ok: true, before, after: state.dnd };
+        },
+      },
+    } as unknown as MacDeps;
+    const ctx: ToolContext = { mac, ui: { status() {}, say() {}, detail() {} } as unknown as AgentUI, evidence: [], diagnoses: new Map(), beforeAfter: [] };
+    return { ctx, state, ran };
+  }
+
+  it("makes the mouse pointer larger by itself, proves it, and closes System Settings again", async () => {
+    const t = settingsMac();
+    const out = await tool("change_setting").run({ setting: "pointer_size", value: "larger" }, t.ctx);
+    expect(out).toMatch(/Normal → 1.9× normal \(checked\)/);
+    expect(t.state.pointer).toBe(1.9);
+    expect(t.ran.at(-1)).toMatch(/System Settings" to quit/);
+    expect(t.ctx.evidence.at(-1)).toMatchObject({ code: 0 });
+  });
+
+  it("leaves System Settings open if the person had it open", async () => {
+    const t = settingsMac({ settingsOpen: true });
+    await tool("change_setting").run({ setting: "pointer_size", value: "larger" }, t.ctx);
+    expect(t.ran.some((c) => c.includes("quit"))).toBe(false);
+  });
+
+  it("makes text larger through the Text size page", async () => {
+    const t = settingsMac();
+    const out = await tool("change_setting").run({ setting: "text_size", value: "larger" }, t.ctx);
+    expect(out).toMatch(/Size 4 → Size 6 \(checked\)/);
+  });
+
+  it("turns on Do Not Disturb and reads it back", async () => {
+    const t = settingsMac();
+    const out = await tool("change_setting").run({ setting: "do_not_disturb", value: "on" }, t.ctx);
+    expect(out).toMatch(/Off → On \(checked\)/);
+    expect(t.state.dnd).toBe(1);
+  });
+
+  it("without Accessibility it says so instead of pretending", async () => {
+    const t = settingsMac();
+    t.ctx.mac.ui = undefined;
+    expect(await tool("change_setting").run({ setting: "pointer_size", value: "larger" }, t.ctx)).toMatch(/Accessibility permission/);
+  });
+});
