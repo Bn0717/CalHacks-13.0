@@ -110,6 +110,18 @@ function downloadAndRunFinding(urls: string[], how: string): Finding {
       reason: `Runs the official installer from ${hostOf(urls[0])} straight from the internet. This is normal for this tool, but it still runs code you can't see first.`,
     };
   }
+  // An https download from the company's own site (not a place anyone can upload to, like GitHub).
+  const fromCompany = (u: string) => {
+    const host = hostOf(u);
+    return u.startsWith("https://") && !!host && isVendorHost(host) && !/(^|\.)(github\.com|githubusercontent\.com)$/.test(host);
+  };
+  if (urls.length > 0 && urls.every(fromCompany)) {
+    return {
+      rule: "official-installer",
+      level: "ask",
+      reason: `Downloads the installer from ${hostOf(urls[0])}, a company we recognize, and runs it. It still runs code you can't see first.`,
+    };
+  }
   return {
     rule: "download-and-run",
     level: "blocked",
@@ -297,7 +309,8 @@ function rulePipeline(pipeline: Segment[], subs: string[], findings: Finding[]):
 function ruleWholeCommand(text: string, segs: Segment[], findings: Finding[], ctx: AssessContext): void {
   const downloadsFile = segs.some((s) => DOWNLOADERS.has(s.cmd) && s.argv.some((x) => ["-o", "-O", "--output", "--remote-name", "-P"].includes(x) || /^-[a-zA-Z]*[oO]$/.test(x)));
   const makesRunnable = segs.some((s) => s.cmd === "chmod" && s.argv.some((x) => /\+x|7[0-7][0-7]|5[0-7][0-7]/.test(x)));
-  const opensOrRuns = segs.some((s) => s.cmd === "open" || s.argv[0]?.startsWith("./") || s.argv[0]?.startsWith("/tmp/") || s.argv[0]?.startsWith("/private/tmp/"));
+  // "installer -pkg" runs the package's own scripts as administrator, so it counts as running the download.
+  const opensOrRuns = segs.some((s) => s.cmd === "open" || s.cmd === "installer" || s.argv[0]?.startsWith("./") || s.argv[0]?.startsWith("/tmp/") || s.argv[0]?.startsWith("/private/tmp/"));
   const urls = urlsIn(text);
   if (downloadsFile && (makesRunnable || opensOrRuns)) {
     findings.push(downloadAndRunFinding(urls, "makes it runnable and starts it"));

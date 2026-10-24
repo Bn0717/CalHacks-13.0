@@ -2,7 +2,7 @@
   "name": "calhack",
   "version": "0.1.0",
   "private": true,
-  "description": "Press a hotkey on any how-to and it does the steps for you, after checking each one is safe.",
+  "description": "Press a hotkey on any how-to: Claude reads the steps, Droid runs the approved ones, and a separate Claude review proves it worked.",
   "type": "module",
   "main": "dist/app/main.js",
   "scripts": {
@@ -11,13 +11,16 @@
     "demo": "tsx src/cli/demo.ts",
     "demo:pages": "tsx src/cli/serve-demo.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "droid:check": "tsx src/cli/droid-check.ts",
+    "eval": "tsx src/cli/eval.ts"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
+    "@factory/droid-sdk": "^0.10.0",
     "pdfjs-dist": "^6.4.299",
     "shell-quote": "^1.12.0",
     "zod": "^4.6.7"

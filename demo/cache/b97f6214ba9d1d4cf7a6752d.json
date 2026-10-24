@@ -1,0 +1,53 @@
+{
+  "goal": "Install Zoom on Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Download Zoom for your Mac",
+      "explanation": "Click the download button for your Mac chip. This Mac has Apple silicon, so choose Download (Apple Silicon). The installer will save to your Downloads folder.",
+      "kind": "download",
+      "command": null,
+      "url": "https://zoom.us/download",
+      "check_command": "test -d /Applications/zoom.us.app",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open the Zoom installer",
+      "explanation": "Double-click the downloaded Zoom file to start the installer. Follow the on-screen prompts to move Zoom into Applications.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Zoom.pkg",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open Zoom",
+      "explanation": "Open Zoom from Applications or Launchpad to finish setup and sign in.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Zoom",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": {
+    "command": "test -d /Applications/zoom.us.app",
+    "message": "Zoom is installed"
+  }
+}

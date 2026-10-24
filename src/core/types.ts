@@ -64,6 +64,13 @@ export interface Step {
   aiConcerns?: string[];
   /** The AI's own risk opinion. It can raise the code's rating, never lower it. */
   aiRisk?: RiskLevel;
+  /**
+   * Steps with the same group are alternative fixes the page offers ("if that doesn't work, try…").
+   * They are tried one at a time, in page order, until one works.
+   */
+  alternativeGroup?: string;
+  /** Which option in the group (1, 2, 3…). Steps of the same option run together. */
+  alternativeOption?: number;
 }
 
 /** Where the instruction text came from. Screenshot text is never trusted to run on its own. */
@@ -114,6 +121,16 @@ export type StepStatus =
   | "waiting-for-user"
   | "not-for-this-computer";
 
+/** Something that really ran, kept as proof for the receipt and the reviewer. */
+export interface Evidence {
+  /** "before" = already done?, "after" = did it work?, "run" = the step itself, "final" = the goal check. */
+  kind: "before" | "after" | "run" | "final";
+  command: string;
+  code: number;
+  /** The last part of the output. */
+  output: string;
+}
+
 export interface StepResult {
   id: string;
   status: StepStatus;
@@ -121,4 +138,10 @@ export interface StepResult {
   message: string;
   /** The last part of the command's output, for troubleshooting. */
   output?: string;
+  /** What really ran for this step, with exit codes. */
+  evidence?: Evidence[];
+  /** Who ran the command: Droid (Factory) or CalHack itself. */
+  ranBy?: "droid" | "calhack";
+  /** What Droid did, step by step, in plain lines. */
+  log?: string[];
 }

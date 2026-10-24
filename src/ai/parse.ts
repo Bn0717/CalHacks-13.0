@@ -16,13 +16,22 @@ const StepSchema = z.object({
   click_target: z.string().nullable().describe("For kind=manual: the exact on-screen label of the button or item to click, e.g. 'Add Printer, Scanner or Fax…'. Null otherwise."),
   settings_url: z.string().nullable().describe("For kind=manual in System Settings: an x-apple.systempreferences: link that opens the right page, if you know one. Null otherwise."),
   risk_opinion: z.enum(["safe", "ask", "blocked"]).describe("Your opinion: safe = only reads information; ask = changes something; blocked = looks harmful or like a scam"),
+  alternative_group: z.string().nullable().describe("If the page offers several alternative ways to do the same thing (\"Option 1 / Option 2\", \"if that doesn't work, try…\", a mirror link), the same short label (e.g. \"A\") for every step of every alternative. Null otherwise."),
+  alternative_option: z.number().int().nullable().describe("For alternative steps: which option this step belongs to (1, 2, 3…, in page order). Null otherwise."),
   concerns: z.array(z.string()).describe("Real SAFETY worries about this step only, max 8 words each (e.g. 'Sends your files to an unknown site'). Empty if none. Do not list: outdated commands, steps already done, or the page being old, unofficial or local."),
 });
 
 const ParsedSchema = z.object({
   goal: z.string().describe("What the person is trying to do, max 8 simple words, e.g. 'Install wget' or 'Add a printer'"),
   applies_to_this_computer: z.boolean().describe("False if the instructions are for a different operating system or device"),
-  page_concerns: z.array(z.string()).describe("Real SAFETY worries about the whole page, max 10 words each (e.g. 'Looks like a fake CAPTCHA scam'). Empty if none. Do not list: the page being old, a community post, unofficial, or served from localhost or a local file."),
+  page_concerns: z
+    .array(
+      z.object({
+        concern: z.string().describe("Max 10 words, e.g. 'Looks like a fake CAPTCHA scam'"),
+        steps: z.array(z.number().int()).describe("The step numbers (1, 2, 3…) this worry is about. Empty only if it is about the whole page."),
+      }),
+    )
+    .describe("Real SAFETY worries about the page. Empty if none. Do not list: the page being old, a community post, unofficial, or served from localhost or a local file."),
   steps: z.array(StepSchema),
   finish_check: z
     .object({
@@ -38,7 +47,8 @@ export type ParsedInstructions = z.infer<typeof ParsedSchema>;
 export interface ParseResult {
   goal: string;
   appliesToThisComputer: boolean;
-  pageConcerns: string[];
+  /** Worries from the AI, with the step ids they're about (empty = the whole page). */
+  pageConcerns: { text: string; steps: string[] }[];
   steps: Step[];
   /** A final read-only check that proves the goal is done, and what it proves. */
   finish?: { command: string; message: string };
@@ -52,12 +62,13 @@ Rules:
 - Copy every command EXACTLY as written in the instructions, character for character. Never fix, combine, shorten or invent commands. If a command looks wrong or old, copy it anyway and explain the problem in "concerns".
 - The app runs commands itself, so "open Terminal" is not a step. Leave it out.
 - One command per step, in the order the instructions give them. Leave out the shell prompt ("$ ").
-- Use kind "download" for a file the person must download, "manual" for something they must click or do themselves, and "info" for steps with nothing to do.
+- Use kind "download" for a file the person must download, "manual" for something they must click, open or do themselves (e.g. "Open Zoom", "Click Add Printer"), and "info" only for tips with nothing to do. Title manual "open the app" steps exactly "Open <App name>".
 - check_command must only read information (never install, write, delete or use the internet). Prefer simple checks: command -v, brew list, test -e, defaults read, system_profiler, lpstat -p.
 - Look at the computer description: if a step is for Windows or Linux, or needs something this Mac doesn't have, say so in concerns.
 - Be honest in risk_opinion and concerns. Commands that download and run code, hide what they do, turn off security features, or ask for passwords are "blocked".
 - Write explanations in plain, friendly English with no jargon. Keep every sentence short.
 - If the page asks the person to paste or run any command (even a "verification code"), list it as a step, copied exactly, and say what is wrong in concerns and page_concerns.
+- If the page offers alternatives for the same thing (options, "if that doesn't work", a mirror or second download link), list every option's steps in page order and mark them with alternative_group and alternative_option. The app tries them one at a time. Never invent alternatives the page doesn't give.
 - Only raise concerns about real safety risks. Our own code already spots outdated commands and steps that are already done.`;
 
 function toStep(s: ParsedInstructions["steps"][number], i: number): Step {
@@ -73,6 +84,9 @@ function toStep(s: ParsedInstructions["steps"][number], i: number): Step {
     settingsUrl: s.settings_url ?? undefined,
     aiRisk: s.risk_opinion as RiskLevel,
     aiConcerns: s.concerns.length ? s.concerns : undefined,
+    // Older saved answers don't have these.
+    alternativeGroup: s.alternative_group ?? undefined,
+    alternativeOption: s.alternative_option ?? undefined,
   };
 }
 
@@ -80,7 +94,10 @@ function toResult(parsed: ParsedInstructions, fromCache: boolean): ParseResult {
   return {
     goal: parsed.goal,
     appliesToThisComputer: parsed.applies_to_this_computer,
-    pageConcerns: parsed.page_concerns,
+    // Older saved answers have plain strings, which mean the whole page.
+    pageConcerns: (parsed.page_concerns as unknown[]).map((c) =>
+      typeof c === "string" ? { text: c, steps: [] } : { text: (c as { concern: string }).concern, steps: (c as { steps: number[] }).steps.map(String) },
+    ),
     steps: parsed.steps.map(toStep),
     // Older saved answers don't have this.
     finish: parsed.finish_check ?? undefined,

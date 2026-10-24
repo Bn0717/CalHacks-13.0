@@ -136,3 +136,26 @@ describe("flags (what still asks after the person OKs the list)", () => {
     expect(plan.steps[0].flags).toEqual([]);
   });
 });
+
+describe("the AI's worries", () => {
+  const steps: Step[] = [
+    { id: "1", title: "Mirror", explanation: "", kind: "command", command: "brew install foo" },
+    { id: "2", title: "Official", explanation: "", kind: "command", command: "brew install bar" },
+  ];
+  const src = page("brew install foo\nbrew install bar");
+
+  it("only flags the steps a worry is about", async () => {
+    const { applyAiConcerns } = await import("../src/core/plan.js");
+    const plan = planSteps(steps, src);
+    applyAiConcerns(plan, [{ text: "Unofficial mirror", steps: ["1"] }], true);
+    expect(plan.steps[0].flags).toContain("Unofficial mirror");
+    expect(plan.steps[1].flags).toEqual([]);
+  });
+
+  it("flags everything for a worry about the whole page or the wrong computer", async () => {
+    const { applyAiConcerns } = await import("../src/core/plan.js");
+    const plan = planSteps(steps, src);
+    applyAiConcerns(plan, [{ text: "Scam page", steps: [] }], false);
+    for (const p of plan.steps) expect(p.flags).toEqual(["See the warning at the top", "May not be for this Mac"]);
+  });
+});

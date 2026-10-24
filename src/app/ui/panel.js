@@ -39,7 +39,7 @@ const STATUS = {
 /** One short line saying what will happen to this step. */
 function plannedLine(step) {
   if (step.kind === "info") return ["ℹ️", "neutral", "Tip"];
-  if (step.kind === "manual") return step.recipe ? ["🤖", "good", "I'll do this: " + step.recipe] : ["👆", "neutral", "You click this"];
+  if (step.kind === "manual") return step.recipe && step.useRecipe ? ["🤖", "good", "I'll do this: " + step.recipe] : ["👆", "neutral", "You click this"];
   if (step.level === "blocked") return ["⛔", "bad", step.flags[0] || "Won't run"];
   if (step.notNeeded) return ["⏭️", "neutral", "Not needed"];
   if (step.flags.length) return ["⚠️", "warn", step.flags[0]];
@@ -56,6 +56,7 @@ function stepRow(step, index) {
     el("div", { class: "step-head" },
       el("span", { class: "num" }, index + 1 + "."),
       el("span", { class: "title" }, step.title),
+      step.alternative ? el("span", { class: "badge info" }, "Option " + (step.alternative.option ?? "?")) : null,
     ),
     el("div", { class: "line " + tone }, icon + " " + text),
   );
@@ -114,9 +115,24 @@ function stepRow(step, index) {
       ),
     );
   }
+  if (step.recipe) {
+    more.push(
+      el("p", { class: "muted" }, "🤖 Instead of you clicking, CalHack can do this with its own fixed command."),
+      el("label", { class: "switch" },
+        el("input", { type: "checkbox", checked: step.useRecipe, disabled: state.running, onchange: (e) => api.send("toggle-recipe", { id: step.id, value: e.target.checked }) }),
+        "Do it for me: " + step.recipe,
+      ),
+    );
+  }
   if (step.reasons.length && step.kind !== "manual" && step.kind !== "info") more.push(el("ul", { class: "reasons" }, step.reasons.map((r) => el("li", {}, r))));
   if (step.status && step.message) more.push(el("p", { class: "muted" }, step.message));
   if (step.output) more.push(el("pre", {}, step.output));
+  if (step.ranBy) more.push(el("p", { class: "muted" }, step.ranBy === "droid" ? "🤖 Run by Droid (Factory)" : "Run by CalHack"));
+  if (step.log?.length) more.push(el("div", { class: "droid-log" }, el("b", {}, "What Droid did"), step.log.map((l) => el("div", {}, l))));
+  if (step.evidence?.length) {
+    const label = { before: "Already done?", after: "Did it work?", run: "Ran", final: "Final check" };
+    more.push(el("div", { class: "evidence" }, el("b", {}, "Checks that ran"), step.evidence.map((e) => el("div", {}, (e.code === 0 ? "✔ " : "✘ ") + label[e.kind] + ": ", el("code", {}, e.command), e.code === 0 ? "" : " (exit " + e.code + ")"))));
+  }
   if (more.length) row.append(el("details", { open: step.status === "failed" ? true : null }, el("summary", {}, "Details"), ...more));
   return row;
 }
@@ -139,7 +155,6 @@ function scamBanner(s) {
   return el("div", { class: "banner blocked" }, el("b", {}, "⛔ This looks like a scam"), el("div", {}, "Nothing here will run. Don't paste anything from this page."));
 }
 
-const BAD = ["failed", "blocked", "declined"];
 let stepsOpen = false; // Is "See steps" unfolded? Kept between redraws.
 
 function stepsFold(steps, skipId) {
@@ -153,12 +168,36 @@ function stepsFold(steps, skipId) {
 /** Before running: what it'll do, in one or two lines, then "Do it". */
 function summaryLines(s) {
   const left = s.steps.filter((st) => !st.status && st.kind !== "info" && !st.notNeeded && !st.wrongPlatform);
-  const risky = left.filter((st) => (st.kind === "command" || st.kind === "download") && (st.level === "blocked" || st.flags.length));
+  const runs = (st) => st.kind === "command" || st.kind === "download";
+  const unsafe = left.filter((st) => runs(st) && st.level === "blocked");
+  const risky = left.filter((st) => runs(st) && st.level !== "blocked" && st.flags.length);
   const yours = left.filter((st) => st.kind === "manual" && !st.recipe);
   const done = s.steps.filter((st) => st.status === "already-done").length;
   const lines = [el("p", {}, "I'll do " + (left.length === 1 ? "it" : "all " + left.length + " steps") + " for you" + (done ? " (" + done + " already done)." : "."))];
+  if (unsafe.length) {
+    lines.push(
+      el("div", { class: "banner blocked" },
+        el("b", {}, "⛔ " + (unsafe.length === 1 ? "1 step isn't safe" : unsafe.length + " steps aren't safe") + ", so I won't run " + (unsafe.length === 1 ? "it" : "them")),
+        unsafe.map((st) => el("div", {}, "• Step " + (s.steps.indexOf(st) + 1) + ": " + (st.flags[0] || "Not safe") + (st.alternative ? " (I'll use the page's other option)" : ""))),
+      ),
+    );
+  }
   if (risky.length) lines.push(el("p", { class: "line warn" }, "⚠️ " + (risky.length === 1 ? "1 step looks risky" : risky.length + " steps look risky") + ". I'll ask you about " + (risky.length === 1 ? "it" : "them") + " first."));
   if (yours.length) lines.push(el("p", { class: "line neutral" }, "👆 " + (yours.length === 1 ? "1 step" : yours.length + " steps") + " you'll click yourself. I'll point to where."));
+  // Anything done differently from the page is said up front, and can be turned off under "See steps".
+  const changed = left.filter((st) => (st.outdated?.suggestion && st.useUpdated) || (st.recipe && st.useRecipe));
+  if (changed.length) {
+    lines.push(
+      el("div", { class: "banner ask" },
+        el("b", {}, "🔄 Done differently from the page"),
+        changed.map((st) => el("div", {}, "• Step " + (s.steps.indexOf(st) + 1) + ": " + (st.recipe && st.useRecipe ? "I'll do it with a fixed command instead of you clicking (" + st.recipe + ")." : "the page's command is out of date, so I'll use the current one."))),
+        el("div", { class: "muted" }, "Pressing Do it says OK to these. To use the page's way instead, open See steps → Details."),
+      ),
+    );
+  }
+  const groups = [...new Set(left.filter((st) => st.alternative).map((st) => st.alternative.group))];
+  if (groups.length) lines.push(el("p", { class: "line neutral" }, "🔁 The page gives other options. I'll try them one at a time, only if the first one fails."));
+  lines.push(el("p", { class: "muted" }, s.droid?.ready ? "🤖 Droid (Factory) will run the steps. It can only run the exact commands CalHack approved." : "Droid is off (" + (s.droid?.problem || "not set up") + "), so CalHack runs the steps itself."));
   return lines;
 }
 
@@ -166,7 +205,7 @@ function renderPlan() {
   const s = state;
   const scam = scamBanner(s);
   const work = s.steps.filter((st) => st.kind !== "info");
-  const started = s.running || s.proof || s.steps.some((st) => st.status && st.status !== "already-done");
+  const started = s.running || s.receipt || s.steps.some((st) => st.status && st.status !== "already-done");
   const allDone = work.length > 0 && work.every((st) => st.status);
   const parts = [];
   if (scam) parts.push(scam);
@@ -195,7 +234,9 @@ function renderPlan() {
   if (s.running) {
     const waiting = s.steps.find((st) => approvals[st.id] || manual[st.id]);
     const current = s.steps.find((st) => !st.status && st.kind !== "info");
-    if (waiting) {
+    if (s.reviewing) {
+      parts.push(el("div", { class: "working" }, el("div", { class: "spinner" }), el("div", {}, el("div", {}, "Checking the proof…"), el("div", { class: "muted" }, "A separate Claude review looks at every check that ran."))));
+    } else if (waiting) {
       parts.push(el("p", { class: "muted" }, approvals[waiting.id] ? "I need your OK for this one:" : "I need you for this one:"));
       parts.push(stepRow(waiting, s.steps.indexOf(waiting)));
     } else if (current) {
@@ -215,29 +256,39 @@ function renderPlan() {
     return parts;
   }
 
-  // 3. Finished: proof, or where it stopped.
-  const bad = s.steps.find((st) => BAD.includes(st.status));
-  if (s.proof) {
-    parts.push(
-      el("div", { class: "banner proof " + (s.proof.ok ? "good" : "ask") },
-        el("b", {}, (s.proof.ok ? "✅ " : "⚠️ ") + s.proof.lines[0]),
-        s.proof.lines.slice(1).map((l) => el("div", {}, l)),
-      ),
-    );
-  } else if (bad) {
-    parts.push(el("div", { class: "banner ask" }, el("b", {}, "Stopped at step " + (s.steps.indexOf(bad) + 1) + ": " + bad.title), bad.message ? el("div", {}, bad.message) : null));
-    parts.push(stepRow(bad, s.steps.indexOf(bad)));
-  } else {
-    parts.push(el("div", { class: "banner ask" }, "Stopped. Nothing else was changed."));
-  }
-  parts.push(stepsFold(s.steps, bad && !s.proof ? bad.id : null));
+  // 3. Finished: the receipt.
+  const rc = s.receipt;
+  if (rc) parts.push(receiptView(rc));
+  else parts.push(el("div", { class: "banner ask" }, "Stopped. Nothing else was changed."));
+  parts.push(stepsFold(s.steps));
   parts.push(
     el("div", { class: "row sticky" },
-      s.proof?.ok ? null : el("button", { class: "primary", disabled: !!scam, onclick: () => api.send("run-all") }, "Try again"),
+      rc?.verdict === "done" ? null : el("button", { class: "primary", disabled: !!scam, onclick: () => api.send("run-all") }, "Try again"),
       el("button", { onclick: () => api.send("close-panel") }, "Close"),
     ),
   );
   return parts;
+}
+
+const VERDICT = { done: ["✅", "good"], "not-done": ["❌", "ask"], "couldnt-verify": ["⚠️", "ask"] };
+
+function receiptView(rc) {
+  const [icon, tone] = VERDICT[rc.verdict] || ["•", "ask"];
+  return el("div", { class: "banner receipt " + tone },
+    el("b", {}, icon + " " + rc.headline),
+    rc.proofs.length
+      ? el("div", { class: "proofs" },
+          rc.proofs.map((p) =>
+            el("div", { class: "proof-row" },
+              el("div", {}, "✔ " + p.claim),
+              el("div", { class: "muted" }, "Proof: ", ...p.evidence.flatMap((e, i) => [i ? ", " : "", el("code", {}, e.command), " passed"])),
+            ),
+          ),
+        )
+      : null,
+    rc.problems.length ? el("div", { class: "problems" }, rc.problems.map((p) => el("div", {}, "• " + p))) : null,
+    el("div", { class: "muted reviewer" }, rc.reviewedBy === "claude" ? "Checked by a separate Claude review. Every ✔ points to a check that really ran." : "Checked by CalHack's rules (Claude couldn't be reached)."),
+  );
 }
 
 function render() {
@@ -248,7 +299,7 @@ function render() {
       el("div", { class: "center" },
         el("h2", {}, "Stuck on some steps?"),
         s.note ? el("p", {}, s.note) : null,
-        el("p", {}, "Open the how-to and press ", ...[...(s.hotkey || "⌃⌥D")].flatMap((k, i) => (i ? [" ", el("kbd", {}, k)] : [el("kbd", {}, k)])), "."),
+        el("p", {}, "Open the how-to and press ", ...[...(s.hotkey || "⌃⌥⌘D")].flatMap((k, i) => (i ? [" ", el("kbd", {}, k)] : [el("kbd", {}, k)])), "."),
         el("p", { class: "muted" }, "I'll read it, check it's safe, do it for you, and show you it worked."),
         s.hasKey === false ? el("p", { class: "status bad" }, "No Claude API key yet: add it to the .env file.") : null,
         s.screenAllowed === false ? el("div", {}, el("p", { class: "muted" }, "Screen Recording is off, so I can only read web pages, documents and copied text."), el("button", { onclick: () => api.send("open-privacy") }, "Turn on Screen Recording")) : null,
@@ -259,7 +310,7 @@ function render() {
   } else if (s.phase === "permission") {
     parts = [el("div", { class: "center" }, el("p", {}, s.message), el("button", { onclick: () => api.send("open-privacy") }, "Open Privacy settings"), el("p", { class: "muted" }, "After turning it on, quit and reopen CalHack."))];
   } else if (s.phase === "error") {
-    parts = [el("div", { class: "center" }, el("p", { class: "status bad" }, "⚠️ " + s.message), el("p", { class: "muted" }, "Press " + (s.hotkey || "⌃⌥D") + " to try again."))];
+    parts = [el("div", { class: "center" }, el("p", { class: "status bad" }, "⚠️ " + s.message), el("p", { class: "muted" }, "Press " + (s.hotkey || "⌃⌥⌘D") + " to try again."))];
   } else if (s.phase === "plan") {
     parts = renderPlan();
   }

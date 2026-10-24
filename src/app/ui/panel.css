@@ -77,3 +77,8 @@ button.big { padding: 9px 22px; font-size: 14px; }
 .banner.proof b { font-size: 14px; }
 .steps-fold { margin-top: 12px; }
 .steps-fold > .step:first-of-type { margin-top: 8px; }
+.receipt .proofs { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; color: var(--fg); }
+.receipt .problems { margin-top: 8px; color: var(--fg); }
+.receipt .reviewer { margin-top: 8px; }
+.droid-log, .evidence { margin-top: 6px; padding: 6px 8px; border-radius: 7px; background: var(--code); font-size: 11.5px; display: flex; flex-direction: column; gap: 2px; }
+.droid-log b, .evidence b { color: var(--fg); }
