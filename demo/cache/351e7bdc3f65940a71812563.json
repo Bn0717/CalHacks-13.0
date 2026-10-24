@@ -1,0 +1,92 @@
+{
+  "goal": "Find Mac model name and serial number",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Open About This Mac",
+      "explanation": "Click the Apple menu in the top-left corner, then choose About This Mac. The window shows your Mac's model name and serial number.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "About This Mac",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": "A",
+      "alternative_option": 1,
+      "concerns": []
+    },
+    {
+      "title": "Open System Information",
+      "explanation": "Hold the Option key, click the Apple menu, and choose System Information. Then click Hardware in the sidebar to see your serial number and model details.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Hardware",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": "A",
+      "alternative_option": 2,
+      "concerns": []
+    },
+    {
+      "title": "Open account.apple.com",
+      "explanation": "On any device, go to account.apple.com and sign in. Click Devices, then click your Mac's name to see its model name and serial number.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Devices",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": "A",
+      "alternative_option": 3,
+      "concerns": []
+    },
+    {
+      "title": "Find serial number with a Terminal command",
+      "explanation": "This command reads your Mac's serial number and shows it in the results. It only reads information and changes nothing.",
+      "kind": "command",
+      "command": "ioreg -l | grep IOPlatformSerialNumber",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": "A",
+      "alternative_option": 4,
+      "concerns": []
+    },
+    {
+      "title": "Check the label on your Mac",
+      "explanation": "Turn your Mac over or look at its original box. The serial number is printed near the regulatory markings or next to a barcode.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": "A",
+      "alternative_option": 5,
+      "concerns": []
+    },
+    {
+      "title": "Look up the model name online",
+      "explanation": "Go to checkcoverage.apple.com and enter your serial number. It will show the exact model name of your Mac.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

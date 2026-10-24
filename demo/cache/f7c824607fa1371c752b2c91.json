@@ -1,0 +1,50 @@
+{
+  "goal": "Change Mac wallpaper",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Open System Settings",
+      "explanation": "Open the System Settings app on your Mac.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "System Settings",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open Wallpaper settings",
+      "explanation": "Click Wallpaper in the sidebar. You may need to scroll down to find it.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Wallpaper",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Pick a wallpaper",
+      "explanation": "Choose a picture from one of the categories, such as Dynamic Wallpapers or Colors. Click the one you like.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Dynamic Wallpapers",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

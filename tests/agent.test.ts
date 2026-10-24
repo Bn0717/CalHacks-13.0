@@ -265,3 +265,45 @@ describe("opening things for the person", () => {
     expect(mac.direct.length).toBe(before);
   });
 });
+
+describe("plan from the screen, then a call", () => {
+  it("shows every step once and remembers what was approved", async () => {
+    const { ui, asked } = fakeUI([true]);
+    const c = ctx(fakeMac(), ui);
+    const out = await tool("propose_plan").run(
+      { goal: "Get you ready for the video call", steps: [{ text: "Make the text bigger", by: "me", why: null }, { text: "Start a call to (425) 628 4156", by: "me", why: null }, { text: "Run a speed-up script", by: "skip", why: "not safe" }] },
+      c,
+    );
+    expect(asked).toHaveLength(1);
+    expect(asked[0].details).toEqual(["1. Make the text bigger", "2. Start a call to (425) 628 4156", "3. Run a speed-up script (I'll skip this: not safe)"]);
+    expect(out).toMatch(/said yes/);
+    expect(c.approvedPlan).toEqual(["Make the text bigger", "Start a call to (425) 628 4156"]);
+  });
+
+  it("does nothing when the person says no", async () => {
+    const { ui } = fakeUI([false]);
+    const c = ctx(fakeMac(), ui);
+    const out = await tool("propose_plan").run({ goal: "x", steps: [{ text: "Open FaceTime", by: "me", why: null }] }, c);
+    expect(out).toMatch(/said no/);
+    expect(c.approvedPlan).toBeUndefined();
+  });
+
+  it("reads phone numbers and refuses anything else", async () => {
+    const { callTarget } = await import("../src/agent/tools.js");
+    expect(callTarget("+(425) 628 4156")).toBe("4256284156");
+    expect(callTarget("+44 20 7946 0958")).toBe("+442079460958");
+    expect(callTarget("grandma@icloud.com")).toBe("grandma@icloud.com");
+    for (const bad of ["123", "425; rm -rf ~", "$(whoami)@x.com", "call grandma"]) expect(callTarget(bad)).toBeNull();
+  });
+
+  it("only calls a number the person approved", async () => {
+    const mac = fakeMac();
+    const c = ctx(mac, fakeUI().ui);
+    expect(await tool("start_call").run({ to: "(425) 628 4156", video: true }, c)).toMatch(/Refused/);
+    expect(mac.direct).toHaveLength(0);
+    c.approvedPlan = ["Start a call to +(425) 628 4156"];
+    expect(await tool("start_call").run({ to: "+1 425 999 0000", video: true }, c)).toMatch(/Refused/);
+    expect(await tool("start_call").run({ to: "+(425) 628 4156", video: true }, c)).toMatch(/FaceTime is open/);
+    expect(mac.direct).toEqual(["open 'facetime://4256284156'"]);
+  });
+});

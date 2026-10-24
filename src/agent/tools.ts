@@ -57,6 +57,8 @@ export interface MacDeps {
   now(): number;
   /** Lets CalHack see the screen so it can finish a step itself. Missing = it asks the person instead. */
   screen?: ScreenDeps;
+  /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
+  ui?: import("./uipilot.js").UiDeps;
   home: string;
   /** Apps CalHack must never close: Finder, CalHack itself, and (while developing) the app it was started from. */
   protectedApps: string[];
@@ -104,6 +106,8 @@ export interface ToolContext {
   stopped?: () => boolean;
   /** Aborted the moment the person presses Stop: requests in flight are cancelled and loops end at once. */
   signal?: AbortSignal;
+  /** The steps the person said yes to on the plan screen (propose_plan). */
+  approvedPlan?: string[];
 }
 
 export interface AgentTool {
@@ -191,12 +195,16 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
   const url = g.settingsUrl && SETTINGS_URL.test(g.settingsUrl) ? g.settingsUrl : undefined;
   if (!ctx.mac.screen) return { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
   if (url) {
+    const before = await ctx.mac.screen.glance?.().catch(() => null);
     const r = await ctx.mac.run(`open ${shq(url)}`);
     addEvidence(ctx, { kind: "run", command: `open ${shq(url)}`, code: r.code, output: tail(r.output, 2) });
-    await new Promise((x) => setTimeout(x, 1500));
+    // Wait for System Settings to appear and settle, not a fixed 1.5 s.
+    const { waitForSettle } = await import("./autopilot.js");
+    const w = await waitForSettle(ctx.mac.screen, { before, reactMs: 2000, maxMs: 3000, signal: ctx.signal });
+    if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, stopped: ctx.stopped, record: fileRecord });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
@@ -548,7 +556,8 @@ const setVolume: AgentTool = {
     if (!parts.length) return "Nothing to change.";
     const before = await ctx.mac.sandboxed("osascript -e 'get volume settings'");
     for (const c of parts) {
-      const r = await ctx.mac.execute(c);
+      // Routine and easily undone, so it runs directly (fast); Droid handles the risky changes.
+      const r = await ctx.mac.run(c);
       addEvidence(ctx, { kind: "run", command: c, code: r.code, output: tail(r.output, 2) });
       if (r.code !== 0) return `That didn't work: ${tail(r.output, 2)}`;
     }
@@ -556,6 +565,209 @@ const setVolume: AgentTool = {
     const ref = addEvidence(ctx, { kind: "after", command: "osascript -e 'get volume settings'", code: after.code, output: tail(after.output, 2) });
     ctx.beforeAfter.push({ label: "Sound", before: summarizeVolume(before.output), after: summarizeVolume(after.output) });
     return `[${ref}] Now: ${tail(after.output, 2)}`;
+  },
+};
+
+/**
+ * Settings CalHack changes with a fixed, tested command (macOS 26), each with a read-back check that proves it took.
+ * The AI only picks the setting and the value; it never writes these commands. Things macOS doesn't allow by command
+ * (wallpaper, pointer size, text size, Do Not Disturb, brightness) go through the screen instead.
+ */
+const APPEARANCE = `tell application "System Events" to tell appearance preferences to`;
+export const SETTINGS: Record<string, { label: string; values: string[]; set: (v: string) => string; read: string; is: (out: string, v: string) => boolean; show: (out: string) => string }> = {
+  dark_mode: {
+    label: "Dark mode",
+    values: ["on", "off"],
+    set: (v) => `osascript -e '${APPEARANCE} set dark mode to ${v === "on"}'`,
+    read: `osascript -e '${APPEARANCE} get dark mode'`,
+    is: (out, v) => out.trim() === String(v === "on"),
+    show: (out) => (out.trim() === "true" ? "On" : out.trim() === "false" ? "Off" : "Unknown"),
+  },
+  dock_autohide: {
+    label: "Hide the Dock automatically",
+    values: ["on", "off"],
+    set: (v) => `defaults write com.apple.dock autohide -bool ${v === "on"} && killall Dock`,
+    read: "defaults read com.apple.dock autohide",
+    is: (out, v) => out.trim() === (v === "on" ? "1" : "0"),
+    show: (out) => (out.trim() === "1" ? "On" : "Off"),
+  },
+  dock_magnification: {
+    label: "Dock icons grow when you point at them",
+    values: ["on", "off"],
+    set: (v) => `defaults write com.apple.dock magnification -bool ${v === "on"} && killall Dock`,
+    read: "defaults read com.apple.dock magnification",
+    is: (out, v) => out.trim() === (v === "on" ? "1" : "0"),
+    show: (out) => (out.trim() === "1" ? "On" : "Off"),
+  },
+  dock_size: {
+    label: "Dock size",
+    values: ["small", "medium", "large"],
+    set: (v) => `defaults write com.apple.dock tilesize -int ${({ small: 36, medium: 56, large: 96 } as Record<string, number>)[v]} && killall Dock`,
+    read: "defaults read com.apple.dock tilesize",
+    is: (out, v) => out.trim() === String(({ small: 36, medium: 56, large: 96 } as Record<string, number>)[v]),
+    show: (out) => ({ "36": "Small", "56": "Medium", "96": "Large" } as Record<string, string>)[out.trim()] ?? (out.trim() ? `Size ${out.trim()}` : "Standard"),
+  },
+  wifi: {
+    // Only "on": turning Wi-Fi off would cut CalHack off from Claude in the middle of helping.
+    label: "Wi-Fi",
+    values: ["on"],
+    set: () => "networksetup -setairportpower \"$(networksetup -listallhardwareports | awk '/Wi-Fi/{getline; print $2; exit}')\" on",
+    read: "networksetup -getairportpower \"$(networksetup -listallhardwareports | awk '/Wi-Fi/{getline; print $2; exit}')\"",
+    is: (out) => /:\s*On\b/.test(out),
+    show: (out) => (/:\s*On\b/.test(out) ? "On" : /:\s*Off\b/.test(out) ? "Off" : "Unknown"),
+  },
+};
+
+/**
+ * Settings macOS has no command for, done through a fixed, tested route in the app itself (macOS 26): CalHack opens the
+ * page, moves the exact slider or switch by name through Accessibility, reads it back, and closes what it opened.
+ * No AI is involved in these clicks.
+ */
+type ScreenSettingResult = { ok: boolean; before: string; after: string; proof: string; error?: string };
+const ACCESSIBILITY_DISPLAY = "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?Display";
+
+async function waitForItem(ui: NonNullable<MacDeps["ui"]>, app: string, match: (i: import("../mac/ui.js").UiItem) => boolean, ms = 6000): Promise<import("../mac/ui.js").UiItem | null> {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const w = await ui.list(app);
+    if (!("error" in w)) {
+      const hit = w.items.find(match);
+      if (hit) return hit;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return null;
+}
+
+/** Opens a System Settings page, runs `work` on it, and closes System Settings again if it wasn't open before. */
+async function onSettingsPage<T>(ctx: ToolContext, url: string, work: (ui: NonNullable<MacDeps["ui"]>) => Promise<T>): Promise<T> {
+  const ui = ctx.mac.ui!;
+  const wasOpen = (await ctx.mac.sandboxed("pgrep -x 'System Settings'")).code === 0;
+  await ctx.mac.run(`open ${shq(url)}`);
+  try {
+    return await work(ui);
+  } finally {
+    if (!wasOpen) await ctx.mac.run(`osascript -e 'tell application "System Settings" to quit'`).catch(() => {});
+  }
+}
+
+/** Moves a slider a few steps up or down and reads it back. */
+async function stepSlider(ui: NonNullable<MacDeps["ui"]>, name: string, steps: number, up: boolean): Promise<{ before?: number; after?: number; error?: string }> {
+  const slider = await waitForItem(ui, "System Settings", (i) => i.role === "AXSlider" && i.name === name);
+  if (!slider) return { error: `I couldn't find the "${name}" slider.` };
+  const before = slider.value;
+  let current = slider;
+  for (let n = 0; n < steps; n++) {
+    const r = await ui.act("System Settings", current, up ? "increase" : "decrease");
+    if (!r.ok) return { before, error: r.error };
+  }
+  // Read it back from the window, not from what the action said.
+  current = (await waitForItem(ui, "System Settings", (i) => i.role === "AXSlider" && i.name === name, 2000)) ?? current;
+  return { before, after: current.value };
+}
+
+export const SCREEN_SETTINGS: Record<string, { label: string; values: string[]; apply: (ctx: ToolContext, value: string) => Promise<ScreenSettingResult> }> = {
+  pointer_size: {
+    label: "Mouse pointer size",
+    values: ["larger", "smaller"],
+    apply: (ctx, value) =>
+      onSettingsPage(ctx, ACCESSIBILITY_DISPLAY, async (ui) => {
+        // Each step is 0.3 of the normal size: "larger" goes three steps (about twice the size).
+        const r = await stepSlider(ui, "Pointer size", 3, value === "larger");
+        const ok = r.after !== undefined && r.before !== undefined && (value === "larger" ? r.after > r.before : r.after < r.before || r.before <= 1);
+        const show = (v?: number) => (v === undefined ? "Unknown" : v <= 1 ? "Normal" : `${Math.round(v * 10) / 10}× normal`);
+        return { ok, before: show(r.before), after: show(r.after), proof: `Pointer size slider reads ${r.after ?? "?"}`, error: r.error };
+      }),
+  },
+  text_size: {
+    label: "Text size",
+    values: ["larger", "smaller"],
+    apply: (ctx, value) =>
+      onSettingsPage(ctx, ACCESSIBILITY_DISPLAY, async (ui) => {
+        const button = await waitForItem(ui, "System Settings", (i) => i.role === "AXButton" && i.name.startsWith("Text size"));
+        if (!button) return { ok: false, before: "Unknown", after: "Unknown", proof: "", error: "I couldn't find the Text size page." };
+        const opened = await ui.act("System Settings", button, "press");
+        if (!opened.ok) return { ok: false, before: "Unknown", after: "Unknown", proof: "", error: opened.error };
+        const r = await stepSlider(ui, "Preferred reading size", 2, value === "larger");
+        const ok = r.after !== undefined && r.before !== undefined && (value === "larger" ? r.after > r.before : r.after < r.before);
+        return { ok, before: `Size ${r.before ?? "?"}`, after: `Size ${r.after ?? "?"}`, proof: `Preferred reading size slider reads ${r.after ?? "?"}`, error: r.error };
+      }),
+  },
+  do_not_disturb: {
+    label: "Do Not Disturb",
+    values: ["on", "off"],
+    apply: async (ctx, value) => {
+      const ui = ctx.mac.ui!;
+      if (!ui.controlCenter) return { ok: false, before: "Unknown", after: "Unknown", proof: "", error: "Control Center isn't available." };
+      const r = await ui.controlCenter("controlcenter-focus-modes", "focus-mode-activity-com.apple.donotdisturb.mode.default", value as "on" | "off");
+      const show = (v?: number) => (v === 1 ? "On" : v === 0 ? "Off" : "Unknown");
+      return { ok: r.ok && r.after === (value === "on" ? 1 : 0), before: show(r.before), after: show(r.after), proof: `Do Not Disturb switch in Control Center reads ${show(r.after)}`, error: r.error };
+    },
+  },
+};
+
+const changeSetting: AgentTool = {
+  name: "change_setting",
+  kind: "act",
+  description: `Change a Mac setting yourself, by a tested route, and read it back to prove it took. Settings: ${[...Object.entries(SETTINGS), ...Object.entries(SCREEN_SETTINGS)].map(([k, v]) => `${k} (${v.values.join("/")})`).join(", ")}. Always use this for these (the person never has to do them). Wallpaper is a personal choice: use open_settings + guide_person so they pick.`,
+  input_schema: obj({ setting: { type: "string", enum: [...Object.keys(SETTINGS), ...Object.keys(SCREEN_SETTINGS)] }, value: str("One of the values listed for that setting") }),
+  label: (i) => `Changing ${(SETTINGS[s(i, "setting")]?.label ?? SCREEN_SETTINGS[s(i, "setting")]?.label ?? "a setting").toLowerCase()}…`,
+  async run(input, ctx) {
+    const key = s(input, "setting");
+    const def = SETTINGS[key];
+    const value = s(input, "value").toLowerCase();
+    // Settings with no command: a fixed route through the app, read back the same way.
+    const screenDef = SCREEN_SETTINGS[key];
+    if (screenDef) {
+      if (!screenDef.values.includes(value)) return `Refused: ${screenDef.label} can only be set to ${screenDef.values.join(" or ")}.`;
+      if (!ctx.mac.ui) return `I can't change ${screenDef.label.toLowerCase()} without the Accessibility permission. Use guide_person so the person can do it.`;
+      const r = await screenDef.apply(ctx, value);
+      const ref = addEvidence(ctx, { kind: "after", command: `read back: ${screenDef.label}`, code: r.ok ? 0 : 1, output: r.proof || r.error || "" });
+      if (r.ok) ctx.beforeAfter.push({ label: screenDef.label, before: r.before, after: r.after });
+      return r.ok ? `[${ref}] ${screenDef.label}: ${r.before} → ${r.after} (checked).` : `[${ref}] ${screenDef.label} didn't change${r.error ? `: ${r.error}` : ""}. Try open_settings + guide_person.`;
+    }
+    if (!def) return `Refused: I don't have a tested command for "${key}". Use open_settings + guide_person instead.`;
+    if (!def.values.includes(value)) return `Refused: ${def.label} can only be set to ${def.values.join(" or ")} by command.${key === "wifi" ? " (Turning Wi-Fi off would cut me off from helping.)" : ""}`;
+    const before = await ctx.mac.run(def.read);
+    if (def.is(before.output, value)) {
+      const ref = addEvidence(ctx, { kind: "after", command: def.read, code: 0, output: tail(before.output, 2) });
+      return `[${ref}] ${def.label} was already ${value}. Nothing to change.`;
+    }
+    const command = def.set(value);
+    const r = await ctx.mac.run(command);
+    addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `That didn't work: ${tail(r.output, 2)}`;
+    // Read it back: the command saying OK isn't proof (macOS ignores some changes silently).
+    let after = await ctx.mac.run(def.read);
+    for (let i = 0; i < 4 && !def.is(after.output, value); i++) {
+      await new Promise((x) => setTimeout(x, 250));
+      after = await ctx.mac.run(def.read);
+    }
+    const ok = def.is(after.output, value);
+    const ref = addEvidence(ctx, { kind: "after", command: def.read, code: ok ? 0 : 1, output: tail(after.output, 2) });
+    ctx.beforeAfter.push({ label: def.label, before: def.show(before.output), after: def.show(after.output) });
+    return ok
+      ? `[${ref}] ${def.label} is now ${value} (checked).`
+      : `[${ref}] I ran the command, but reading it back says it didn't change. macOS may not allow it this way: try open_settings + guide_person.`;
+  },
+};
+
+const checkScreen: AgentTool = {
+  name: "check_screen",
+  kind: "look",
+  description: "Final check: take one look at the screen and confirm a visible result, e.g. 'the screen is in dark mode' or 'the Wallpaper page shows the blue wallpaper'. Use it after a change you can see, especially when there is no read-back check. Returns an evidence number when the screen shows it.",
+  input_schema: obj({ question: str("What the screen should show, in plain words") }),
+  label: () => "Checking the screen…",
+  async run(input, ctx) {
+    const question = s(input, "question").slice(0, 200);
+    if (!question) return "Say what the screen should show.";
+    if (!ctx.mac.screen) return "I can't see the screen (Screen Recording isn't allowed), so rely on the other checks.";
+    const shot = await ctx.mac.screen.capture();
+    if (!shot) return "I couldn't take a look at the screen.";
+    const { screenShows } = await import("./autopilot.js");
+    const a = await screenShows(question, shot, ctx.signal);
+    const ref = addEvidence(ctx, { kind: "after", command: `screen check: ${question}`, code: a.shows ? 0 : 1, output: a.seen || (a.shows ? "shown" : "not shown") });
+    return `[${ref}] ${a.shows ? "Yes" : "No"}: ${a.seen}`;
   },
 };
 
@@ -846,6 +1058,85 @@ const askPerson: AgentTool = {
   },
 };
 
+const proposePlan: AgentTool = {
+  name: "propose_plan",
+  kind: "talk",
+  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only the person can, e.g. a password), or 'skip' (CalHack won't, with why).",
+  input_schema: obj({
+    goal: str("The overall goal in plain words, max 10, e.g. 'Get you ready for the video call'"),
+    steps: {
+      type: "array",
+      description: "Each step from the screen, in order, in plain words",
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Plain words, max 12, e.g. 'Make the text bigger'" },
+          by: { type: "string", enum: ["me", "you", "skip"] },
+          why: { type: ["string", "null"], description: "For 'you' or 'skip': why, max 12 words. Otherwise null" },
+        },
+        required: ["text", "by", "why"],
+      },
+    },
+  }),
+  label: () => "Making a plan…",
+  async run(input, ctx) {
+    const raw = Array.isArray(input.steps) ? input.steps : [];
+    const steps = raw
+      .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+      .map((x) => ({ text: s(x, "text").slice(0, 120), by: ["me", "you", "skip"].includes(s(x, "by")) ? s(x, "by") : "you", why: s(x, "why").slice(0, 120) }))
+      .filter((x) => x.text)
+      .slice(0, 12);
+    if (!steps.length) return "No steps given. Ask the person what they want with ask_person.";
+    const details = steps.map((x, i) => `${i + 1}. ${x.text}${x.by === "you" ? ` (you'll do this part${x.why ? `: ${x.why}` : ""})` : x.by === "skip" ? ` (I'll skip this${x.why ? `: ${x.why}` : ""})` : ""}`);
+    const goal = s(input, "goal") || "Do the steps on your screen";
+    ctx.ui.say(`I can do this for you. Here's my plan.`);
+    const yes = await ctx.ui.confirm({ title: `${goal}?`, message: "I'll do these one after another. You can press Stop any time.", details, yes: "Yes, do it all", no: "No thanks" });
+    if (!yes) return "The person said no. Do nothing; finish with verdict 'not_done' and a kind headline.";
+    ctx.approvedPlan = steps.filter((x) => x.by !== "skip").map((x) => x.text);
+    return "The person said yes to the whole plan. Do every 'me' step now, in order, without asking again (a tool that asks for its own OK still will). Use guide_person for 'you' steps. Then check and finish.";
+  },
+};
+
+/** A phone number or email address FaceTime can call, or null. */
+export function callTarget(raw: string): string | null {
+  const t = raw.trim();
+  if (/^[^\s@<>"'`;|&$()]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(t)) return t;
+  if (!/^[+\d\s().-]+$/.test(t)) return null;
+  const digits = t.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return null;
+  // "+(425) 628 4156" is a US number written with a stray +: keep the + only for full international numbers.
+  return t.startsWith("+") && digits.length >= 11 ? `+${digits}` : digits;
+}
+
+const startCall: AgentTool = {
+  name: "start_call",
+  kind: "act",
+  description: "Start a FaceTime call to a phone number or email address. Only for a call the person said yes to in propose_plan (the number must be in that plan), or one they asked for themselves.",
+  input_schema: obj({ to: str("The phone number or email address, exactly as shown"), video: { type: "boolean", description: "true for video, false for audio only" } }),
+  label: () => "Starting the FaceTime call…",
+  async run(input, ctx) {
+    const to = callTarget(s(input, "to"));
+    if (!to) return "Refused: that isn't a phone number or email address FaceTime can call.";
+    const key = to.replace(/\D/g, "").slice(-10) || to.toLowerCase();
+    const approved = (ctx.approvedPlan ?? []).some((line) => (/@/.test(to) ? line.toLowerCase().includes(key) : line.replace(/\D/g, "").includes(key)));
+    if (!approved) return "Refused: the person hasn't seen this number. Put the call (with the number) in propose_plan first, so they can say yes to it.";
+    const url = `${input.video === false ? "facetime-audio" : "facetime"}://${to}`;
+    const command = `open ${shq(url)}`;
+    const r = await ctx.mac.run(command);
+    addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `Couldn't start FaceTime: ${tail(r.output, 2)}`;
+    let up = false;
+    for (let i = 0; i < 5 && !up; i++) {
+      if (i) await new Promise((x) => setTimeout(x, 600));
+      up = (await ctx.mac.sandboxed("pgrep -x FaceTime")).code === 0;
+    }
+    const ref = addEvidence(ctx, { kind: "after", command: "pgrep -x FaceTime", code: up ? 0 : 1, output: up ? "FaceTime is open" : "FaceTime did not start" });
+    return up
+      ? `[${ref}] FaceTime is open and calling ${to}. macOS may show a "Call" button first: if so, use guide_person with click_target "Call".`
+      : `[${ref}] I asked FaceTime to call, but it didn't open.`;
+  },
+};
+
 const explainIrreversible: AgentTool = {
   name: "explain_irreversible",
   kind: "talk",
@@ -904,9 +1195,9 @@ const finish: AgentTool = {
 };
 
 export const TOOLS: AgentTool[] = [
-  listApps, runningApps, soundStatus, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
-  quitApp, openApp, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
-  guidePerson, askPerson, explainIrreversible, finish,
+  listApps, runningApps, soundStatus, checkScreen, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
+  quitApp, openApp, changeSetting, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
+  startCall, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 
 /** The real list of files in a folder (not following links, skipping hidden files), up to a limit. */

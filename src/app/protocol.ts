@@ -38,7 +38,8 @@ export type BarState =
   /** A step needs the person: an OK for a flagged step, or a click they must do themselves. */
   | { phase: "needs-you"; goal: string; stepId: string; kind: "approve" | "manual"; question: string; why: string[]; command?: string }
   /** Finished: the receipt. */
-  | { phase: "done"; receipt: ReceiptView; steps: StepLine[]; detail: DetailLine[]; canRetry: boolean; canSendSummary: boolean }
+  /** canContinue: the person pressed Stop; "Continue" picks the task up where it stopped. */
+  | { phase: "done"; receipt: ReceiptView; steps: StepLine[]; detail: DetailLine[]; canRetry: boolean; canSendSummary: boolean; canContinue?: boolean }
   | { phase: "error"; message: string };
 
 export interface CheckLine {
