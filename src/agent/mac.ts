@@ -134,10 +134,11 @@ export async function installOfficialApp(appName: string): Promise<{ ok: boolean
 }
 
 /** The real Mac. `trash` comes from Electron (shell.trashItem) in the app, or Finder in the terminal. */
-export function realMac(opts: { execute: Executor; trash: (path: string) => Promise<void> }): MacDeps {
+export function realMac(opts: { execute: Executor; trash: (path: string) => Promise<void>; protectedApps?: string[] }): MacDeps {
   const home = homedir();
   return {
     home,
+    protectedApps: ["Finder", "CalHack", "Electron", ...(opts.protectedApps ?? [])],
     sandboxed: (c) => runSandboxed(c),
     checkRunner: realCheckRunner,
     execute: opts.execute,

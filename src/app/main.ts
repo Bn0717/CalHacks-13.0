@@ -28,6 +28,7 @@ import type { Evidence, InstructionSource, PlannedStep, Step, StepResult } from 
 import { reviewRun } from "../ai/review.js";
 import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
+import { offlineGuide } from "../agent/offline.js";
 import { TOOLS as AGENT_TOOLS, type AgentUI } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
@@ -38,7 +39,7 @@ import { findOfficialSource, type OfficialSource } from "../droid/research.js";
 import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
 import { describeSource, gatherInstructions } from "./gather.js";
-import { transcribe, voiceProblem } from "./voice-in.js";
+import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
@@ -511,7 +512,9 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
   try {
     const env = await getEnvironment();
     const context = lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
-    const mac = realMac({ execute, trash: (p) => shell.trashItem(p) });
+    // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
+    const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
+    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts });
     const result = await runAgent(
       { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
       ui,
@@ -544,13 +547,30 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     buddyHome(verdict === "done" || verdict === "answered" ? "celebrate" : verdict === "cant-do" ? "stop" : "sad");
     summaryText = [`CalHack summary: ${request || "Help"}`, `Result: ${result.headline}`, ...result.details, "What I did:", ...result.toolCalls.map((t) => `- ${t.name}: ${t.result.split("\n")[0].slice(0, 160)}`)].join("\n");
   } catch (error) {
-    showError(friendlyError(error));
+    settleAgentWaits();
+    agentRunning = false;
+    running = false;
+    // No internet (or Claude unreachable): the built-in fix guides still work, because they run on the Mac.
+    const guide = offlineGuide(request);
+    if (guide && isConnectionError(error)) {
+      say("I can't reach the internet, but I can still check this on your Mac.", "now");
+      await fixFlow(guide, "Let me check a few things on your Mac.");
+      return;
+    }
+    showError(isConnectionError(error) && !request ? "I can't reach the internet right now. Tell me what's wrong: I can still check your printer, sound and Wi-Fi without it." : friendlyError(error));
   } finally {
     settleAgentWaits();
     agentRunning = false;
     running = false;
   }
 }
+
+function isConnectionError(error: unknown): boolean {
+  const e = error as { name?: string; message?: string; constructor?: { name?: string } };
+  return /APIConnection|fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network/i.test(`${e?.constructor?.name ?? ""} ${e?.name ?? ""} ${e?.message ?? ""}`);
+}
+
+
 
 /** What "Send this to my son / IT" copies after an agent run. */
 let summaryText: string | null = null;
@@ -1240,7 +1260,12 @@ ipcMain.on("bar-mic-cancel", () => {
 ipcMain.on("bar-mic-audio", async (_e, data: { wav: ArrayBuffer }) => {
   micState({ listening: false, transcribing: true });
   try {
-    const { text } = await transcribe(Buffer.from(data.wav));
+    const wav = Buffer.from(data.wav);
+    if (wavLoudness(wav) < QUIET) {
+      micState({ transcribing: false, heard: "I didn't hear anything. Hold the button and talk a little louder, or type it." });
+      return;
+    }
+    const { text } = await transcribe(wav);
     micState({ transcribing: false, heard: text || "Sorry, I didn't catch that. Try holding the button a little longer." });
     if (text) await onAnswer(text);
   } catch (error) {
@@ -1310,6 +1335,23 @@ if (!app.requestSingleInstanceLock()) {
     if (!hasApiKey()) console.error("No ANTHROPIC_API_KEY in .env yet.");
     if (!screenAllowed()) console.log("Screen Recording is off: CalHack can read web pages, documents and copied text, and you can type what's wrong.");
     console.log(`Ready. Press ${KEY_LABEL}.`);
+    // Testing only: CALHACK_MIC_SELFTEST=1 records 2 seconds in the bar window, transcribes it, and logs what happened.
+    if (process.env.CALHACK_MIC_SELFTEST === "1") {
+      const w = ensureBar();
+      w.webContents.once("did-finish-load", async () => {
+        try {
+          const n = await w.webContents.executeJavaScript(
+            "CalhackMic.start().then(() => new Promise((r) => setTimeout(r, 2000))).then(() => CalhackMic.stop()).then((b) => { window.__wav = b; return b.byteLength; })",
+          );
+          console.log(`[mic] recorded ${n} bytes`);
+          const wav = await w.webContents.executeJavaScript("Array.from(new Uint8Array(window.__wav))");
+          const r = await transcribe(Buffer.from(wav as number[]));
+          console.log(`[mic] heard: "${r.text}" (${r.ms} ms, ${r.model})`);
+        } catch (e) {
+          console.log(`[mic] failed: ${(e as Error).message}`);
+        }
+      });
+    }
     // Testing only: CALHACK_AUTORUN=hotkey, or CALHACK_AUTORUN="ask:my printer won't print".
     const auto = process.env.CALHACK_AUTORUN;
     if (auto) {

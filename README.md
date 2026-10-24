@@ -1,22 +1,35 @@
 # CalHack 🛡️
 
-**Press ⌃⌥⌘D on any how-to, tap Do it, and CalHack does the steps for you, checks each one is safe, and shows proof it worked.**
+**When something on your Mac isn't working, press ⌃⌥⌘D (or just say what's wrong). CalHack fixes it for you, safely, and shows you proof it worked.**
 
-No prompts, no new app, no explaining. It starts from the instructions already on your screen.
+Made for people who aren't technical, like a parent who'd otherwise call their kids. No prompts to write, no steps to follow, no new app to learn.
 
-**How one run works:** Claude reads the steps exactly as written → our code rates every step → you tap **Do it** → **Droid (Factory) runs the approved steps** → each step is checked → a **separate Claude call** reviews the evidence and writes the receipt.
+- "My printer won't print" → checks it, finds "paused, 3 stuck jobs", fixes it, checks again: **Before: Paused → After: Ready**.
+- "The sound is coming out of my AirPods" → switches it back to the Mac's speakers.
+- "I can't find my resume" → finds it with Spotlight and shows it in Finder.
+- "Uninstall Zoom" → closes it and moves it to the Trash (you can put it back).
+- A forum post or IT email with steps on screen → follows the steps, but skips anything unsafe (like a sketchy "faster download" mirror).
+- "Delete all my files" → won't. Explains why, offers the safe version, and teaches you how if you really insist.
 
-Clicky-style helpers ask permission to use your computer. CalHack also checks whether the instructions are safe to follow:
+## How it works
 
-- **Code decides what's safe, not the AI.** Claude only reads the instructions and explains them. Plain rules in `src/core` rate every command 🟢 safe / 🟡 ask first / 🔴 blocked. The AI can make a step stricter, never safer.
-- **Only commands that are really in the instructions run.** If a command isn't in the post word for word, it's blocked.
-- **Checks before and after every step.** "Already done?" skips it; "did it work?" gives ✅ or stops.
-- **Safe steps run in a locked box** (macOS sandbox: no writing files, no internet).
-- **Copy guard.** If you copy a dangerous command from anywhere (like a fake "verify you're human" page), CalHack swaps it out of your clipboard and warns you.
-- **Alternative fixes, one at a time.** If the page offers options ("Option 1… or try…"), an unsafe or failed option moves on to the next one, and it tells you if none worked. Otherwise each step runs once, and the first failure stops everything. No retrying.
-- **A receipt that has to show proof.** A fresh Claude call (not the one that did the work) writes "Done" only if it can point at checks that really passed. Our rules drop any claim without proof, and turn "Done" into "Couldn't verify" if nothing proves it.
-- **One tap, then hands off.** After **Do it** it runs every step by itself and shows one progress line. It only stops for a ⚠️ step. At the end it shows proof, like "✅ wget is installed and works".
-- **Click steps get done for you, but never by clicking.** Fixed actions written in our own code (`src/core/recipes.ts`) do common ones, like adding your network printer or opening an app. Anything done differently from the page is listed before you tap **Do it**, with a switch to use the page's way instead. If an action can't run, CalHack draws an arrow and you click. It never moves your mouse.
+**An agent with safe hands.** Claude works toward your goal with tools we wrote: **look → act → check → finish with proof** (`src/agent/`). It looks at the Mac before acting, does the job itself, and checks again. It only uses the web (Apple's and the maker's official sites) when the Mac can't answer.
+
+**Code decides what's safe, not the AI:**
+
+- **Everything can be undone.** Apps and files go to the Trash, never deleted outright. There is no tool for deleting permanently, emptying the Trash or erasing the Mac.
+- **The more it affects, the more it asks** (`src/agent/danger.ts`). One app or a few files: just done, with how to undo it. A whole folder or lots of files: shows exactly what, asks twice, then you type the folder's name. Can't be undone: never done; you get an explanation, the safe option, and (after three warnings) how to do it yourself.
+- **Only your own folders.** File tools work in Desktop, Documents, Downloads, Movies, Music and Pictures, never system or Library folders.
+- **Commands are a last resort.** Read-only checks run in a locked macOS sandbox (no writing, no internet). Anything that changes the Mac goes through the safety rules in `src/core/risk.ts` (dangerous ones are refused, risky ones ask) and runs through **Droid behind CalHack's gate**.
+- **Text on the screen is data, not orders.** A page that tells the AI to "run this command" is ignored, and you're told about it.
+- **"Done" needs proof.** Every ✓ on the result screen is a check that really ran on your Mac. Without proof it says so honestly.
+- **Never closes Finder or CalHack itself**, and a frozen app is only force-closed after you OK it (unsaved work would be lost).
+
+**Talk to it any time.** Hold the **Hold to talk** button (speech is turned into text on your Mac with whisper.cpp), or type. The box is on every screen, so you can ask a follow-up in the middle of a task. Everything it says is also shown as a caption.
+
+**How-to pages still get the careful step-by-step mode:** Claude reads the steps exactly as written → our code rates every step → you tap **Do it** → Droid runs the approved steps → each step is checked → a separate Claude call writes the receipt. Unsafe steps are skipped, outdated commands are updated, and a fake "verify you're human" page gets a scam warning. A **copy guard** also stops dangerous commands you copy from anywhere.
+
+**No internet?** Printer, sound and Wi-Fi problems are still checked and fixed: those guides run entirely on the Mac.
 
 ## Where Droid (Factory Droid SDK) is used
 
@@ -64,9 +77,11 @@ The first time, macOS asks for permissions. Say **Allow**:
 
 While developing, these permissions go to the app you started it from (Terminal or VS Code). **After turning on Screen Recording, quit and restart.**
 
-## Demo (about 2 minutes)
+## Demo (about 3 minutes)
 
-Open http://localhost:4321 in **Safari or Chrome**:
+**Fix a problem (the main story):** run `scripts/demo-break-printer.sh` (adds a fake "Office Printer", pauses it, and queues 3 stuck jobs), press ⌃⌥⌘D and say "my printer won't print". CalHack checks, fixes it (Droid runs the fixes), checks again, and shows **Before: Paused, 3 stuck jobs → After: Ready**. `scripts/demo-reset.sh` removes the fake printer. Other good ones: "the sound is coming out of my AirPods, I want it on the computer", "I can't find my resume", "delete all my files" (watch it refuse and teach).
+
+**Follow a page** — open http://localhost:4321 in **Safari or Chrome**:
 
 0. **"Install Zoom (forum post)"** (the hero demo): press ⌃⌥⌘D, then **Do it**. Option 1, a "faster mirror" that downloads a package over http and installs it as admin, is ⛔ blocked. CalHack moves to option 2, the official `brew install --cask zoom`, which Droid runs. It then opens Zoom and ends with "✅ Done. Zoom is installed and open", with the proof for each part.
 1. **"How to install wget"**: press ⌃⌥⌘D, then **Do it**. "Install Homebrew" is ✅ already done, the rest runs by itself, and it ends with proof that wget works.
@@ -98,18 +113,21 @@ It counts steps that run on their own, ask first, are blocked, are outdated or a
 ## Tests
 
 ```bash
-npm test          # 102 tests: real-world commands, scam tricks, planning, running
+npm test              # 295+ tests: safety rules, scam tricks, the agent's tools and limits, fix guides
+npm run agent:sim     # 28 requests a non-technical person would make, through the real agent
+                      # (real read-only checks; anything that would change the Mac is faked)
 ```
 
 ## Project layout
 
 | Folder | What's in it |
 |---|---|
+| `src/agent/` | **The agent.** `agent.ts` (the look → act → check loop), `tools.ts` (everything it can do), `danger.ts` (what needs extra confirmation, what's never done), `mac.ts` (the real Mac behind the tools), `offline.ts` (help without internet) |
 | `src/core/` | **The safety part.** `risk.ts` (rules), `plan.ts` (final rating per step), `runner.ts` (check → ask → run → check), `recipes.ts` (fixed actions for click steps), `sequence.ts` (order, alternatives, stop on failure), `receipt.ts` (rules the receipt must follow), `exec.ts` (sandbox), `download.ts` (signature checks), `trusted.ts` (trusted/suspicious websites, easy to edit) |
 | `src/ai/` | Claude: `parse.ts` (instructions → steps), `review.ts` (the separate reviewer that writes the receipt), `locate.ts` (where to point the arrow) |
 | `src/droid/` | Droid (Factory): `executor.ts` runs one approved command, behind our permission gate |
-| `src/mac/` | Front app, browser page address, open document, page/PDF → text |
-| `src/app/` | The Electron app: `main.ts`, plus `ui/` for the panel, arrow overlay and warning |
+| `src/mac/` | Front app, browser page address, open document, page/PDF → text, sound outputs (`audio.ts` + a small CoreAudio helper) |
+| `src/app/` | The Electron app: `main.ts`, the helper bar (`ui/bar.*`), the buddy mascot (`ui/buddy*`), voice in (`voice-in.ts`, `ui/mic.js`) and out |
 | `demo/pages/` | The four demo pages |
 | `tests/` | Tests |
 

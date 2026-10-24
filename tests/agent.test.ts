@@ -52,6 +52,7 @@ function fakeMac(files: FileInfo[] = []): MacDeps & { trashed: string[]; ran: st
     spotlight: async () => ({ paths: [], timedOut: false, ms: 1 }),
     installOfficial: async () => ({ ok: true, message: "ok", evidence: [] }),
     reveal: async () => {},
+    protectedApps: ["Finder", "CalHack"],
     now: () => Date.UTC(2026, 9, 24),
   };
 }
@@ -193,5 +194,26 @@ describe("irreversible requests", () => {
     const out = await tool("explain_irreversible").run({ what: "Empty the Trash", why_dangerous: "x", safer_option: "y", do_it_yourself_steps: [] }, ctx(mac, ui));
     expect(asked).toHaveLength(1);
     expect(out).toMatch(/Nothing was done/);
+  });
+});
+
+describe("without internet", () => {
+  it("still picks the right built-in guide", async () => {
+    const { offlineGuide } = await import("../src/agent/offline.js");
+    expect(offlineGuide("the internet isn't working")?.id).toBe("wifi");
+    expect(offlineGuide("my wifi keeps dropping")?.id).toBe("wifi");
+    expect(offlineGuide("my printer won't print")?.id).toBe("printer");
+    expect(offlineGuide("我的打印机不能打印了")?.id).toBe("printer");
+    expect(offlineGuide("I can't hear anything")?.id).toBe("sound");
+    expect(offlineGuide("uninstall zoom")).toBeUndefined();
+  });
+});
+
+describe("closing apps", () => {
+  it("never closes Finder or CalHack itself", async () => {
+    const mac = { ...fakeMac(), findApp: () => [], listApps: () => [{ name: "Finder", path: "/System/Library/CoreServices/Finder.app" }] };
+    const { ui } = fakeUI();
+    const out = await tool("quit_app").run({ app_name: "Finder", force: false }, ctx(mac, ui));
+    expect(out).toMatch(/has to stay open/);
   });
 });

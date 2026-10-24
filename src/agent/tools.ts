@@ -49,6 +49,8 @@ export interface MacDeps {
   reveal(path: string, open: boolean): Promise<void>;
   now(): number;
   home: string;
+  /** Apps CalHack must never close: Finder, CalHack itself, and (while developing) the app it was started from. */
+  protectedApps: string[];
 }
 
 export interface ConfirmRequest {
@@ -367,6 +369,9 @@ const quitApp: AgentTool = {
     const app = oneApp(ctx, s(input, "app_name"));
     if ("problem" in app) return app.problem;
     const name = appLabel(app.path);
+    if (ctx.mac.protectedApps.some((p) => p.toLowerCase() === name.toLowerCase())) {
+      return `Not closed: ${name} has to stay open (${name === "Finder" ? "it's part of macOS" : "CalHack is running inside it"}). Leave it and tell the person if it matters.`;
+    }
     try {
       if (input_force(input)) {
         const ok = await ctx.ui.confirm({ title: `Force ${name} to close?`, message: `${name} isn't responding. Forcing it closed loses anything not saved in it, like an unsaved document or form.`, yes: "Yes, force it to close", no: "No, wait" });
