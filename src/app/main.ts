@@ -1,25 +1,40 @@
-// CalHack desktop app: press the shortcut (⌃⌥⌘D by default) on any how-to, tap "Do it", and it does the steps,
-// only stopping for steps the safety rules flag. At the end it shows proof that it worked.
-import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, systemPreferences, Tray } from "electron";
+// CalHack desktop app. Press ⌃⌥⌘D and CalHack looks at your screen, then:
+//  - follows the how-to you're reading (forum post, support page, PDF), or
+//  - fixes the problem you have ("my printer won't print"): read-only checks → OK → fix → same checks again, or
+//  - asks "Hi! What's going on?", and finds the official source (Apple support, the app maker's site) when it has no guide.
+// The helper bar (bottom-center) shows each moment, the buddy hops to where the work is, and a voice says what's happening.
+// Code decides what's safe. Droid (Factory) runs the approved commands. A separate Claude call writes the receipt.
+import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, session as electronSession, shell, systemPreferences, Tray } from "electron";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describeEnvironment, probeEnvironment, type Environment } from "../core/probe.js";
 import { applyAiConcerns, planSteps, type Plan } from "../core/plan.js";
-import { check, runPlannedStep, type Executor } from "../core/runner.js";
+import { check, runPlannedStep, type Executor, type RunHooks } from "../core/runner.js";
 import { runNormally, runSandboxed } from "../core/exec.js";
 import { runSequence } from "../core/sequence.js";
 import { collectEvidence, type Receipt } from "../core/receipt.js";
-import { reviewRun } from "../ai/review.js";
-import { droidProblem, runWithDroid } from "../droid/executor.js";
 import { assessCommand } from "../core/risk.js";
-import type { Evidence, InstructionSource, PlannedStep, StepResult } from "../core/types.js";
+import { runRecipe } from "../core/recipes.js";
+import { installFromOfficial, knownInstaller } from "../core/install.js";
+import { checkOfficial } from "../core/official.js";
+import { buildFixes, diagnose, getGuide, guideMenu, realCheckRunner, verifyFix, type BuiltFix, type Diagnosis, type FixGuide } from "../core/fixes/index.js";
+import type { Evidence, InstructionSource, PlannedStep, Step, StepResult } from "../core/types.js";
+import { reviewRun } from "../ai/review.js";
+import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
 import { locateOnScreen, type ScreenLocation } from "../ai/locate.js";
+import { droidProblem, runWithDroid } from "../droid/executor.js";
+import { findOfficialSource, type OfficialSource } from "../droid/research.js";
+import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
 import { describeSource, gatherInstructions } from "./gather.js";
+import { transcribe, voiceProblem } from "./voice-in.js";
+import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
+import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
+import { barLine, buddyHome, buddyPoint, buddyPose, buddyScanScreen, buddyTo, currentBar, dockSpot, ensureBar, focusBar, say, screenTopCenter, setBarRect, showBar, toBuddy } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -29,143 +44,56 @@ loadEnv(ROOT);
 // The shortcut can be changed with CALHACK_HOTKEY in .env (Electron format, e.g. "Control+Alt+Command+D").
 const HOTKEY = process.env.CALHACK_HOTKEY?.trim() || "Control+Alt+Command+D";
 const KEY_SYMBOLS: Record<string, string> = { control: "⌃", ctrl: "⌃", alt: "⌥", option: "⌥", shift: "⇧", command: "⌘", cmd: "⌘", commandorcontrol: "⌘", cmdorctrl: "⌘" };
-/** "Control+Alt+D" → "⌃⌥D" */
 const KEY_LABEL = HOTKEY.split("+").map((k) => KEY_SYMBOLS[k.toLowerCase()] ?? k.toUpperCase()).join("");
 const UI = (name: string) => join(here, "ui", name);
+const UI_URL = pathToFileURL(join(here, "ui")).href + "/";
 const PRELOAD = join(here, "preload.cjs");
 const OWN_APP_NAMES = new Set(["Electron", "CalHack"]);
+const SUGGESTIONS = ["My printer won't print", "I can't hear anything", "The internet isn't working", "Install Zoom"];
 
 let tray: Tray | null = null;
-let panel: BrowserWindow | null = null;
-let overlay: BrowserWindow | null = null;
 let warning: BrowserWindow | null = null;
 
-interface Session {
+/** One job: following a how-to, fixing a problem, or installing an app from its official site. */
+interface Job {
+  mode: "instructions" | "fix" | "install";
+  goal: string;
   source: InstructionSource;
-  parse: ParseResult;
   plan: Plan;
+  parse?: ParseResult;
+  /** For fixes: the guide and what the first checks found. */
+  guide?: FixGuide;
+  before?: Diagnosis;
+  fixes?: BuiltFix[];
+  problem?: string;
+  /** For installs. */
+  install?: { url: string; publisher: string; appName: string; page: OfficialSource | null };
   useUpdated: Set<string>;
-  results: Map<string, StepResult>;
-  /** Fixed actions tried in the current run (see core/recipes.ts). */
-  recipesTried: Map<string, { stepId: string; ok: boolean }>;
-  /** Click steps the person lets a fixed action do (on by default; they can turn it off before running). */
   useRecipe: Set<string>;
-  /** Why we couldn't do a click step for them, by step id. */
-  notes: Map<string, string>;
-  /** Shown when a run ends: proof that it worked, or exactly what failed. */
+  results: Map<string, StepResult>;
+  recipesTried: Map<string, { stepId: string; ok: boolean }>;
   receipt: Receipt | null;
-  /** True while the separate Claude reviewer checks the evidence. */
-  reviewing: boolean;
+  beforeAfter: { label: string; before: string; after: string }[];
+  /** Extra lines for "show what's happening", e.g. what Droid did while searching. */
+  extraDetail: DetailLine[];
+  sourceLabel: string;
 }
-let session: Session | null = null;
+
+let job: Job | null = null;
 let busy = false;
 let running = false;
 let stopRequested = false;
 let envCache: { env: Environment; at: number } | null = null;
 let lastExternalApp: string | null = null;
+/** The last screenshot and screen text, so an answer can be read together with what was on screen. */
+let lastLook: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" };
+/** After a guide finds nothing wrong, "Yes, look it up" searches the official help for this goal. */
+let pendingLookup: string | null = null;
 
 const approvals = new Map<string, (yes: boolean) => void>();
 const manualWaits = new Map<string, (answer: "done" | "skip") => void>();
 
-// ---------- Windows ----------
-
-function baseWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWindow {
-  const win = new BrowserWindow({
-    show: false,
-    frame: false,
-    resizable: false,
-    fullscreenable: false,
-    skipTaskbar: true,
-    hasShadow: true,
-    backgroundColor: "#00000000",
-    transparent: true,
-    webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
-    ...opts,
-  });
-  // Keep our own windows out of screenshots so Claude only sees the person's screen.
-  win.setContentProtection(true);
-  win.setAlwaysOnTop(true, "floating");
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // Never navigate away from our own pages.
-  win.webContents.on("will-navigate", (e) => e.preventDefault());
-  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  // CALHACK_DEBUG=1 prints page errors in the terminal.
-  if (process.env.CALHACK_DEBUG) {
-    win.webContents.on("console-message", (e) => console.log(`[page ${e.level}] ${e.message}`));
-    win.webContents.on("preload-error", (_e, path, err) => console.log(`[preload error] ${path}: ${err}`));
-  }
-  return win;
-}
-
-function ensurePanel(): BrowserWindow {
-  if (panel && !panel.isDestroyed()) return panel;
-  const area = screen.getPrimaryDisplay().workArea;
-  const width = 420;
-  const height = Math.min(720, area.height - 40);
-  panel = baseWindow({ width, height, x: area.x + area.width - width - 16, y: area.y + 16 });
-  panel.loadFile(UI("panel.html"));
-  panel.on("closed", () => (panel = null));
-  return panel;
-}
-
-function showPanel(): void {
-  const p = ensurePanel();
-  if (p.webContents.isLoading()) p.webContents.once("did-finish-load", () => p.showInactive());
-  else p.showInactive();
-}
-
-function send(channel: string, data: unknown): void {
-  const p = ensurePanel();
-  if (channel === "state") data = { ...(data as object), hotkey: KEY_LABEL };
-  const go = () => p.webContents.send(channel, data);
-  if (p.webContents.isLoading()) p.webContents.once("did-finish-load", go);
-  else go();
-}
-
-function ensureOverlay(): BrowserWindow {
-  if (overlay && !overlay.isDestroyed()) return overlay;
-  const b = screen.getPrimaryDisplay().bounds;
-  overlay = baseWindow({ x: b.x, y: b.y, width: b.width, height: b.height, hasShadow: false, focusable: false });
-  overlay.setAlwaysOnTop(true, "screen-saver");
-  overlay.setIgnoreMouseEvents(true);
-  overlay.loadFile(UI("overlay.html"));
-  overlay.on("closed", () => (overlay = null));
-  return overlay;
-}
-
-function pointAt(x: number, y: number, label: string): void {
-  const o = ensureOverlay();
-  const go = () => {
-    o.webContents.send("point", { x, y, label });
-    o.showInactive();
-  };
-  if (o.webContents.isLoading()) o.webContents.once("did-finish-load", go);
-  else go();
-}
-
-function hidePointer(): void {
-  if (!overlay || overlay.isDestroyed()) return;
-  overlay.webContents.send("point-hide", {});
-  overlay.hide();
-}
-
-function showWarning(data: { reasons: string[]; command: string }): void {
-  if (!warning || warning.isDestroyed()) {
-    const area = screen.getPrimaryDisplay().workArea;
-    const width = 480;
-    warning = baseWindow({ width, height: 340, x: Math.round(area.x + (area.width - width) / 2), y: area.y + 40 });
-    warning.setAlwaysOnTop(true, "screen-saver");
-    warning.loadFile(UI("warning.html"));
-    warning.on("closed", () => (warning = null));
-  }
-  const w = warning;
-  const go = () => {
-    w.webContents.send("warning", data);
-    w.show();
-  };
-  if (w.webContents.isLoading()) w.webContents.once("did-finish-load", go);
-  else go();
-}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- Screen ----------
 
@@ -199,67 +127,6 @@ function screenAllowed(): boolean {
   return systemPreferences.getMediaAccessStatus("screen") === "granted";
 }
 
-// ---------- Plan → panel ----------
-
-function stepView(p: PlannedStep, s: Session) {
-  const r = s.results.get(p.step.id);
-  return {
-    id: p.step.id,
-    title: p.step.title,
-    explanation: p.step.explanation,
-    kind: p.step.kind,
-    command: p.step.command ?? null,
-    url: p.step.url ?? null,
-    clickTarget: p.step.clickTarget ?? null,
-    hasSettingsLink: !!safeSettingsUrl(p.step.settingsUrl),
-    recipe: p.recipe?.label ?? null,
-    note: s.notes.get(p.step.id) ?? null,
-    level: p.level,
-    reasons: p.reasons,
-    outdated: p.assessment.outdated ?? null,
-    wrongPlatform: p.assessment.wrongPlatform ?? null,
-    needsReview: p.needsReview,
-    checkCommand: p.checkUsable ? p.step.checkCommand : null,
-    useUpdated: s.useUpdated.has(p.step.id),
-    useRecipe: s.useRecipe.has(p.step.id),
-    alternative: p.step.alternativeGroup ? { group: p.step.alternativeGroup, option: p.step.alternativeOption ?? null } : null,
-    ranBy: r?.ranBy ?? null,
-    log: r?.log ?? null,
-    evidence: (r?.evidence ?? []).map((e) => ({ kind: e.kind, command: e.command, code: e.code })),
-    flags: p.flags,
-    notNeeded: p.assessment.outdated?.suggestion === "",
-    status: r?.status ?? null,
-    message: r?.message ?? null,
-    output: r?.output ?? null,
-  };
-}
-
-function sendPlan(): void {
-  if (!session) return;
-  const s = session;
-  send("state", {
-    phase: "plan",
-    receipt: s.receipt,
-    reviewing: s.reviewing,
-    droid: droidProblem() ? { ready: false, problem: droidProblem() } : { ready: true, problem: null },
-    goal: s.parse.goal,
-    sourceLabel: describeSource(s.source),
-    location: s.source.location ?? null,
-    fromCache: s.parse.fromCache,
-    appliesToThisComputer: s.parse.appliesToThisComputer,
-    pageWarnings: [...s.plan.pageWarnings.map((w) => ({ level: w.level, reason: w.reason })), ...s.parse.pageConcerns.filter((c) => c.steps.length === 0).map((c) => ({ level: "ask", reason: c.text }))],
-    steps: s.plan.steps.map((p) => stepView(p, s)),
-    running,
-  });
-}
-
-/** Only System Settings links are opened, whatever the AI suggests. */
-function safeSettingsUrl(url?: string): string | null {
-  return url && /^x-apple\.systempreferences:[A-Za-z0-9._\-?=&]+$/.test(url) ? url : null;
-}
-
-// ---------- The hotkey ----------
-
 async function getEnvironment(): Promise<Environment> {
   if (envCache && Date.now() - envCache.at < 5 * 60_000) return envCache.env;
   const env = await probeEnvironment();
@@ -267,75 +134,402 @@ async function getEnvironment(): Promise<Environment> {
   return env;
 }
 
+/** Only System Settings links are opened, whatever the AI suggests. */
+function safeSettingsUrl(url?: string): string | null {
+  return url && /^x-apple\.systempreferences:[A-Za-z0-9._\-?=&]+$/.test(url) ? url : null;
+}
+
+// ---------- Bar views ----------
+
+function droidReady(): boolean {
+  return !droidProblem();
+}
+
+function lower(text: string): string {
+  return text ? text[0].toLowerCase() + text.slice(1) : text;
+}
+
+function jobSteps(j: Job, runningId?: string): StepLine[] {
+  return stepLines(j.plan.steps, j.results, runningId);
+}
+
+function jobDetail(j: Job): DetailLine[] {
+  return [...j.extraDetail, ...detailLines(j.plan.steps, j.results, droidReady())];
+}
+
+function showPlan(j: Job): void {
+  const notes = planNotes({
+    steps: j.plan.steps,
+    useUpdated: j.useUpdated,
+    useRecipe: j.useRecipe,
+    pageWarnings: [...j.plan.pageWarnings.filter((w) => w.level !== "blocked").map((w) => w.reason), ...(j.parse?.pageConcerns.filter((c) => c.steps.length === 0).map((c) => c.text) ?? [])],
+    droidReady: droidReady(),
+  });
+  const scam = j.plan.pageWarnings.some((w) => w.level === "blocked");
+  const left = j.plan.steps.filter((p) => p.step.kind !== "info" && !j.results.has(p.step.id));
+  if (left.length === 0 && !scam) {
+    showBar({
+      phase: "done",
+      receipt: { verdict: "done", headline: "Good news: this is already done on your Mac.", beforeAfter: [], proofs: [], problems: [], reviewedBy: "rules" },
+      steps: jobSteps(j),
+      detail: jobDetail(j),
+      canRetry: false,
+      canSendSummary: false,
+    });
+    say("Good news. This is already done on your Mac.", "now");
+    buddyHome("celebrate");
+    return;
+  }
+  showBar({
+    phase: "plan",
+    goal: j.goal,
+    problem: j.problem,
+    steps: jobSteps(j),
+    notes: scam ? [{ tone: "blocked", text: "This page looks like a scam. I won't run anything from it, and please don't paste anything from it." }, ...notes] : notes,
+    okLabel: scam ? "" : j.mode === "fix" ? "OK, fix it" : j.mode === "install" ? "Yes, install" : "OK, do it",
+    cancelLabel: scam ? "Close" : "Not now",
+    source: j.sourceLabel,
+  });
+  buddyHome(scam ? "stop" : "wave");
+  if (!scam) autoOk();
+}
+
+/** Testing only: CALHACK_AUTO_OK=1 presses OK by itself a few seconds after the plan shows. */
+function autoOk(): void {
+  if (process.env.CALHACK_AUTO_OK === "1") setTimeout(() => void runAll(), 4000);
+}
+
+function showWorking(j: Job, current?: PlannedStep, line?: string): void {
+  const work = j.plan.steps.filter((p) => p.step.kind !== "info" || j.mode === "install");
+  const n = current ? work.indexOf(current) + 1 : work.filter((p) => j.results.has(p.step.id)).length;
+  showBar({
+    phase: "working",
+    goal: j.goal,
+    current: Math.max(1, n),
+    total: work.length,
+    line: line ?? (current ? current.step.title : "Working…"),
+    steps: j.mode === "install" ? installLines(j, current?.step.id) : jobSteps(j, current?.step.id),
+    detail: jobDetail(j),
+  });
+}
+
+function showError(message: string): void {
+  showBar({ phase: "error", message });
+  say(message, "now");
+  buddyHome("sad");
+}
+
+function askWhat(question = "Hi! What's going on?", suggestions = SUGGESTIONS): void {
+  showBar({ phase: "ask", question, suggestions, listening: false, transcribing: false });
+  say(question, "now");
+  buddyHome("think");
+  focusBar();
+}
+
+// ---------- The hotkey ----------
+
 async function onHotkey(): Promise<void> {
   if (busy || running) {
-    showPanel();
+    ensureBar().showInactive();
     return;
   }
   busy = true;
+  job = null;
+  pendingLookup = null;
   try {
     let appName = await frontAppName();
     if (appName && OWN_APP_NAMES.has(appName)) appName = lastExternalApp;
     if (appName) lastExternalApp = appName;
 
-    hidePointer();
-    showPanel();
-    send("state", { phase: "reading", message: `Looking at ${appName ?? "your screen"}…` });
+    showBar({ phase: "looking", message: "Let me take a look…" });
+    say("Let me take a look.", "now");
+    buddyHome("scan");
+    buddyScanScreen();
 
-    if (!screenAllowed()) {
-      send("state", { phase: "permission", message: "CalHack needs Screen Recording permission to see your screen." });
+    if (!hasApiKey()) {
+      showError("I need a Claude API key first. Put ANTHROPIC_API_KEY in the .env file, then restart me.");
+      return;
     }
     const shot = screenAllowed() ? await captureScreen() : null;
     const source = await gatherInstructions({ app: appName, recentClipboard: recentClipboard() });
-    send("state", { phase: "reading", message: `Reading ${describeSource(source)}…` });
+    lastLook = { shot, screenText: source.text.slice(0, 6000) };
 
-    if (!hasApiKey()) {
-      send("state", { phase: "error", message: "No Claude API key yet. Put ANTHROPIC_API_KEY=... in the .env file in the project folder, then restart CalHack." });
-      return;
-    }
-    if (source.kind === "screenshot" && !shot) {
-      send("state", { phase: "error", message: `Couldn't read anything. Copy the instructions (⌘C) and press ${KEY_LABEL} again, or allow Screen Recording.` });
-      return;
-    }
     const env = await getEnvironment();
-    const parse = await parseInstructions({
-      source,
-      environment: describeEnvironment(env),
+    const t = await triage({
+      screenText: lastLook.screenText,
       screenshot: shot ? { data: shot.data, mediaType: shot.mediaType } : undefined,
-      allowCache: true,
-    });
-    const plan = planSteps(parse.steps, source);
-    applyAiConcerns(plan, parse.pageConcerns, parse.appliesToThisComputer);
-    // Start with "Use the updated command" on wherever our rules built a newer form.
-    // The newer command is still checked again and still asks before it runs.
-    const useUpdated = new Set(plan.steps.filter((p) => p.assessment.outdated?.suggestion).map((p) => p.step.id));
-    // Find steps that are already done, so the list only shows what's left.
-    send("state", { phase: "reading", message: "Checking your Mac…" });
-    const results = new Map<string, StepResult>();
-    await Promise.all(
-      plan.steps.map(async (p) => {
-        if (p.assessment.wrongPlatform || p.step.kind === "info") return;
-        const c = await check(p, "before").catch(() => null);
-        if (c?.passed) results.set(p.step.id, { id: p.step.id, status: "already-done", message: "Already done on this Mac, so we skipped it.", evidence: [c.evidence] });
-      }),
-    );
-    const useRecipe = new Set(plan.steps.filter((p) => p.recipe).map((p) => p.step.id));
-    session = { source, parse, plan, useUpdated, useRecipe, results, recipesTried: new Map(), notes: new Map(), receipt: null, reviewing: false };
-    sendPlan();
+      guides: guideMenu(),
+      environment: describeEnvironment(env),
+    }).catch((): Triage => (source.text.trim() ? { kind: "instructions" } : { kind: "clarify", question: "Hi! What's going on?", suggestions: SUGGESTIONS, say: "Hi! What's going on?" }));
+
+    if (t.kind === "instructions" && (source.text.trim() || shot)) await instructionsFlow(source, shot);
+    else await route(t);
   } catch (error) {
-    send("state", { phase: "error", message: friendlyError(error) });
+    showError(friendlyError(error));
   } finally {
     busy = false;
   }
 }
 
+/** Something the person typed or said, read together with what was on screen. */
+async function onAnswer(text: string): Promise<void> {
+  if (busy || running) return;
+  const clean = text.trim();
+  if (!clean) return;
+  if (/^(no|no thanks|nope|not now|cancel)\b/i.test(clean)) {
+    showBar({ phase: "hidden" });
+    return;
+  }
+  busy = true;
+  try {
+    // "Yes, look it up" after a guide found nothing it could fix.
+    if (/^yes,? look it up/i.test(clean) && pendingLookup) {
+      const goal = pendingLookup;
+      pendingLookup = null;
+      await searchFlow({ kind: "search", goal, query: goal + " on a Mac", say: "I'll look up the official help." });
+      return;
+    }
+    showBar({ phase: "looking", message: `“${clean}”. Let me think…` });
+    buddyPose("think");
+    const env = await getEnvironment();
+    const t = await triage({ text: clean, screenText: lastLook.screenText, guides: guideMenu(), environment: describeEnvironment(env) });
+    if (t.kind === "instructions") await route({ kind: "search", goal: clean, query: clean, say: "Let me find the official steps for that." });
+    else await route(t);
+  } catch (error) {
+    showError(friendlyError(error));
+  } finally {
+    busy = false;
+  }
+}
+
+async function route(t: Triage): Promise<void> {
+  if (t.kind === "guide") {
+    const guide = getGuide(t.guideId);
+    if (guide) return fixFlow(guide, t.say);
+    return searchFlow({ kind: "search", goal: t.goal, query: t.goal, say: t.say });
+  }
+  if (t.kind === "search") return searchFlow(t);
+  if (t.kind === "clarify") return askWhat(t.question, t.suggestions.length ? t.suggestions : SUGGESTIONS);
+  askWhat();
+}
+
+// ---------- Mode 1: follow the how-to on screen ----------
+
+function newJob(mode: Job["mode"], goal: string, source: InstructionSource, plan: Plan, sourceLabel: string): Job {
+  return {
+    mode,
+    goal,
+    source,
+    plan,
+    useUpdated: new Set(plan.steps.filter((p) => p.assessment.outdated?.suggestion).map((p) => p.step.id)),
+    useRecipe: new Set(plan.steps.filter((p) => p.recipe).map((p) => p.step.id)),
+    results: new Map(),
+    recipesTried: new Map(),
+    receipt: null,
+    beforeAfter: [],
+    extraDetail: [],
+    sourceLabel,
+  };
+}
+
+async function instructionsFlow(source: InstructionSource, shot: Shot | null, sourceLabel?: string, extra: DetailLine[] = []): Promise<void> {
+  showBar({ phase: "looking", message: `Reading ${describeSource(source)}…` });
+  if (source.kind === "screenshot" && !shot) {
+    askWhat("I couldn't read anything on your screen. What are you trying to do?");
+    return;
+  }
+  const env = await getEnvironment();
+  const parse = await parseInstructions({
+    source,
+    environment: describeEnvironment(env),
+    screenshot: shot ? { data: shot.data, mediaType: shot.mediaType } : undefined,
+    allowCache: true,
+  });
+  if (parse.steps.length === 0) {
+    askWhat("I don't see any steps to follow here. What are you trying to do?");
+    return;
+  }
+  const plan = planSteps(parse.steps, source);
+  applyAiConcerns(plan, parse.pageConcerns, parse.appliesToThisComputer);
+  const j = newJob("instructions", parse.goal, source, plan, sourceLabel ?? `From ${describeSource(source)}`);
+  j.parse = parse;
+  j.extraDetail = extra;
+
+  // Steps already done are skipped up front.
+  showBar({ phase: "looking", message: "Checking what's already done on your Mac…" });
+  await Promise.all(
+    plan.steps.map(async (p) => {
+      if (p.assessment.wrongPlatform || p.step.kind === "info") return;
+      const c = await check(p, "before").catch(() => null);
+      if (c?.passed) j.results.set(p.step.id, { id: p.step.id, status: "already-done", message: "Already done on this Mac, so we skipped it.", evidence: [c.evidence] });
+    }),
+  );
+  job = j;
+  showPlan(j);
+  const blocked = plan.steps.filter((p) => p.level === "blocked" && (p.step.kind === "command" || p.step.kind === "download")).length;
+  const scam = plan.pageWarnings.some((w) => w.level === "blocked");
+  if (scam) say("Careful. This page looks like a scam. I won't run anything from it.", "now");
+  else say(`Looks like you want to ${lower(parse.goal)}.${blocked ? " I'll skip a step that isn't safe." : ""} Ready when you are.`, "now");
+}
+
+// ---------- Mode 2: fix a problem ----------
+
+async function fixFlow(guide: FixGuide, intro: string): Promise<void> {
+  const checks: CheckLine[] = guide.checks.map((c, i) => ({ label: c.label, status: i === 0 ? "running" : "pending" }));
+  const update = () => showBar({ phase: "checking", title: `Checking: ${guide.title.toLowerCase()}`, checks: [...checks] });
+  update();
+  say(intro || "Let me check a few things.", "now");
+  buddyHome("scan");
+
+  const before = await diagnose(guide, realCheckRunner, (id, r) => {
+    const i = guide.checks.findIndex((c) => c.id === id);
+    if (i >= 0) checks[i] = { label: r.label, status: r.status, detail: r.detail };
+    if (i + 1 < checks.length && checks[i + 1].status === "pending") checks[i + 1] = { ...checks[i + 1], status: "running" };
+    update();
+  });
+  const fixes = buildFixes(before);
+
+  if (!before.problem || fixes.length === 0) {
+    pendingLookup = guide.goal;
+    const question = before.problem
+      ? `${before.problem} I don't have a safe fix for that myself. Want me to look up the official help?`
+      : "Everything I checked looks fine. Want me to look up the official help for this?";
+    showBar({ phase: "ask", question, suggestions: ["Yes, look it up", "No thanks"], listening: false, transcribing: false });
+    say(question, "now");
+    buddyHome("think");
+    focusBar();
+    return;
+  }
+
+  const steps: Step[] = fixes.map((f, i): Step => {
+    const id = String(i + 1);
+    if (f.kind === "command") return { id, title: f.label, explanation: f.label, kind: "command", command: f.admin && !/^sudo\b/.test(f.command) ? "sudo " + f.command : f.command };
+    if (f.kind === "recipe") return { id, title: f.label, explanation: "Add your printer again, without needing a driver.", kind: "manual", clickTarget: "Add Printer, Scanner or Fax…" };
+    return { id, title: f.label, explanation: f.manual.explain, kind: "manual", clickTarget: f.manual.clickTarget, settingsUrl: f.manual.settingsUrl };
+  });
+  // The guide is our own code, so it is the "instructions" these commands come from.
+  const source: InstructionSource = { kind: "file", text: steps.map((s) => s.command ?? s.title).join("\n"), location: `calhack://fix/${guide.id}`, app: "CalHack" };
+  const plan = planSteps(steps, source);
+  const j = newJob("fix", guide.goal, source, plan, "From CalHack's built-in fix guide");
+  j.guide = guide;
+  j.before = before;
+  j.fixes = fixes;
+  j.problem = before.problem;
+  j.extraDetail = before.evidence.map((e) => ({ text: `Check: ${e.command} → exit ${e.code}`, mono: true }));
+  job = j;
+  showPlan(j);
+  say(`Found it. ${before.problem} I can fix that. Want me to go ahead?`, "queue");
+}
+
+// ---------- Mode 3: find the official source (support article or app download) ----------
+
+async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void> {
+  showBar({ phase: "looking", message: t.installApp ? `Finding ${t.installApp}'s official website…` : "Looking for the official help page…" });
+  say("I'm pulling up the website for you.", "now");
+  const top = screenTopCenter();
+  buddyTo(top.x, top.y, "scan");
+
+  let src: OfficialSource | null = null;
+  const extra: DetailLine[] = [];
+  try {
+    src = await findOfficialSource(t.goal, t.query, { installApp: t.installApp });
+    extra.push({ text: "🤖 Droid searched the web (web tools only, it can't run anything):" }, ...src.log.map((l) => ({ text: l, mono: true })));
+  } catch (error) {
+    const log = (error as { log?: string[] }).log ?? [];
+    extra.push({ text: `Droid search: ${(error as Error).message}` }, ...log.map((l) => ({ text: l, mono: true })));
+  }
+
+  // Installing an app.
+  if (t.installApp) {
+    const known = knownInstaller(t.installApp);
+    const page = src && checkOfficial({ ...src, downloadUrl: undefined }).ok ? src : null;
+    let url = page?.downloadUrl && checkOfficial(page).ok ? page.downloadUrl : null;
+    const publisher = page?.publisher ?? known?.publisher ?? t.installApp;
+    if (!url && known && checkOfficial({ url: known.url, downloadUrl: known.url, publisher: known.publisher, kind: "download" }).ok) url = known.url;
+    if (page) {
+      void shell.openExternal(page.url);
+      say(`Going to ${publisher}'s official website.`, "queue");
+    }
+    if (!url) {
+      showError(page ? `I opened ${publisher}'s official download page, but I couldn't find an installer link I trust. You can click Download there.` : `I couldn't find ${t.installApp}'s official website, so I stopped. I never download from other sites.`);
+      return;
+    }
+    installOffer(known?.appName ?? t.installApp, publisher, url, page, extra);
+    return;
+  }
+
+  // A support article: it becomes the instructions.
+  if (!src) {
+    showError("I couldn't find an official help page for that. Try saying it another way?");
+    return;
+  }
+  const verdict = checkOfficial({ ...src, downloadUrl: undefined });
+  if (!verdict.ok) {
+    showError(`I found a page, but ${lower(verdict.reason)} So I stopped.`);
+    return;
+  }
+  void shell.openExternal(src.url);
+  say(`Going to ${src.publisher}'s official help page.`, "queue");
+  const text = await fetchPageText(src.url);
+  const source: InstructionSource = { kind: "webpage", text, location: src.url, app: "CalHack" };
+  await instructionsFlow(source, null, `From ${verdict.host} (${src.publisher}'s official site)`, extra);
+}
+
+const INSTALL_STEPS = (appName: string, publisher: string, host: string) => [
+  { id: "1", text: `Download ${appName} from ${host}, ${publisher}'s own website` },
+  { id: "2", text: `Check the file really comes from ${publisher}` },
+  { id: "3", text: `Install ${appName} (your Mac will ask for your password)` },
+  { id: "4", text: `Open ${appName}` },
+];
+
+function installLines(j: Job, runningId?: string): StepLine[] {
+  const i = j.install!;
+  return INSTALL_STEPS(i.appName, i.publisher, new URL(i.url).hostname).map((s) => {
+    const r = j.results.get(s.id);
+    const status: StepLine["status"] = r ? (r.status === "done" ? "done" : r.status === "declined" ? "skipped" : "failed") : s.id === runningId ? "running" : "todo";
+    return { id: s.id, text: s.text, status, note: r && r.status !== "done" ? r.message : undefined };
+  });
+}
+
+function installOffer(appName: string, publisher: string, url: string, page: OfficialSource | null, extra: DetailLine[]): void {
+  const host = new URL(url).hostname;
+  const steps: Step[] = INSTALL_STEPS(appName, publisher, host).map((s) => ({ id: s.id, title: s.text, explanation: "", kind: "info" }));
+  const source: InstructionSource = { kind: "webpage", text: url, location: page?.url ?? url, app: "CalHack" };
+  const plan = planSteps(steps, source);
+  const j = newJob("install", `Install ${appName}`, source, plan, `From ${page ? new URL(page.url).hostname : host} (${publisher}'s official site)`);
+  j.install = { url, publisher, appName, page };
+  j.extraDetail = [...extra, { text: `Installer: ${url}`, mono: true }];
+  job = j;
+  showBar({
+    phase: "plan",
+    goal: j.goal,
+    steps: installLines(j),
+    notes: [{ tone: "info", text: `I only install files signed by ${publisher}. Anything else, I stop.` }],
+    okLabel: "Yes, install",
+    cancelLabel: "Not now",
+    source: j.sourceLabel,
+  });
+  buddyHome("wave");
+  say(`Do you want to install ${appName} on your Mac?`, "queue");
+  autoOk();
+}
+
 // ---------- Running ----------
 
 /**
- * Droid runs the approved commands that change something. If Droid isn't set up (no key, or the droid
- * program isn't installed) or can't start, CalHack runs the command itself, and the log says so.
+ * Droid runs the approved commands that change something. If Droid isn't set up or can't start,
+ * CalHack runs the command itself, and the log says so.
  */
+/** App installs that may ask for the Mac password partway through. Droid's shell can't show the password box. */
+function needsPasswordBox(command: string): boolean {
+  return /\bbrew\s+(install|reinstall|upgrade)\b[^;&|]*--cask\b|\binstaller\s+-pkg\b/.test(command);
+}
+
 const execute: Executor = async (command, timeoutMs) => {
+  if (needsPasswordBox(command)) {
+    const r = await runNormally(command, timeoutMs);
+    return { ...r, ranBy: "calhack", log: ["CalHack ran this one itself, because installing an app can ask for your Mac password and only CalHack can show that box."] };
+  }
   const problem = droidProblem();
   if (!problem) {
     try {
@@ -348,87 +542,209 @@ const execute: Executor = async (command, timeoutMs) => {
   return { ...(await runNormally(command, timeoutMs)), ranBy: "calhack", log: [`Droid is off (${problem}), so CalHack ran it.`] };
 };
 
-async function runAll(): Promise<void> {
-  if (!session || running) return;
-  const s = session;
-  running = true;
-  stopRequested = false;
-  s.receipt = null;
-  s.recipesTried.clear();
-  s.notes.clear();
-  // "Try again" reruns what failed; everything that worked is kept.
-  for (const [id, r] of s.results) if (["failed", "declined", "skipped"].includes(r.status)) s.results.delete(id);
-  sendPlan();
-  try {
-    const hooks = {
-      approve: (planned: PlannedStep, detail: string) =>
-        new Promise<boolean>((resolve) => {
-          // The person already OK'd the plan. Only flagged steps ask again.
-          if (planned.flags.length === 0 && !planned.needsReview) return resolve(true);
-          approvals.set(planned.step.id, resolve);
-          send("approve-request", { id: planned.step.id, detail, needsReview: planned.needsReview });
-        }),
-      waitForUser: (planned: PlannedStep, note?: string) =>
-        new Promise<"done" | "skip">((resolve) => {
-          if (note) s.notes.set(planned.step.id, note);
-          manualWaits.set(planned.step.id, resolve);
-          send("manual-request", { id: planned.step.id });
-          const link = safeSettingsUrl(planned.step.settingsUrl);
-          if (link) void shell.openExternal(link);
-          if (planned.step.clickTarget) setTimeout(() => void showMe(planned.step.id), link ? 1500 : 0);
-        }),
-      progress: (planned: PlannedStep, message: string) => send("step-progress", { id: planned.step.id, message }),
-    };
-    await runSequence(s.plan.steps, s.results, {
-      runOne: (p) =>
-        runPlannedStep(p, hooks, {
-          useUpdatedCommand: s.useUpdated.has(p.step.id),
-          useRecipe: s.useRecipe.has(p.step.id),
-          recipesTried: s.recipesTried,
-          execute,
-        }),
-      onResult: () => {
-        hidePointer();
-        sendPlan();
-      },
-      stopped: () => stopRequested,
-    });
-    if (!stopRequested) {
-      s.reviewing = true;
-      sendPlan();
-      s.receipt = await makeReceipt(s);
-    }
-  } finally {
-    running = false;
-    s.reviewing = false;
-    approvals.clear();
-    manualWaits.clear();
-    sendPlan();
-    send("finished", {});
+/** Where the buddy goes, and what it says, when a step starts. */
+function stageStep(j: Job, p: PlannedStep): void {
+  const s = p.step;
+  showWorking(j, p);
+  if (p.level === "blocked") {
+    buddyHome("stop");
+    return;
+  }
+  if (s.kind === "info") return;
+  say(`Okay, ${lower(s.title)}.`, "queue");
+  if (s.kind === "command" || (s.kind === "manual" && p.recipe && j.useRecipe.has(s.id))) {
+    const l = barLine();
+    buddyTo(l.x, l.y, "type");
+  } else if (s.kind === "download") {
+    const top = screenTopCenter();
+    buddyTo(top.x, top.y, "carry");
   }
 }
 
-/**
- * The receipt: the final goal check (from the plan, only if our rules say it's read-only, run in the
- * locked box), then a separate Claude call that must point at which check proves what.
- */
-async function makeReceipt(s: Session): Promise<Receipt> {
-  let final: Evidence | null = null;
-  const finish = s.parse.finish;
-  const a = finish ? assessCommand(finish.command) : null;
-  if (finish && a?.level === "safe" && a.readOnly) {
-    const r = await runSandboxed(finish.command).catch(() => null);
-    if (r) final = { kind: "final", command: finish.command, code: r.code, output: r.output.trim().split("\n").slice(-6).join("\n") };
-  }
-  const evidence = collectEvidence(s.plan.steps, s.results, final);
-  return reviewRun({ goal: s.parse.goal, goalMessage: finish?.message, steps: s.plan.steps, results: s.results, evidence });
+function runHooks(j: Job): RunHooks {
+  return {
+    approve: (planned, detail) =>
+      new Promise((resolve) => {
+        // The person already said OK to the plan. Only flagged steps ask again.
+        if (planned.flags.length === 0 && !planned.needsReview) return resolve(true);
+        approvals.set(planned.step.id, resolve);
+        showBar({ phase: "needs-you", goal: j.goal, stepId: planned.step.id, kind: "approve", question: `${planned.step.title}: go ahead?`, why: planned.flags, command: detail, showMe: false });
+        say("Quick question before I go on.", "now");
+        buddyHome("think");
+      }),
+    waitForUser: (planned, note) =>
+      new Promise((resolve) => {
+        manualWaits.set(planned.step.id, resolve);
+        const target = planned.step.clickTarget;
+        showBar({
+          phase: "needs-you",
+          goal: j.goal,
+          stepId: planned.step.id,
+          kind: "manual",
+          question: target ? `Your turn: click “${target}”.` : planned.step.title,
+          why: [note, planned.step.explanation].filter((x): x is string => !!x && x !== planned.step.title),
+          showMe: !!target,
+        });
+        say(target ? "This one's for you. I'll show you where to click." : `This one's for you: ${lower(planned.step.title)}.`, "queue");
+        const link = safeSettingsUrl(planned.step.settingsUrl);
+        if (link) void shell.openExternal(link);
+        if (target) setTimeout(() => void showMe(planned.step.id), link ? 1500 : 200);
+      }),
+    progress: (planned, message) => showWorking(j, planned, message),
+  };
 }
+
+async function runAll(): Promise<void> {
+  if (!job || running) return;
+  const j = job;
+  if (j.mode === "install") return runInstall(j);
+  running = true;
+  stopRequested = false;
+  j.receipt = null;
+  j.recipesTried.clear();
+  // "Try again" reruns what failed; everything that worked is kept.
+  for (const [id, r] of j.results) if (["failed", "declined", "skipped"].includes(r.status)) j.results.delete(id);
+  say(j.mode === "fix" ? "Okay, I'm fixing it now." : "Okay, I'm on it.", "now");
+  const hooks = runHooks(j);
+  try {
+    await runSequence(j.plan.steps, j.results, {
+      runOne: (p) => {
+        stageStep(j, p);
+        return runPlannedStep(p, hooks, {
+          useUpdatedCommand: j.useUpdated.has(p.step.id),
+          useRecipe: j.useRecipe.has(p.step.id),
+          recipesTried: j.recipesTried,
+          execute,
+        });
+      },
+      onResult: (r) => {
+        if (process.env.CALHACK_DEBUG) console.log(`[step] ${JSON.stringify(r)}`);
+        showWorking(j);
+      },
+      stopped: () => stopRequested,
+    });
+    if (!stopRequested) await finish(j);
+    else {
+      showBar({ phase: "done", receipt: { verdict: "not-done", headline: "Stopped. Nothing else was changed.", beforeAfter: [], proofs: [], problems: [], reviewedBy: "rules" }, steps: jobSteps(j), detail: jobDetail(j), canRetry: true, canSendSummary: true });
+      say("Okay, I stopped.", "now");
+      buddyHome("idle");
+    }
+  } catch (error) {
+    showError(friendlyError(error));
+  } finally {
+    running = false;
+    approvals.clear();
+    manualWaits.clear();
+  }
+}
+
+/** Checks again, then the separate Claude review writes the receipt. */
+async function finish(j: Job): Promise<void> {
+  showBar({ phase: "looking", message: "Checking it worked…" });
+  say("Let me check it worked.", "queue");
+  buddyHome("scan");
+  let final: Evidence[] = [];
+  let goalMessage = j.parse?.finish?.message;
+
+  if (j.mode === "fix" && j.guide && j.before) {
+    const wait = Math.max(0, ...(j.fixes ?? []).map((f) => f.waitAfterMs));
+    if (wait) await sleep(Math.min(wait, 15_000));
+    const v = await verifyFix(j.guide, realCheckRunner, j.before);
+    j.beforeAfter = v.rows;
+    // Each check counts as passed only if it no longer finds a problem.
+    final = v.after.results.filter((r) => r.command).map((r) => ({ kind: "final" as const, command: r.command!, code: r.status === "problem" ? 1 : 0, output: r.detail }));
+    goalMessage = v.fixed ? `the problem is gone: ${v.rows.map((r) => `${r.label}: ${r.after}`).join(", ")}` : undefined;
+    if (!v.fixed && v.stillWrong) j.extraDetail.push({ text: `Still wrong: ${v.stillWrong}` });
+  } else if (j.parse?.finish) {
+    const a = assessCommand(j.parse.finish.command);
+    if (a.level === "safe" && a.readOnly) {
+      const r = await runSandboxed(j.parse.finish.command).catch(() => null);
+      if (r) final = [{ kind: "final", command: j.parse.finish.command, code: r.code, output: r.output.trim().split("\n").slice(-6).join("\n") }];
+    }
+  }
+
+  const evidence = collectEvidence(j.plan.steps, j.results, final);
+  j.receipt = await reviewRun({ goal: j.goal, goalMessage, steps: j.plan.steps, results: j.results, evidence });
+  showDone(j);
+}
+
+function showDone(j: Job): void {
+  const r = j.receipt!;
+  showBar({
+    phase: "done",
+    receipt: receiptView(r, j.beforeAfter),
+    steps: j.mode === "install" ? installLines(j) : jobSteps(j),
+    detail: jobDetail(j),
+    canRetry: r.verdict !== "done",
+    canSendSummary: r.verdict !== "done",
+  });
+  if (r.verdict === "done") {
+    say(`Looks like it's finished. ${r.headline.replace(/^(Done|Fixed)\.?\s*/i, "")}`, "now");
+    buddyHome("celebrate");
+  } else if (r.verdict === "couldnt-verify") {
+    say("The steps ran, but I couldn't confirm it worked.", "now");
+    buddyHome("think");
+  } else {
+    say("I couldn't finish this one. I can copy a note about what I tried, for someone who can help.", "now");
+    buddyHome("sad");
+  }
+}
+
+/** Installing from the official site: download → signature check → install → open, each as a step. */
+async function runInstall(j: Job): Promise<void> {
+  if (!j.install) return;
+  running = true;
+  stopRequested = false;
+  const { url, publisher, appName } = j.install;
+  const set = (id: string, r: Omit<StepResult, "id">) => j.results.set(id, { id, ...r });
+  const line = (id: string, text: string) => showWorking(j, j.plan.steps.find((p) => p.step.id === id), text);
+  try {
+    j.results.clear();
+    j.receipt = null;
+    say(`Okay, I'm downloading ${appName} from ${publisher}'s official website.`, "now");
+    const top = screenTopCenter();
+    buddyTo(top.x, top.y, "carry");
+    line("1", `Downloading ${appName}…`);
+    const result = await installFromOfficial({ url, publisher, appName }, (stage, message) => {
+      if (stage === "check") set("1", { status: "done", message: "Downloaded." });
+      if (stage === "install") {
+        set("2", { status: "done", message: `Signed by ${publisher}.` });
+        say("Installing now. Your Mac will ask for your password.", "queue");
+        const d = dockSpot();
+        buddyTo(d.x, d.y - 10, "carry");
+      }
+      line(stage === "download" ? "1" : stage === "check" ? "2" : "3", message);
+    });
+    if (!result.ok) {
+      const failedAt = j.results.has("2") ? "3" : j.results.has("1") ? "2" : "1";
+      set(failedAt, { status: /cancelled/i.test(result.message) ? "declined" : "failed", message: result.message, evidence: result.evidence });
+    } else {
+      set("3", { status: "done", message: result.message, evidence: result.evidence });
+      line("4", `Opening ${appName}…`);
+      const appFile = basename(result.appPath ?? "", ".app") || appName;
+      const opened = await runRecipe({ id: "open-app", label: `Open ${appName}`, app: appFile });
+      set("4", { status: opened.ok ? "done" : "failed", message: opened.message, evidence: opened.evidence });
+      if (opened.ok) j.beforeAfter = [{ label: appName, before: "Not installed", after: "Installed and open" }];
+    }
+    showBar({ phase: "looking", message: "Checking it worked…" });
+    const steps = j.plan.steps;
+    const evidence = collectEvidence(steps, j.results, null);
+    j.receipt = await reviewRun({ goal: j.goal, goalMessage: `${appName} is installed and opens`, steps, results: j.results, evidence });
+    showDone(j);
+  } catch (error) {
+    showError(friendlyError(error));
+  } finally {
+    running = false;
+  }
+}
+
+// ---------- "Show me": the buddy points at what to click ----------
 
 /**
  * Opens what the AI says would show the target. Only safe things: installed apps,
  * System Settings pages, and https pages from the same site as the instructions.
  */
-async function openSafely(open: NonNullable<ScreenLocation["open_first"]>, s: Session): Promise<string | null> {
+async function openSafely(open: NonNullable<ScreenLocation["open_first"]>, j: Job): Promise<string | null> {
   if (open.kind === "settings") {
     const link = safeSettingsUrl(open.target);
     if (!link) return null;
@@ -445,8 +761,8 @@ async function openSafely(open: NonNullable<ScreenLocation["open_first"]>, s: Se
   }
   try {
     const url = new URL(open.target);
-    const pageHost = s.source.location ? new URL(s.source.location).hostname : null;
-    const fromPage = s.source.text.includes(open.target);
+    const pageHost = j.source.location ? new URL(j.source.location).hostname : null;
+    const fromPage = j.source.text.includes(open.target);
     if (url.protocol !== "https:" || !(fromPage || (pageHost && url.hostname === pageHost))) return null;
     await shell.openExternal(url.toString());
     return url.hostname;
@@ -456,40 +772,54 @@ async function openSafely(open: NonNullable<ScreenLocation["open_first"]>, s: Se
 }
 
 async function showMe(id: string): Promise<void> {
-  if (!session) return;
-  const s = session;
-  const p = s.plan.steps.find((x) => x.step.id === id);
+  const j = job;
+  if (!j) return;
+  const p = j.plan.steps.find((x) => x.step.id === id);
   if (!p?.step.clickTarget) return;
-  hidePointer();
+  const target = p.step.clickTarget;
   // Look, and if it isn't there, open what would show it and look again (twice at most).
   for (let attempt = 0; attempt < 3; attempt++) {
-    send("step-progress", { id, message: attempt ? "Looking again…" : "Looking at your screen…" });
+    buddyPose("scan");
     const shot = await captureScreen();
     if (!shot) {
-      send("step-progress", { id, message: "I can't see your screen yet.", needsScreen: true });
+      say("I can't see your screen yet. Please turn on Screen Recording for me.", "now");
       return;
     }
     try {
-      const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target: p.step.clickTarget, stepTitle: p.step.title });
+      const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target, stepTitle: p.step.title });
       if (loc.found) {
-        // The overlay covers the main display exactly, so screenshot pixels × toScreen = overlay position.
-        pointAt(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), p.step.clickTarget);
-        send("step-progress", { id, message: "👉 " + loc.hint });
+        // The buddy layer covers the main display exactly, so screenshot pixels × toScreen = layer position.
+        buddyPoint(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), target);
+        say(`It's right here: ${target}.`, "now");
         return;
       }
-      const opened = loc.open_first && attempt < 2 ? await openSafely(loc.open_first, s) : null;
+      const opened = loc.open_first && attempt < 2 ? await openSafely(loc.open_first, j) : null;
       if (!opened) {
-        send("step-progress", { id, message: loc.hint + " Then press Show me again." });
+        say(loc.hint, "now");
         return;
       }
-      send("step-progress", { id, message: `Opening ${opened}…` });
-      await new Promise((r) => setTimeout(r, 1800));
+      await sleep(1800);
     } catch (error) {
-      send("step-progress", { id, message: friendlyError(error) });
+      say(friendlyError(error), "now");
       return;
     }
   }
-  send("step-progress", { id, message: "I couldn't find it. Look for “" + p.step.clickTarget + "”." });
+  say(`I couldn't find it. Look for “${target}”.`, "now");
+}
+
+// ---------- Voice in ----------
+
+async function ensureMic(): Promise<boolean> {
+  const s = systemPreferences.getMediaAccessStatus("microphone");
+  if (s === "granted") return true;
+  if (s === "not-determined") return systemPreferences.askForMediaAccess("microphone");
+  return false;
+}
+
+function askState(patch: Partial<Extract<BarState, { phase: "ask" }>>): void {
+  const cur = currentBar();
+  const base = cur.phase === "ask" ? cur : { phase: "ask" as const, question: "Hi! What's going on?", suggestions: SUGGESTIONS, listening: false, transcribing: false };
+  showBar({ ...base, ...patch });
 }
 
 // ---------- Copy guard ----------
@@ -505,6 +835,40 @@ function recentClipboard(): string | null {
 }
 
 const SHELL_HINT = /(\||\$\(|`|\b(curl|wget|sudo|bash|zsh|sh|base64|osascript|powershell|iex|chmod|xattr|spctl|csrutil|rm|security|eval|python3?|perl|mshta)\b)/;
+
+function showWarning(data: { reasons: string[]; command: string }): void {
+  if (!warning || warning.isDestroyed()) {
+    const area = screen.getPrimaryDisplay().workArea;
+    const width = 480;
+    warning = new BrowserWindow({
+      show: false,
+      frame: false,
+      resizable: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      skipTaskbar: true,
+      width,
+      height: 340,
+      x: Math.round(area.x + (area.width - width) / 2),
+      y: area.y + 40,
+      webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
+    });
+    warning.setContentProtection(true);
+    warning.setAlwaysOnTop(true, "screen-saver");
+    warning.webContents.on("will-navigate", (e) => e.preventDefault());
+    warning.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    warning.loadFile(UI("warning.html"));
+    warning.on("closed", () => (warning = null));
+  }
+  const w = warning;
+  const go = () => {
+    w.webContents.send("warning", data);
+    w.show();
+  };
+  if (w.webContents.isLoading()) w.webContents.once("did-finish-load", go);
+  else go();
+  say("Stop! Don't paste that. It looks like a scam.", "now");
+}
 
 function watchClipboard(): void {
   let checking = false;
@@ -532,41 +896,67 @@ function watchClipboard(): void {
 
 // ---------- Messages from the windows ----------
 
-ipcMain.on("run-all", () => void runAll());
-ipcMain.on("stop", () => {
+ipcMain.on("bar-ok", () => void runAll());
+ipcMain.on("bar-retry", () => {
+  if (job && !running) void runAll();
+  else if (!job) void onHotkey();
+});
+ipcMain.on("bar-stop", () => {
   stopRequested = true;
+  for (const [id, resolve] of approvals) {
+    resolve(false);
+    approvals.delete(id);
+  }
 });
-ipcMain.on("approve-response", (_e, { id, yes }: { id: string; yes: boolean }) => {
-  approvals.get(id)?.(!!yes);
-  approvals.delete(id);
+ipcMain.on("bar-cancel", () => {
+  if (running) return;
+  job = null;
+  showBar({ phase: "hidden" });
 });
-ipcMain.on("manual-response", (_e, { id, answer }: { id: string; answer: "done" | "skip" }) => {
-  manualWaits.get(id)?.(answer === "skip" ? "skip" : "done");
-  manualWaits.delete(id);
-  hidePointer();
+ipcMain.on("bar-answer", (_e, data: { text?: string }) => void onAnswer(String(data?.text ?? "").slice(0, 500)));
+ipcMain.on("bar-approve", (_e, data: { stepId: string; yes: boolean }) => {
+  approvals.get(data.stepId)?.(!!data.yes);
+  approvals.delete(data.stepId);
 });
-ipcMain.on("show-me", (_e, { id }: { id: string }) => void showMe(id));
-ipcMain.on("open-settings", (_e, { id }: { id: string }) => {
-  const link = safeSettingsUrl(session?.plan.steps.find((p) => p.step.id === id)?.step.settingsUrl);
-  if (link) void shell.openExternal(link);
+ipcMain.on("bar-manual", (_e, data: { stepId: string; answer: "done" | "skip" }) => {
+  manualWaits.get(data.stepId)?.(data.answer === "skip" ? "skip" : "done");
+  manualWaits.delete(data.stepId);
+  buddyHome("idle");
 });
-ipcMain.on("toggle-updated", (_e, { id, value }: { id: string; value: boolean }) => {
-  if (!session || running) return;
-  if (value) session.useUpdated.add(id);
-  else session.useUpdated.delete(id);
-  sendPlan();
+ipcMain.on("bar-show-me", (_e, data: { stepId: string }) => void showMe(data.stepId));
+ipcMain.on("bar-send-summary", () => {
+  if (!job) return;
+  void clipboard.writeText(helpSummary(job.goal, job.problem, job.plan.steps, job.results, job.receipt));
+  say("Copied. Paste it in a message to someone who can help.", "now");
 });
-ipcMain.on("toggle-recipe", (_e, { id, value }: { id: string; value: boolean }) => {
-  if (!session || running) return;
-  if (value) session.useRecipe.add(id);
-  else session.useRecipe.delete(id);
-  sendPlan();
+ipcMain.on("bar-rect", (_e, rect: { x: number; y: number; width: number; height: number }) => {
+  if (rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) setBarRect(rect);
 });
-ipcMain.on("close-panel", () => {
-  hidePointer();
-  panel?.hide();
+ipcMain.on("bar-speaking", (_e, data: { speaking: boolean }) => toBuddy({ type: "talking", on: !!data?.speaking }));
+ipcMain.on("bar-mic-start", async () => {
+  const problem = voiceProblem();
+  if (problem) {
+    askState({ listening: false, heard: "Voice isn't set up yet, so please type it." });
+    return;
+  }
+  if (!(await ensureMic())) {
+    askState({ listening: false, heard: "I can't hear you yet: please allow the microphone in System Settings → Privacy & Security → Microphone. You can type instead." });
+    return;
+  }
+  askState({ listening: true, transcribing: false, heard: undefined });
+  buddyPose("talk");
 });
-ipcMain.on("open-privacy", () => void shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"));
+ipcMain.on("bar-mic-cancel", () => askState({ listening: false, transcribing: false }));
+ipcMain.on("bar-mic-audio", async (_e, data: { wav: ArrayBuffer }) => {
+  askState({ listening: false, transcribing: true });
+  try {
+    const { text } = await transcribe(Buffer.from(data.wav));
+    askState({ transcribing: false, heard: text || "Sorry, I didn't catch that." });
+    if (text) await onAnswer(text);
+  } catch (error) {
+    askState({ transcribing: false, heard: (error as Error).message });
+  }
+});
 ipcMain.on("warning-close", () => warning?.hide());
 ipcMain.on("warning-restore", () => {
   if (blockedClip) {
@@ -582,8 +972,8 @@ ipcMain.on("warning-restore", () => {
 function buildTrayMenu(): void {
   tray?.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Do this for me  (${KEY_LABEL})`, click: () => void onHotkey() },
-      { label: "Show panel", click: () => showPanel() },
+      { label: `Help me  (${KEY_LABEL})`, click: () => void onHotkey() },
+      { label: "Ask CalHack something…", click: () => askWhat() },
       { type: "separator" },
       { label: "Warn me about dangerous copies", type: "checkbox", checked: guardOn, click: (item) => (guardOn = item.checked) },
       { type: "separator" },
@@ -592,15 +982,33 @@ function buildTrayMenu(): void {
   );
 }
 
+/** Our own pages may use the microphone (never the camera). Nothing else gets permissions. */
+function setPermissions(): void {
+  const ses = electronSession.defaultSession;
+  const ours = (url?: string) => !!url && url.startsWith(UI_URL);
+  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    if (permission === "media" && ours(details.requestingUrl)) {
+      const types = "mediaTypes" in details ? (details.mediaTypes ?? []) : [];
+      return callback(types.length > 0 && types.every((t) => t === "audio"));
+    }
+    callback(false);
+  });
+  ses.setPermissionCheckHandler((wc, permission, _origin, details) => {
+    if (permission === "media") return ours(details.requestingUrl ?? wc?.getURL()) && details.mediaType !== "video";
+    return false;
+  });
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.setName("CalHack");
   app.whenReady().then(() => {
     app.dock?.hide();
+    setPermissions();
     tray = new Tray(nativeImage.createEmpty());
     tray.setTitle("🛡️ CalHack");
-    tray.setToolTip(`CalHack: press ${KEY_LABEL} on any how-to`);
+    tray.setToolTip(`CalHack: press ${KEY_LABEL} when you're stuck`);
     buildTrayMenu();
     if (globalShortcut.register(HOTKEY, () => void onHotkey())) {
       console.log(`CalHack shortcut: ${KEY_LABEL}`);
@@ -608,8 +1016,21 @@ if (!app.requestSingleInstanceLock()) {
       console.error(`Couldn't register ${KEY_LABEL}. Another app is using it. Set CALHACK_HOTKEY in .env to pick another.`);
     }
     watchClipboard();
-    showPanel();
-    send("state", { phase: "idle", hasKey: hasApiKey(), screenAllowed: screenAllowed() });
+    ensureBar();
+    if (!hasApiKey()) console.error("No ANTHROPIC_API_KEY in .env yet.");
+    if (!screenAllowed()) console.log("Screen Recording is off: CalHack can read web pages, documents and copied text, and you can type what's wrong.");
+    console.log(`Ready. Press ${KEY_LABEL}.`);
+    // Testing only: CALHACK_AUTORUN=hotkey, or CALHACK_AUTORUN="ask:my printer won't print".
+    const auto = process.env.CALHACK_AUTORUN;
+    if (auto) {
+      setTimeout(() => {
+        if (auto === "hotkey") void onHotkey();
+        else if (auto.startsWith("ask:")) {
+          askWhat();
+          setTimeout(() => void onAnswer(auto.slice(4)), 2500);
+        }
+      }, 2500);
+    }
   });
   app.on("will-quit", () => globalShortcut.unregisterAll());
   app.on("window-all-closed", () => {

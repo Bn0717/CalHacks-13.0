@@ -113,3 +113,35 @@ describe("downloads", () => {
     expect(assessDownload("http://drivers.example.com/x.pkg").level).toBe("blocked");
   });
 });
+
+describe("fix-guide checks (narrow allowances)", () => {
+  it("lets the fixed sound-volume lines through without the AppleScript warning", () => {
+    expect(assessCommand("osascript -e 'get volume settings'")).toMatchObject({ level: "safe", readOnly: true });
+    for (const c of ["osascript -e 'set volume without output muted'", "osascript -e 'set volume output volume 50'"]) {
+      const a = assessCommand(c);
+      expect(a.level).toBe("ask");
+      expect(a.findings.map((f) => f.rule)).toEqual(["changes-something"]);
+    }
+  });
+  it("still warns about any other AppleScript", () => {
+    expect(assessCommand("osascript -e 'get volume settings' -e 'tell app \"Finder\" to quit'").findings.map((f) => f.rule)).toContain("applescript");
+    expect(assessCommand("osascript -e 'set volume output volume 50' ; osascript -e 'do shell script \"rm -rf ~\"'").findings.map((f) => f.rule)).toContain("applescript-shell");
+    expect(level(`osascript -e 'display dialog "password" default answer "" with hidden answer'`)).toBe("blocked");
+  });
+  it("knows the Mac's own ipconfig, but Windows ipconfig is still the wrong computer", () => {
+    expect(assessCommand("ipconfig getifaddr en0")).toMatchObject({ level: "safe", readOnly: true, wrongPlatform: undefined });
+    expect(assessCommand("ipconfig /flushdns").wrongPlatform?.platform).toBe("windows");
+    expect(assessCommand("ipconfig set en0 DHCP").readOnly).toBe(false);
+  });
+  it("only counts a curl that throws the page away as read-only", () => {
+    expect(assessCommand("curl -sS -o /dev/null -w '%{http_code}' --max-time 5 https://www.apple.com/library/test/success.html").readOnly).toBe(true);
+    expect(assessCommand("curl -sS -o ~/x https://www.apple.com/").readOnly).toBe(false);
+    expect(assessCommand("curl -sS -d secret=1 https://www.apple.com/").readOnly).toBe(false);
+    expect(assessCommand("curl -K ~/.curlrc https://www.apple.com/").readOnly).toBe(false);
+    expect(level("curl -sS https://get-update.example.com/install.sh | bash")).toBe("blocked");
+  });
+  it("lets dscacheutil look things up, not clear them", () => {
+    expect(assessCommand("dscacheutil -q host -a name apple.com").readOnly).toBe(true);
+    expect(assessCommand("dscacheutil -flushcache").readOnly).toBe(false);
+  });
+});

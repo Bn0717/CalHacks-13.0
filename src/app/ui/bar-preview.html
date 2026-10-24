@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Helper Bar Preview</title>
+  <link rel="stylesheet" href="bar.css">
+  <!-- Preview only (not loaded by the app): a fake desktop, the 620x420 window frame, and controls. -->
+  <style>
+    html, body { overflow: auto; }
+    body { background: linear-gradient(160deg, #8fa7c4, #d9c2a8); min-height: 100vh; padding: 16px; }
+    @media (prefers-color-scheme: dark) { body { background: linear-gradient(160deg, #1d2633, #3a2e28); } }
+    .controls { max-width: 900px; margin: 0 auto 16px; background: rgba(255,255,255,0.85); color: #222; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+    @media (prefers-color-scheme: dark) { .controls { background: rgba(20,20,20,0.85); color: #eee; } }
+    .controls h2 { font-size: 15px; margin: 0 0 8px; }
+    .controls .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .controls button { font: 13px -apple-system, sans-serif; padding: 6px 10px; border-radius: 8px; border: 1px solid #bbb; background: #fff; color: #222; cursor: pointer; }
+    .controls button:hover { background: #f1e7dc; }
+    .controls label { font-size: 13px; display: inline-flex; gap: 4px; align-items: center; }
+    #log { font: 12px/1.4 ui-monospace, Menlo, monospace; max-height: 110px; overflow: auto; background: rgba(0,0,0,0.06); border-radius: 8px; padding: 6px 8px; white-space: pre-wrap; margin: 0; }
+    /* The bar's window, drawn as a dashed frame so you can see the transparent area. */
+    .tall .stage { height: 560px; }
+    .stage { position: relative; inset: auto; width: 620px; max-width: 100%; height: 420px; margin: 0 auto; outline: 1px dashed rgba(255,255,255,0.7); }
+    .still *, .still *::before, .still *::after { transition: none !important; animation-duration: 0s !important; }
+    .buddy { position: fixed; width: 44px; height: 44px; border-radius: 50%; background: #d97757; border: 3px solid #fff; pointer-events: none; transform: translate(-50%, -100%); transition: left 200ms, top 200ms; z-index: 5; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <h2>Helper bar preview: pick a state</h2>
+    <div class="row" id="states"></div>
+    <div class="row" id="extras"></div>
+    <pre id="log" aria-label="Messages the bar sent"></pre>
+  </div>
+
+  <div class="stage" id="stage">
+    <section class="card is-hidden" id="card" role="dialog" aria-label="CalHack helper" tabindex="-1">
+      <div class="seat" aria-hidden="true"></div>
+      <header class="head" id="head">
+        <div class="head-text">
+          <div class="eyebrow" id="eyebrow"></div>
+          <h1 class="title" id="title"></h1>
+        </div>
+        <div class="head-btns">
+          <button class="icon-btn" id="mute" type="button" aria-pressed="false" aria-label="Turn voice off" title="Turn voice off"></button>
+          <button class="icon-btn" id="close" type="button" aria-label="Close" title="Close" hidden></button>
+        </div>
+      </header>
+      <div class="body" id="body"></div>
+      <div class="details" id="details" hidden></div>
+      <div class="now" id="now" hidden>
+        <span class="now-caret" aria-hidden="true">›</span>
+        <span class="now-text" id="now-text" aria-live="polite"></span>
+        <button class="now-toggle" id="details-toggle" type="button" aria-expanded="false" aria-controls="details" hidden></button>
+      </div>
+      <div class="actions" id="actions"></div>
+      <div class="caption" id="caption" hidden>
+        <span class="caption-icon" id="caption-icon" aria-hidden="true"></span>
+        <span class="caption-text" id="caption-text" aria-live="polite"></span>
+      </div>
+    </section>
+  </div>
+  <div class="buddy" id="buddy" hidden></div>
+
+  <script src="bar-preview.js"></script>
+  <script src="bar.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; media-src 'self' blob: mediastream:">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mic test</title>
+  <!-- Manual test page for mic.js. Open in a browser (via a local server) or an Electron window. -->
+</head>
+<body>
+  <h1>Mic test</h1>
+  <p>Hold the button and talk. Let go to stop.</p>
+  <button id="talk" type="button">Hold to talk</button>
+  <button id="cancel" type="button">Cancel</button>
+  <p><meter id="meter" min="0" max="1" value="0"></meter> <span id="lvl">0.00</span></p>
+  <p id="status">Ready.</p>
+  <audio id="play" controls hidden></audio>
+  <p><a id="download" hidden download="calhack-mic.wav">Download WAV</a></p>
+  <script src="mic.js"></script>
+  <script src="mic-preview.js"></script>
+</body>
+</html>

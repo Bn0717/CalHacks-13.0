@@ -13,7 +13,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "droid:check": "tsx src/cli/droid-check.ts",
-    "eval": "tsx src/cli/eval.ts"
+    "eval": "tsx src/cli/eval.ts",
+    "voice:setup": "node scripts/voice-setup.mjs"
   },
   "engines": {
     "node": ">=22"
