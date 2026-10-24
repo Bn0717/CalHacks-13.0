@@ -2,6 +2,7 @@
 import { BrowserWindow, screen } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ClickHolds, shouldIgnoreMouse } from "./clickthrough.js";
 import type { BarState, PointerCommand, SayMessage } from "./protocol.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -15,6 +16,19 @@ const BAR_H = 560;
 let bar: BrowserWindow | null = null;
 /** Where the bar's card is, in screen points (sent by the bar page). */
 let barCard: { x: number; y: number; width: number; height: number } | null = null;
+const clickHolds = new ClickHolds();
+
+/**
+ * Call right before CalHack clicks something on the screen for the person. Until the returned function is called, the bar lets
+ * every click pass through to the app underneath (the bar is hidden from CalHack's screenshots, so it may sit on top of
+ * what Claude is aiming at). Without this, CalHack could click its own Stop or Skip button.
+ */
+export function holdClicksThrough(): () => void {
+  const release = clickHolds.hold();
+  if (bar && !bar.isDestroyed()) bar.setIgnoreMouseEvents(true, { forward: true });
+  return release;
+}
+
 let lastBarState: BarState = { phase: "hidden" };
 let pointer: BrowserWindow | null = null;
 
@@ -61,10 +75,9 @@ export function ensureBar(): BrowserWindow {
   bar.setIgnoreMouseEvents(true, { forward: true });
   const timer = setInterval(() => {
     if (!bar || bar.isDestroyed()) return clearInterval(timer);
-    if (!bar.isVisible() || !barCard) return;
-    const p = screen.getCursorScreenPoint();
-    const inside = p.x >= barCard.x - 8 && p.x <= barCard.x + barCard.width + 8 && p.y >= barCard.y - 8 && p.y <= barCard.y + barCard.height + 8;
-    bar.setIgnoreMouseEvents(!inside, { forward: true });
+    if (!bar.isVisible()) return;
+    if (!barCard && clickHolds.count === 0) return;
+    bar.setIgnoreMouseEvents(shouldIgnoreMouse(screen.getCursorScreenPoint(), barCard, clickHolds.count), { forward: true });
   }, 80);
   return bar;
 }

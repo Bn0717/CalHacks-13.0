@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionCommand, autopilot, type Action, type Shot } from "../src/agent/autopilot.js";
+import { actionCommand, autopilot, type Action, type ActionRecord, type Shot } from "../src/agent/autopilot.js";
 import type { AgentUI, MacDeps, ToolContext } from "../src/agent/tools.js";
 
 const shot = (n = 0): Shot => ({ data: "img" + n, mediaType: "image/jpeg", width: 1000, height: 600, toScreen: 2 });
@@ -175,5 +175,134 @@ describe("autopilot: Stop and pointing", () => {
     t.ctx.ui.guide = async (g) => (points.push(g.point), "done");
     await t.run();
     expect(points[0]).toEqual({ x: 600, y: 400, label: "Pick a wallpaper you like" });
+  });
+});
+
+describe("per-action records: decision and outcome", () => {
+  function recorded(actions: Action[], opts: { stop?: () => boolean; guide?: "done" | "skip"; code?: number } = {}) {
+    const t = setup(actions, opts.guide ? [opts.guide] : []);
+    if (opts.code !== undefined) (t.ctx.mac as { run: unknown }).run = async (c: string) => (t.direct.push(c), { code: opts.code!, output: "boom", timedOut: false });
+    const records: ActionRecord[] = [];
+    const queue = [...actions];
+    const run = () => autopilot(t.ctx, { instruction: "Turn on tap to click", intervalMs: 0, wait: async () => {}, stopped: opts.stop, record: (r) => records.push(r), decide: async () => queue.shift() ?? act({ kind: "done" }) });
+    return { ...t, run, records };
+  }
+
+  it("records the decision together with what was done, the route and the timings", async () => {
+    const t = recorded([act({ target: "Tap to click", reason: "ordinary switch", effect: "changes_setting" }), act({ kind: "done" })]);
+    await t.run();
+    const [first, last] = t.records;
+    expect(first).toMatchObject({
+      step: "Turn on tap to click",
+      decision: { kind: "click", target: "Tap to click", effect: "changes_setting", handling: "agent", sensitivity: "routine", reason: "ordinary switch" },
+      action: { taken: "click", route: "direct", label: "Clicking Tap to click" },
+      outcome: "executed",
+      exitCode: 0,
+      cancelled: false,
+    });
+    expect(first.delay.decisionMs).toBeGreaterThanOrEqual(0);
+    expect(first.delay.executionMs).toBeGreaterThanOrEqual(0);
+    expect(first.delay.sinceCaptureMs).toBeGreaterThanOrEqual(first.delay.decisionMs! + first.delay.executionMs! - 1);
+    expect(first.cancelledAt).toBeUndefined();
+    expect(last).toMatchObject({ outcome: "done", action: { taken: "none" } });
+    expect(Number.isNaN(Date.parse(first.ts))).toBe(false);
+  });
+
+  it("records the route: Droid for sensitive actions, the person for handoffs", async () => {
+    const t = recorded([act({ sensitivity: "sensitive" }), act({ handling: "person", target: "the code box" }), act({ kind: "done" })]);
+    await t.run();
+    expect(t.records.map((r) => [r.action.route, r.outcome])).toEqual([["droid", "executed"], ["person", "person_did_it"], ["none", "done"]]);
+  });
+
+  it("records a failed action with its exit code", async () => {
+    const t = recorded([act({})], { code: 1 });
+    await t.run();
+    expect(t.records[0]).toMatchObject({ outcome: "failed", exitCode: 1, cancelled: false });
+  });
+
+  it("records a cancelled action: when, where it stopped, and the instruction that ran just before", async () => {
+    let stop = false;
+    const t = recorded([act({ target: "Sound" }), act({ target: "Tap to click" })], { stop: () => stop });
+    const queue = [act({ target: "Sound" }), act({ target: "Tap to click" })];
+    const before = Date.now();
+    const records: ActionRecord[] = [];
+    // Stop is pressed while the model is deciding the second action.
+    const r = await autopilot(t.ctx, { instruction: "Turn on tap to click", intervalMs: 0, wait: async () => {}, stopped: () => stop, record: (x) => records.push(x), decide: async () => { const a = queue.shift()!; if (a.target === "Tap to click") stop = true; return a; } });
+    expect(r.outcome).toBe("stopped");
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({ outcome: "executed", cancelled: false });
+    const c = records[1];
+    expect(c).toMatchObject({
+      outcome: "cancelled",
+      cancelled: true,
+      cancelledDuring: "model_answer_dropped",
+      previousInstruction: "Clicking Sound",
+      decision: { target: "Tap to click" },
+      action: { taken: "none", route: "none" },
+    });
+    expect(Date.parse(c.cancelledAt!)).toBeGreaterThanOrEqual(before);
+    expect(t.direct).toHaveLength(1);
+  });
+
+  it("a cancel before anything ran has no previous instruction", async () => {
+    const t = recorded([act({})], { stop: () => true });
+    await t.run();
+    expect(t.records).toHaveLength(1);
+    expect(t.records[0]).toMatchObject({ outcome: "cancelled", cancelled: true, cancelledDuring: "before_look" });
+    expect(t.records[0].previousInstruction).toBeUndefined();
+    expect(t.records[0].decision).toBeUndefined();
+  });
+
+  it("records a cancel that happens during the person's turn", async () => {
+    let stop = false;
+    const t = recorded([act({ handling: "person", target: "the code box" })], { stop: () => stop });
+    (t.ctx.ui as { guide: unknown }).guide = async () => ((stop = true), "done");
+    await t.run();
+    expect(t.records.at(-1)).toMatchObject({ outcome: "cancelled", cancelledDuring: "during_person_turn", cancelled: true });
+  });
+});
+
+describe("pacing between steps", () => {
+  function paced(actions: Action[], frames: (n: number) => string) {
+    const waits: number[] = [];
+    let captures = 0;
+    const ui = { status() {}, say() {}, detail() {}, guide: async () => "done" } as unknown as AgentUI;
+    const mac = {
+      execute: async () => ({ code: 0, output: "", timedOut: false }),
+      run: async () => ({ code: 0, output: "", timedOut: false }),
+      screen: { capture: async () => ({ ...shot(), data: frames(captures++) }) },
+    } as unknown as MacDeps;
+    const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [] };
+    const queue = [...actions];
+    const run = () => autopilot(ctx, { instruction: "x", wait: async (ms) => void waits.push(ms), decide: async () => queue.shift() ?? act({ kind: "done" }) });
+    return { run, waits, captures: () => captures };
+  }
+
+  it("waits about 0.6 s after a click, not 3 s, then confirms the screen has settled", async () => {
+    // Frames: 0 (first look) then a stable screen "s".
+    const t = paced([act({})], (n) => (n === 0 ? "a" : "s"));
+    await t.run();
+    expect(t.waits[0]).toBe(600);
+    expect(t.waits.slice(1)).toEqual([250]);
+    expect(Math.max(...t.waits)).toBeLessThan(3000);
+  });
+
+  it("keeps looking while the screen is still moving, but not forever", async () => {
+    const t = paced([act({})], (n) => `frame${n}`);
+    await t.run();
+    const settleLooks = t.waits.filter((w) => w === 250).length;
+    expect(settleLooks).toBe(4);
+  });
+
+  it("keeps the long wait only for 'wait' actions", async () => {
+    const t = paced([act({ kind: "wait", reason: "loading" })], () => "same");
+    await t.run();
+    expect(t.waits[0]).toBe(3000);
+  });
+
+  it("gives a short beat after the person's turn", async () => {
+    const t = paced([act({ handling: "person" })], (n) => `f${n}`);
+    await t.run();
+    expect(t.waits[0]).toBe(1000);
   });
 });

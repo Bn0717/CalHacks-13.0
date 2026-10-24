@@ -15,7 +15,7 @@ import { uninstallApp } from "../core/uninstall.js";
 import { BLUETOOTH_STATE_CHECK, bluetoothSetCommand, parseBluetooth } from "../mac/bluetooth.js";
 import { parsePower, parseWifiDevice, safeDevice } from "../core/fixes/wifi.js";
 import { matchOutput, type SoundOutput } from "../mac/audio.js";
-import { autopilot, fileLog, type ScreenDeps } from "./autopilot.js";
+import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 
 export interface AppInfo {
@@ -196,7 +196,7 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, stopped: ctx.stopped, log: fileLog });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, stopped: ctx.stopped, record: fileRecord });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.

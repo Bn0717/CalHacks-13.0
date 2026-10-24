@@ -4,6 +4,7 @@ import { recipeFor } from "./recipes.js";
 import { appearsInSource, scanForScamSigns } from "./source.js";
 import type { Assessment, Finding, InstructionSource, PlannedStep, RiskLevel, Step } from "./types.js";
 import { stricter } from "./types.js";
+import type { PageJudgment } from "../droid/judge.js";
 
 export interface Plan {
   steps: PlannedStep[];
@@ -78,9 +79,21 @@ export function applyAiConcerns(plan: Plan, concerns: { text: string; steps: str
   }
 }
 
-export function planSteps(steps: Step[], source: InstructionSource): Plan {
+/** Droid's page verdict as page-level findings. "unsure" doesn't block the page; it makes every step ask first (see planSteps). */
+export function judgmentFindings(j: PageJudgment): Finding[] {
+  return j.page.verdict === "scam" ? [{ rule: "scam-page", level: "blocked", reason: j.page.reason || "Droid thinks this page is a scam." }] : [];
+}
+
+/**
+ * `judgment` is Droid's reading of the page and steps. When there is one, it decides whether the page is a scam and can make
+ * any step stricter. Without one (Droid off or unreachable) the old text patterns are the fallback, so a missing judge never
+ * means a looser check. The command safety rules below always apply and are never loosened by Droid.
+ */
+export function planSteps(steps: Step[], source: InstructionSource, opts: { judgment?: PageJudgment | null } = {}): Plan {
   const pageHost = hostOf(source.location);
-  const pageWarnings = scanForScamSigns(source.text);
+  const judgment = opts.judgment ?? null;
+  const pageWarnings = judgment ? judgmentFindings(judgment) : scanForScamSigns(source.text);
+  const verdictFor = new Map((judgment?.steps ?? []).map((s) => [s.id, s]));
   const fromScreenshot = source.kind === "screenshot" || !source.text.trim();
 
   const planned = steps.map((step): PlannedStep => {
@@ -122,6 +135,25 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
       level = "blocked";
       reasons.unshift(...pageWarnings.map((w) => w.reason));
       flags.unshift(SHORT["scam-page"]);
+    }
+
+    // Droid's judgment of the page and of this step. It can only make a step stricter.
+    if (judgment && runsSomething) {
+      const v = verdictFor.get(step.id);
+      if (v?.verdict === "block") {
+        level = "blocked";
+        reasons.unshift(v.reason || "Droid thinks this step is unsafe.");
+        flags.unshift("Droid thinks this is unsafe");
+      } else if (v?.verdict === "ask") {
+        level = stricter(level, "ask");
+        reasons.push(v.reason || "Droid wants you to look at this one first.");
+        flags.push("Droid wants you to check this");
+      }
+      if (judgment.page.verdict === "unsure") {
+        level = stricter(level, "ask");
+        reasons.push(judgment.page.reason || "Droid couldn't tell whether this page is trustworthy.");
+        flags.push("Droid isn't sure about this page");
+      }
     }
 
     // The AI can make a step stricter, never safer.

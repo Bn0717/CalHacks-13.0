@@ -29,13 +29,14 @@ import type { Evidence, GoalVerification, InstructionSource, PlannedStep, Step, 
 import { reviewRun } from "../ai/review.js";
 import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
-import { autopilot, fileLog } from "../agent/autopilot.js";
+import { autopilot, fileRecord } from "../agent/autopilot.js";
 import { offlineGuide } from "../agent/offline.js";
 import { TOOLS as AGENT_TOOLS, type AgentUI } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
 import { droidProblem, runWithDroid } from "../droid/executor.js";
+import { judgeWithDroid, type PageJudgment } from "../droid/judge.js";
 import { findOfficialSource, type OfficialSource } from "../droid/research.js";
 import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
@@ -44,7 +45,7 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { currentBar, ensureBar, focusBar as focusBarNow, hidePointer, pointAt, say as sayNow, setBarRect, showBar as showBarNow } from "./windows.js";
+import { currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, say as sayNow, setBarRect, showBar as showBarNow } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -347,7 +348,7 @@ async function lookAndHelp(): Promise<void> {
     if (!live()) return;
     lastLook = { shot, screenText: source.text.slice(0, 6000) };
 
-    // Our own scam check comes first: a fake "verify you're human" page gets the warning, whatever the AI thinks.
+    // A page that matches our basic scam patterns always goes through the careful route, where Droid judges it.
     if (source.text.trim() && scanForScamSigns(source.text).some((w) => w.level === "blocked")) {
       await instructionsFlow(source, shot);
       return;
@@ -569,7 +570,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     const context = lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
     // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
-    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen } : undefined });
+    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen, beforeClick: holdClicksThrough } : undefined });
     const result = await runAgent(
       { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
       ui,
@@ -652,6 +653,23 @@ function newJob(mode: Job["mode"], goal: string, source: InstructionSource, plan
   };
 }
 
+/** Droid's judgment of a page and its steps, plus plain lines for "See steps → Details" saying who judged it. */
+async function judgePage(source: InstructionSource, steps: Step[], goal: string): Promise<{ judgment: PageJudgment | null; detail: DetailLine[] }> {
+  const problem = droidProblem();
+  if (problem) return { judgment: null, detail: [{ text: `Droid isn't set up (${problem}), so the basic scam check was used instead.` }] };
+  try {
+    const judgment = await judgeWithDroid({
+      url: source.location ?? source.app ?? "unknown",
+      text: source.text,
+      goal,
+      steps: steps.map((s) => ({ id: s.id, kind: s.kind, title: s.title, command: s.command, url: s.url })),
+    });
+    return { judgment, detail: judgment.log.map((text) => ({ text })) };
+  } catch (error) {
+    return { judgment: null, detail: [{ text: `Droid couldn't judge this page (${(error as Error).message}), so the basic scam check was used instead.` }] };
+  }
+}
+
 async function instructionsFlow(source: InstructionSource, shot: Shot | null, sourceLabel?: string, extra: DetailLine[] = [], requestedGoal?: string): Promise<void> {
   showBar({ phase: "looking", message: `Reading ${describeSource(source)}…` });
   if (source.kind === "screenshot" && !shot) {
@@ -675,11 +693,16 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
     showError("This page mixes removal with reinstalling. I couldn't isolate the removal steps, so I stopped without downloading anything.");
     return;
   }
-  const plan = planSteps(parse.steps, source);
+  // Droid reads the page and each step and judges them (this replaces the old text-pattern scam check).
+  // If Droid is off or fails, the patterns are the fallback, so a missing judge never means a looser check.
+  showBar({ phase: "looking", message: "Checking the page is safe…" });
+  const judged = await judgePage(source, parse.steps, requestedGoal ?? parse.goal);
+  if (!live()) return;
+  const plan = planSteps(parse.steps, source, { judgment: judged.judgment });
   applyAiConcerns(plan, parse.pageConcerns, parse.appliesToThisComputer);
   const j = newJob("instructions", requestedGoal ?? parse.goal, source, plan, sourceLabel ?? `From ${describeSource(source)}`);
   j.parse = parse;
-  j.extraDetail = extra;
+  j.extraDetail = [...extra, ...judged.detail];
 
   // Steps already done are skipped up front.
   showBar({ phase: "looking", message: "Checking what's already done on your Mac…" });
@@ -903,7 +926,7 @@ function runHooks(j: Job): RunHooks {
       if (!screenAllowed()) return { handled: false, evidence, note: "I can't see your screen, so it's yours." };
       const s = planned.step;
       const instruction = [s.title, s.explanation, s.clickTarget ? `Click “${s.clickTarget}”.` : ""].filter(Boolean).join(" ");
-      const mac = realMac({ execute, trash: (p) => shell.trashItem(p), screen: { capture: captureScreen } });
+      const mac = realMac({ execute, trash: (p) => shell.trashItem(p), screen: { capture: captureScreen, beforeClick: holdClicksThrough } });
       const link = safeSettingsUrl(s.settingsUrl);
       if (link) {
         await mac.run(`open '${link}'`);
@@ -929,7 +952,7 @@ function runHooks(j: Job): RunHooks {
             say(g.instruction, "now");
           }),
       } as unknown as AgentUI;
-      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [], signal: stopController.signal }, { instruction, clickTarget: s.clickTarget, stopped: () => stopRequested || !live(), log: fileLog });
+      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [], signal: stopController.signal }, { instruction, clickTarget: s.clickTarget, stopped: () => stopRequested || !live(), record: fileRecord });
       if (r.outcome === "done") return { handled: "done", evidence };
       if (r.outcome === "skipped" || r.outcome === "stopped") return { handled: "skip", evidence };
       return { handled: false, evidence, note: r.needsAccessibility ? `${r.trail.at(-1)}.` : r.trail.length ? `I tried and couldn't finish: ${r.trail.at(-1)}.` : undefined };

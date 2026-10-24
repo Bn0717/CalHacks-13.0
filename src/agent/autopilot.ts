@@ -26,6 +26,11 @@ export interface Shot {
 
 export interface ScreenDeps {
   capture(): Promise<Shot | null>;
+  /**
+   * Called right before CalHack clicks the screen. CalHack's own windows must let that click through to the app underneath.
+   * Returns a function to call when the click has been delivered.
+   */
+  beforeClick?(): () => void;
 }
 
 export type ActionKind = "click" | "double_click" | "type" | "key" | "wait" | "done";
@@ -131,7 +136,7 @@ const SYSTEM = `You are CalHack's hands. Someone needs one step finished on thei
 First, say what kind of screen this is ("screen"). A screen that asks the person to sign in or log in (a form or button asking for an account, email and password, Apple ID, a code, Touch ID or a passkey), to pay or buy (card details, an order or subscription to confirm, a "Buy", "Subscribe" or "Place order" button), to grant a permission or authorize something (an "Allow", "OK" or "Modify Settings" prompt), or to enter their own personal details is NOT "normal", even if the step asks you to click a button on it. Judge by what the screen is asking for, not by single words. Everything else, including ordinary Settings pages, is "normal".
 
 Then, for the action, decide two things by understanding what is on the screen and what this click or typing would really do:
-- handling: "agent" if you can just do it for them. "person" if it must be their own hands: entering a password, code or other secret; granting a privacy or security permission; signing in; a payment or purchase; agreeing to terms; or a choice only they can make. Moving around Settings, opening a page, picking a category, scrolling, changing an ordinary setting the step asks for, or choosing a neutral option the step calls for is "agent". Use your own judgement about which settings are ordinary: low-risk, easy to change back, and not about privacy, security, accounts, money or the person's own taste (for example connectivity, display and power options, notification and menu-bar toggles, trackpad and keyboard behaviour the step names). Settings that protect the Mac or the person's data (firewall, FileVault, passwords, app access to camera, microphone, location, contacts or screen recording, sharing, remote access) are "person". Do not hand over just because a word on screen sounds serious: judge what the action does.
+- handling: "agent" if you can just do it for them. "person" if it must be their own hands: entering a password, code or other secret; granting a privacy or security permission; signing in; a payment or purchase; agreeing to terms; or a choice only they can make. Moving around Settings, opening a page, picking a category, scrolling, changing an ordinary setting the step asks for, or choosing a neutral option the step calls for is "agent". Use your own judgement about which settings are ordinary: low-risk, easy to change back, and not about privacy, security, accounts, money or the person's own taste (for example connectivity, display and power options, notification and menu-bar toggles, trackpad and keyboard behaviour the step names). Accessibility features are ordinary settings and are "agent": System Settings > Accessibility (text size, zoom, display contrast and colour filters, reduce motion or transparency, pointer size, captions, hearing and speech options, keyboard and trackpad aids). Switching on a feature that takes over the screen or keyboard (VoiceOver, Switch Control, Voice Control, full-screen zoom) is still "agent" when the step asks, but mark it sensitivity "sensitive" and say how to turn it off in "reason". The one exception is the Privacy & Security > Accessibility list, where an app is allowed to control the Mac: that is a security grant, so it is "person". Settings that protect the Mac or the person's data (firewall, FileVault, passwords, app access to camera, microphone, location, contacts or screen recording, sharing, remote access) are "person". Do not hand over just because a word on screen sounds serious: judge what the action does.
 - personal_choice: true when this action would pick among options that are the person's own to choose (which picture, colour, theme, sound, language, layout, name, or which of their own things to keep or remove) and the step does not name that exact option. Choosing the first, the default, "any" or a random one is still choosing for them. Opening the page or list where the choice is made is NOT a personal choice; picking from it is. When personal_choice is true, handling must be "person". 
 - effect: what the action does. "navigates" = only moves around (a sidebar item, a tab, scrolling, opening a menu or list) and sets nothing. "selects_option" = picks one of several alternatives as the value (a picture in a gallery, a colour, a theme, a radio button, one item of a list of choices). "changes_setting" = flips a switch, applies, adds, removes or confirms something. "other" otherwise. Be strict: clicking a thumbnail or swatch that would apply it is "selects_option", not "navigates".
 - step_names_option: true only if the step's own wording names the exact option for a selects_option action (e.g. "the blue picture"). Words like "pick", "choose", "a new", "different" or "something" do not name an option.
@@ -222,12 +227,39 @@ export async function decideNext(instruction: string, shot: Shot, history: strin
   };
 }
 
-/** Appends one line per decision to ~/.cache/calhack/autopilot.log (text only, no screenshots). */
-export function fileLog(line: string): void {
+/** Where in the loop an action was cancelled. */
+export type CancelStage = "before_look" | "during_model_call" | "model_answer_dropped" | "during_person_turn" | "before_action";
+
+/**
+ * One record per action: the AI's decision AND what came of it. Written as one JSON line.
+ * - action: what was actually done ("none" when nothing was done, e.g. the step ended or it was cancelled).
+ * - outcome: how it ended.
+ * - delay: decisionMs = how long the model took; executionMs = how long the command took;
+ *   sinceCaptureMs = from the screenshot the decision was based on to the action finishing (how stale the click was).
+ * - cancelled: true if Stop/Cancel ended it. Then cancelledAt (ISO time), cancelledDuring and previousInstruction
+ *   (the instruction executed just before it, if any) say when and where.
+ */
+export interface ActionRecord {
+  ts: string;
+  step: string;
+  round: number;
+  decision?: { kind: ActionKind; target: string; screen: ScreenKind; effect: Effect; personalChoice: boolean; handling: Handling; sensitivity: Sensitivity; reason: string };
+  action: { taken: "click" | "double_click" | "type" | "key" | "handed_to_person" | "none"; route: "direct" | "droid" | "person" | "none"; label?: string; command?: string };
+  outcome: "executed" | "failed" | "person_did_it" | "person_skipped" | "done" | "waited" | "refused_unsafe" | "cancelled" | "model_error";
+  exitCode?: number;
+  delay: { decisionMs?: number; executionMs?: number; sinceCaptureMs?: number };
+  cancelled: boolean;
+  cancelledAt?: string;
+  cancelledDuring?: CancelStage;
+  previousInstruction?: string;
+}
+
+/** Appends one JSON line per action to ~/.cache/calhack/autopilot.jsonl (text only, no screenshots). */
+export function fileRecord(r: ActionRecord): void {
   try {
     const dir = join(homedir(), ".cache", "calhack");
     mkdirSync(dir, { recursive: true });
-    appendFileSync(join(dir, "autopilot.log"), `${new Date().toISOString()} ${line.replace(/\s+/g, " ").slice(0, 600)}\n`);
+    appendFileSync(join(dir, "autopilot.jsonl"), JSON.stringify(r) + "\n");
   } catch {
     // Logging must never get in the way.
   }
@@ -242,9 +274,10 @@ export interface AutopilotOptions {
   /** Tells the person what to do for the parts that stay theirs. */
   clickTarget?: string;
   maxActions?: number;
+  /** Overrides every pause below (tests use 0). Normally: ~0.6 s to settle after a click, 3 s for "wait", 1 s after the person's turn. */
   intervalMs?: number;
-  /** Where each decision is written down, so "why did it do that?" can be answered afterwards. */
-  log?: (line: string) => void;
+  /** Where each action is written down (decision and outcome), so "why did it do that?" can be answered afterwards. */
+  record?: (r: ActionRecord) => void;
   /** True once the person pressed Stop or Cancel. Checked before every look and every action. */
   stopped?: () => boolean;
   decide?: typeof decideNext;
@@ -283,14 +316,59 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
   }));
   const stopped = (): AutopilotResult | null => (signal?.aborted || o.stopped?.() ? { outcome: "stopped", trail: [...trail, "You pressed Stop"] } : null);
   const max = o.maxActions ?? 12;
-  const every = o.intervalMs ?? 3000;
+  // Pauses. A click mostly needs the screen to settle, not a long wait: after the pause we also check the screen has stopped
+  // moving before the model looks at it. A long wait stays only for "wait" (something is loading).
+  const pauseFor = (ms: number) => o.intervalMs ?? ms;
+  const SETTLE_MS = 600;
+  const WAIT_MS = 3000;
+  const HANDOFF_MS = 1000;
+  let needsSettle = false;
+  /** Looks again until two looks in a row match (a menu or pane has finished moving), for at most ~1 s more. */
+  const settled = async (first: Shot): Promise<Shot> => {
+    let prev = first;
+    for (let i = 0; i < 4; i++) {
+      await pause(pauseFor(250));
+      const next = await screen.capture();
+      if (!next) return prev;
+      if (next.data === prev.data) return next;
+      prev = next;
+    }
+    return prev;
+  };
   let acted = 0;
   let unchanged = 0;
   let last = "";
 
+  // The label of the last instruction that was actually carried out (by CalHack or by the person).
+  let previous: string | undefined;
+  const now = () => Date.now();
+
   for (let round = 0; round < max * 2 && acted < max; round++) {
-    if (stopped()) return stopped()!;
-    const shot = await screen.capture();
+    let a: Action | undefined;
+    let capturedAt = 0;
+    let decidedAt = 0;
+    const decisionOf = (x?: Action): ActionRecord["decision"] => x && { kind: x.kind, target: x.target, screen: x.screen, effect: x.effect, personalChoice: x.personalChoice, handling: x.handling, sensitivity: x.sensitivity, reason: x.reason };
+    const emit = (r: Pick<ActionRecord, "action" | "outcome"> & Partial<ActionRecord>) =>
+      o.record?.({ ts: new Date().toISOString(), step: o.instruction, round, decision: decisionOf(a), delay: {}, cancelled: false, ...r });
+    /** Stop/Cancel ended this action: say when, where, and what ran just before. */
+    const cancelledAt = (during: CancelStage): AutopilotResult => {
+      emit({
+        action: { taken: "none", route: "none" },
+        outcome: "cancelled",
+        cancelled: true,
+        cancelledAt: new Date().toISOString(),
+        cancelledDuring: during,
+        previousInstruction: previous,
+        delay: { decisionMs: decidedAt && capturedAt ? decidedAt - capturedAt : undefined, sinceCaptureMs: capturedAt ? now() - capturedAt : undefined },
+      });
+      return stopped()!;
+    };
+
+    if (stopped()) return cancelledAt("before_look");
+    let shot = await screen.capture();
+    if (shot && needsSettle) shot = await settled(shot);
+    needsSettle = false;
+    capturedAt = now();
     if (!shot) {
       trail.push("I couldn't see the screen");
       return { outcome: "gave_up", trail };
@@ -302,33 +380,37 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       return { outcome: "gave_up", trail };
     }
 
-    let a: Action;
     try {
       a = await decide(o.instruction, shot, trail, undefined, signal);
+      decidedAt = now();
     } catch (e) {
-      if (stopped()) return stopped()!;
+      decidedAt = now();
+      if (stopped()) return cancelledAt("during_model_call");
       // Never silent: say why it fell back to the person.
       ctx.ui.detail(`Screen autopilot stopped: ${(e as Error).message}`, true);
+      emit({ action: { taken: "none", route: "none" }, outcome: "model_error", delay: { decisionMs: decidedAt - capturedAt } });
       trail.push("I couldn't work out the screen");
       return { outcome: "gave_up", trail };
     }
+    const decisionMs = decidedAt - capturedAt;
     // Stop pressed while Claude was thinking: never act on its answer.
-    if (stopped()) return stopped()!;
+    if (stopped()) return cancelledAt("model_answer_dropped");
     if (a.kind === "done") {
       // An observation, recorded as a plain "run" line: it is not a pass/fail check, so it never blocks a step's real checks.
       const ref = addProof(ctx, "run", `screen look: ${o.instruction}`, 0, a.reason || "the screen shows it's done");
+      emit({ action: { taken: "none", route: "none" }, outcome: "done", delay: { decisionMs, sinceCaptureMs: now() - capturedAt } });
       trail.push(`The screen shows it's done [${ref}]`);
       return { outcome: "done", trail };
     }
     if (a.kind === "wait") {
       ctx.ui.status(a.reason || "Waiting for it to load…");
-      await pause(every);
+      emit({ action: { taken: "none", route: "none" }, outcome: "waited", delay: { decisionMs } });
+      await pause(pauseFor(WAIT_MS));
       continue;
     }
 
     const decision = `${a.kind} “${a.target}”: screen=${a.screen}, effect=${a.effect}, personal_choice=${a.personalChoice}, handling=${a.handling}, sensitivity=${a.sensitivity}. ${a.reason}`;
     ctx.ui.detail(`Decision: ${decision}`, true);
-    o.log?.(`${o.instruction} -> ${decision}`);
     // The AI judged the screen and the action. A sign-in, payment, permission or personal-details screen is always the person's.
     // Anything unclear was already turned into "person" when its answer was read.
     if (a.handling === "person" || a.personalChoice || a.screen !== "normal") {
@@ -338,28 +420,48 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       // Point right at the thing to click, when Claude saw where it is.
       const inShot = Number.isFinite(a.x) && Number.isFinite(a.y) && a.x! >= 0 && a.y! >= 0 && a.x! <= shot.width && a.y! <= shot.height;
       const point = inShot ? { x: Math.round(a.x! * shot.toScreen), y: Math.round(a.y! * shot.toScreen), label: a.target || "Click here" } : undefined;
+      const handedAt = now();
       const g = await ctx.ui.guide({ instruction, clickTarget: o.clickTarget, point });
-      if (stopped()) return stopped()!;
+      if (stopped()) return cancelledAt("during_person_turn");
+      emit({ action: { taken: "handed_to_person", route: "person", label: a.target || a.reason }, outcome: g === "skip" ? "person_skipped" : "person_did_it", delay: { decisionMs, executionMs: now() - handedAt, sinceCaptureMs: now() - capturedAt } });
       trail.push(`You did this part: ${a.target || a.reason}`);
       if (g === "skip") return { outcome: "skipped", trail };
+      previous = `You did: ${a.target || a.reason}`;
       acted++;
-      await pause(every);
+      needsSettle = true;
+      await pause(pauseFor(HANDOFF_MS));
       continue;
     }
 
     const command = actionCommand(a, shot);
     if (!command) {
+      emit({ action: { taken: "none", route: "none", label: a.target }, outcome: "refused_unsafe", delay: { decisionMs } });
       trail.push(`I couldn't safely do: ${a.target || a.kind}`);
       return { outcome: "gave_up", trail };
     }
     const label = `${a.kind === "type" ? "Typing in" : a.kind === "key" ? "Pressing a key for" : "Clicking"} ${a.target}`.trim();
     ctx.ui.status(`${label}…`);
-    if (stopped()) return stopped()!;
+    if (stopped()) return cancelledAt("before_action");
     // Sensitive, risky or personal actions go through Droid behind its gate; routine ones run directly.
     const viaDroid = a.sensitivity === "sensitive";
-    const r: { code: number; output: string; log?: string[] } = viaDroid ? await ctx.mac.execute(command) : await ctx.mac.run(command);
+    const execStart = now();
+    // A click must never land on CalHack's own window: keep it click-through until the command has finished.
+    const release = a.kind === "click" || a.kind === "double_click" ? screen.beforeClick?.() : undefined;
+    let r: { code: number; output: string; log?: string[] };
+    try {
+      r = viaDroid ? await ctx.mac.execute(command) : await ctx.mac.run(command);
+    } finally {
+      release?.();
+    }
+    const executionMs = now() - execStart;
     for (const l of r.log ?? []) ctx.ui.detail(l, true);
     addProof(ctx, "run", command, r.code, r.code === 0 ? label : r.output.trim().split("\n").slice(-1)[0] ?? "failed");
+    emit({
+      action: { taken: a.kind as ActionRecord["action"]["taken"], route: viaDroid ? "droid" : "direct", label, command: command.length > 300 ? command.slice(0, 300) + "…" : command },
+      outcome: r.code === 0 ? "executed" : "failed",
+      exitCode: r.code,
+      delay: { decisionMs, executionMs, sinceCaptureMs: now() - capturedAt },
+    });
     if (r.code !== 0) {
       ctx.ui.detail(`${label} failed: ${r.output.trim().slice(-300)}`, true);
       if (NO_ACCESSIBILITY.test(r.output)) {
@@ -373,8 +475,10 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       return { outcome: "gave_up", trail };
     }
     trail.push(label);
+    previous = label;
     acted++;
-    await pause(every);
+    needsSettle = true;
+    await pause(pauseFor(SETTLE_MS));
   }
   trail.push("I ran out of tries");
   return { outcome: "gave_up", trail };
