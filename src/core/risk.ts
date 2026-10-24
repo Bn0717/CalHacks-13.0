@@ -64,6 +64,8 @@ const READ_ONLY_SUBCOMMANDS: Record<string, (args: string[]) => boolean> = {
   node: (a) => ["-v", "--version"].includes(a[0] ?? ""),
   command: (a) => a[0] === "-v" || a[0] === "-V",
   "lpinfo": () => true,
+  // Lists running programs; never signals them (that's pkill).
+  "pgrep": () => true,
   // macOS's own ipconfig: only the "get" questions (Windows' ipconfig is caught as the wrong platform).
   ipconfig: (a) => MAC_IPCONFIG_READ.has(a[0] ?? ""),
   dscacheutil: (a) => a[0] === "-q" || a[0] === "-statistics",

@@ -547,3 +547,29 @@ p { margin: 6px 0; }
   }
   .spinner { border-color: var(--accent); opacity: 0.8; }
 }
+
+/* ---- Hold to talk: a wide pill with a label, easy to find and hold ---- */
+.mic.talk { width: auto; min-width: 150px; border-radius: 28px; padding: 0 18px 0 14px; gap: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.mic.talk .talk-label { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.mic.talk::before, .mic.talk::after { border-radius: 30px; }
+.mic.talk:hover { transform: none; }
+
+/* ---- The ask box at the bottom of every other screen ---- */
+.follow { padding: 4px 24px 12px; }
+.follow .ask-row { gap: 8px; }
+.follow .mic.talk { min-width: 132px; height: 46px; }
+.follow-note { margin-top: 6px; font-size: 14px; color: var(--muted, #7a6d63); }
+
+/* ---- Answers on the result screen ---- */
+.lines { margin: 4px 0 10px; padding-left: 20px; font-size: 17px; line-height: 1.45; }
+.lines li { margin: 4px 0; }
+
+/* ---- Confirmations and teaching ---- */
+.confirm-msg { font-size: 17px; line-height: 1.45; margin: 4px 0 10px; }
+.confirm-details { margin: 0 0 10px; padding-left: 20px; font-size: 15px; color: var(--muted, #7a6d63); }
+.confirm-type { width: 100%; margin-top: 4px; }
+.teach-steps { padding-left: 22px; font-size: 17px; line-height: 1.5; }
+.teach-steps li { margin: 6px 0; }
+.btn.danger { background: var(--bad); color: #fff; border-color: transparent; }
+.btn.danger:disabled { opacity: 0.45; }
+.verdict.answered, .verdict.cant-do { color: var(--accent); }

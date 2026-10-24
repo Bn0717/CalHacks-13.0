@@ -7,6 +7,7 @@ const TO_APP = new Set([
   // Helper bar (see protocol.ts).
   "bar-ok", "bar-cancel", "bar-stop", "bar-retry", "bar-answer", "bar-approve", "bar-manual", "bar-show-me",
   "bar-send-summary", "bar-mic-start", "bar-mic-audio", "bar-mic-cancel", "bar-speaking", "bar-rect",
+  "bar-confirm", "bar-explain-ok",
 ]);
 const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "point", "point-hide", "warning", "bar", "say", "buddy"]);
 
