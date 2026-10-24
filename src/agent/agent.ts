@@ -77,11 +77,16 @@ export interface AgentOptions {
   /** Web search on official sites (Claude's server tool). On by default. */
   webSearch?: boolean;
   onTool?: (name: string, input: Record<string, unknown>) => void;
+  /** Steps the person already said yes to (when continuing after Stop), so the plan isn't asked again. */
+  approvedPlan?: string[];
+  /** Gives the caller the live context, e.g. to remember the approved plan if the person presses Stop. */
+  onContext?: (ctx: ToolContext) => void;
 }
 
 export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opts: AgentOptions = {}): Promise<AgentResult> {
   const started = Date.now();
-  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal };
+  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal, approvedPlan: opts.approvedPlan };
+  opts.onContext?.(ctx);
   const stopped = () => !!opts.signal?.aborted || !!opts.stopped?.();
   const toolCalls: AgentResult["toolCalls"] = [];
   const byName = new Map(TOOLS.map((t) => [t.name, t]));

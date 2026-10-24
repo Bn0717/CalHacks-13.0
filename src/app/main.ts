@@ -31,7 +31,7 @@ import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
 import { autopilot } from "../agent/autopilot.js";
 import { offlineGuide } from "../agent/offline.js";
-import { TOOLS as AGENT_TOOLS, type AgentUI } from "../agent/tools.js";
+import { TOOLS as AGENT_TOOLS, type AgentUI, type ToolContext } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
@@ -150,6 +150,8 @@ function focusBar(): void {
  */
 function stopNow(): void {
   const before = currentBar();
+  // What was going on, before the flags below are reset.
+  const agentTask = agentRunning ? agentNow : null;
   currentFlow++;
   stopRequested = true;
   stopController.abort();
@@ -159,17 +161,38 @@ function stopNow(): void {
   running = false;
   agentRunning = false;
   pendingLookup = null;
+  agentNow = null;
   if (before.phase === "hidden") return;
+  // The step list: from the agent's task, the step-by-step job, or whatever the bar showed.
   const hasSteps = before.phase === "working" || before.phase === "plan" || before.phase === "done";
-  const steps: StepLine[] = hasSteps ? before.steps.map((st): StepLine => (["running", "todo", "waiting"].includes(st.status) ? { ...st, status: "skipped", note: "Stopped" } : st)) : [];
-  const detail = before.phase === "working" || before.phase === "done" ? before.detail : [];
+  const shown: StepLine[] = agentTask ? agentTask.steps : job ? jobSteps(job) : hasSteps ? before.steps : [];
+  const steps = shown.map((st): StepLine => (["running", "todo", "waiting"].includes(st.status) ? { ...st, status: "skipped", note: "Stopped" } : st));
+  const detail = agentTask ? agentTask.detail : before.phase === "working" || before.phase === "done" ? before.detail : [];
+  if (agentTask) {
+    resumeAgent = {
+      request: agentTask.request,
+      goal: agentTask.goal,
+      done: agentTask.steps.filter((st) => st.status === "done").map((st) => st.text),
+      approvedPlan: agentTask.ctx?.approvedPlan,
+    };
+  }
+  const canContinue = !!resumeAgent || !!job;
   showBarNow({
     phase: "done",
-    receipt: { verdict: "not-done", headline: "Stopped. I won't change anything else.", beforeAfter: [], proofs: [], problems: [], reviewedBy: "rules" },
+    receipt: {
+      verdict: "not-done",
+      headline: "Stopped here. I left everything on your screen as it is.",
+      lines: canContinue ? ["Press Continue and I'll pick up where I stopped."] : [],
+      beforeAfter: [],
+      proofs: [],
+      problems: [],
+      reviewedBy: "rules",
+    },
     steps,
-    detail,
-    canRetry: !!job,
+    detail: [...detail],
+    canRetry: false,
     canSendSummary: false,
+    canContinue,
   });
   sayNow("Okay, I stopped.", "now");
 }
@@ -177,6 +200,8 @@ function stopNow(): void {
 /** Ends the current flow and closes the bar, whatever it was doing. */
 function cancelFlow(): void {
   currentFlow++;
+  resumeAgent = null;
+  agentNow = null;
   stopRequested = true;
   stopController.abort();
   hidePointer();
@@ -319,6 +344,8 @@ function askWhat(question = "Hi! What's going on?", suggestions = SUGGESTIONS): 
 // ---------- The hotkey ----------
 
 async function onHotkey(): Promise<void> {
+  // Something new: a stopped task can no longer be continued.
+  if (!agentRunning) resumeAgent = null;
   if (busy || running) {
     ensureBar().showInactive();
     return;
@@ -388,9 +415,11 @@ async function onAnswer(text: string): Promise<void> {
     showBar({ phase: "hidden" });
     return;
   }
+  // Typed on the "Stopped" screen: carry on with the stopped task, with what they added.
+  const resume = resumeAgent ? { ...resumeAgent, note: clean } : undefined;
   await startFlow(async () => {
     try {
-      await agentFlow(clean, lastLook);
+      await agentFlow(resume ? resume.request : clean, lastLook, resume);
     } catch (error) {
       showError(friendlyError(error));
     }
@@ -450,6 +479,11 @@ let agentRunning = false;
 const agentInbox: string[] = [];
 /** The last exchange, so a follow-up question has context. */
 let lastExchange: { request: string; headline: string; details: string[] } | null = null;
+/** The agent task in progress, so Stop can show what was done and Continue can pick it up. */
+let agentNow: { request: string; goal: string; steps: StepLine[]; detail: DetailLine[]; ctx: ToolContext | null } | null = null;
+/** A task the person stopped. "Continue" resumes it; anything new clears it. */
+interface AgentResume { request: string; goal: string; done: string[]; approvedPlan?: string[]; note?: string }
+let resumeAgent: AgentResume | null = null;
 
 /** Testing only: CALHACK_AUTO_ANSWERS="Yes|No|Never mind" answers the agent's questions and confirmations in order. */
 const autoAnswers = (process.env.CALHACK_AUTO_ANSWERS ?? "").split("|").map((x) => x.trim()).filter(Boolean);
@@ -482,16 +516,19 @@ function capitalize(text: string): string {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
 
-async function agentFlow(request: string, look: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" }): Promise<void> {
+async function agentFlow(request: string, look: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" }, resume?: AgentResume): Promise<void> {
   job = null;
+  resumeAgent = null;
   agentRunning = true;
   running = true;
   stopRequested = false;
   const signal = freshStop();
   agentInbox.length = 0;
-  const steps: StepLine[] = [];
+  // Continuing: the steps done before Stop stay on the list.
+  const steps: StepLine[] = (resume?.done ?? []).map((text, i) => ({ id: String(i + 1), text, status: "done" }));
   const detail: DetailLine[] = [];
-  const goal = request ? capitalize(request.length > 70 ? request.slice(0, 67) + "…" : request) : "Helping you";
+  const goal = resume?.goal ?? (request ? capitalize(request.length > 70 ? request.slice(0, 67) + "…" : request) : "Helping you");
+  agentNow = { request, goal, steps, detail, ctx: null };
   let line = "Let me look…";
   const work = () =>
     showBar({ phase: "working", goal, current: Math.max(1, steps.length), total: Math.max(1, steps.length), openEnded: true, line, steps: [...steps], detail: [...detail] });
@@ -566,7 +603,15 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
   const toolLabel = (name: string, input: Record<string, unknown>) => AGENT_TOOLS.find((t) => t.name === name)?.label(input) ?? "Working…";
   try {
     const env = await getEnvironment();
-    const context = lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
+    const context = resume
+      ? [
+          `They asked: "${resume.request || "help with what's on their screen"}". You were working on it when they pressed Stop, and now they pressed Continue.`,
+          resume.done.length ? `Already done before Stop: ${resume.done.join("; ")}.` : "Nothing was finished before Stop.",
+          resume.approvedPlan?.length ? `They already said yes to this plan, so don't ask again: ${resume.approvedPlan.join("; ")}.` : "",
+          resume.note ? `They added just now: "${resume.note}". Take that into account.` : "",
+          "Look again first: things may have changed, and they may have done some parts themselves. Then carry on from where you stopped. Don't redo what's already done.",
+        ].filter(Boolean).join("\n")
+      : lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
     // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
     const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen } : undefined });
@@ -577,6 +622,10 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
       {
         inbox: agentInbox,
         signal,
+        approvedPlan: resume?.approvedPlan,
+        onContext: (c) => {
+          if (agentNow) agentNow.ctx = c;
+        },
         stopped: () => stopRequested || !live(),
         onTool: (name, input) => {
           finishStep();
@@ -589,6 +638,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     );
     finishStep();
     lastExchange = { request: request || "(pressed the help key)", headline: result.headline, details: result.details };
+    if (live()) agentNow = null;
     const verdict = result.verdict === "done" ? "done" : result.verdict === "answered" ? "answered" : result.verdict === "cant_do" ? "cant-do" : "not-done";
     const proofs = result.proofs.map((p) => ({ claim: capitalize(p.shows || p.evidence.output.split("\n")[0].slice(0, 90) || "Check passed"), checks: [p.evidence.command] }));
     showBar({
@@ -1186,6 +1236,16 @@ ipcMain.handle("voice-synthesize", (event, text: string) => {
 });
 ipcMain.on("bar-ok", () => void startFlow(runAll));
 ipcMain.on("bar-retry", () => {
+  // Continue after Stop: the agent looks again and carries on.
+  if (resumeAgent && !agentRunning) {
+    const r = resumeAgent;
+    resumeAgent = null;
+    void startFlow(async () => {
+      const shot = screenAllowed() ? await captureScreen() : null;
+      await agentFlow(r.request, { shot, screenText: "" }, r);
+    });
+    return;
+  }
   if (job && !running) void startFlow(runAll);
   else if (!job) void onHotkey();
 });
