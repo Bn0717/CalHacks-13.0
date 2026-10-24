@@ -39,6 +39,8 @@ export const VENDOR_DOMAINS: string[] = [
   "rectangleapp.com",
   "github.com",
   "githubusercontent.com",
+  // Added for official-source lookups (src/core/official.ts): Zoom's newer support/download domain.
+  "zoom.com",
 ];
 
 /** Link shorteners, anonymous file shares and tunnels: common places to hide malware. */

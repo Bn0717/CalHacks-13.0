@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buddy preview</title>
+  <link rel="stylesheet" href="buddy.css">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: linear-gradient(135deg, #e9eef6, #f7efe9); color: #222; }
+    body.dark { background: linear-gradient(135deg, #15171c, #2a2320); color: #eee; }
+    .menubar { position: fixed; left: 0; right: 0; top: 0; height: 26px; background: rgba(255,255,255,.7); backdrop-filter: blur(8px); display: flex; justify-content: flex-end; gap: 18px; padding: 0 16px; align-items: center; font-size: 13px; }
+    body.dark .menubar { background: rgba(30,30,30,.7); }
+    .win { position: fixed; left: 300px; top: 70px; width: 620px; height: 420px; background: #fff; color: #222; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,.25); overflow: hidden; }
+    .win .bar { height: 34px; background: #eee; display: flex; align-items: center; padding: 0 12px; gap: 7px; }
+    .win .bar i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; display: inline-block; }
+    .win .bar i:nth-child(2) { background: #febc2e; } .win .bar i:nth-child(3) { background: #28c840; }
+    .win .bar span { margin-left: 12px; color: #777; font-size: 12px; }
+    .article { padding: 22px 28px; }
+    .article h1 { font-size: 22px; margin: 0 0 10px; }
+    .article p { line-height: 1.5; color: #444; }
+    .dl { display: inline-block; margin-top: 14px; padding: 10px 18px; background: #2d8cff; color: #fff; border-radius: 8px; font-weight: 600; }
+    .helper { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); width: 460px; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,.92); color: #222; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+    .dock { position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%); display: flex; gap: 10px; padding: 8px 12px; border-radius: 16px; background: rgba(255,255,255,.5); }
+    .dock b { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(#8ab4ff, #3a6fe0); display: block; }
+    .dock b:nth-child(2) { background: linear-gradient(#ffd27a, #f29a2e); } .dock b:nth-child(3) { background: linear-gradient(#9be29b, #36a836); }
+    .settings { position: fixed; right: 6px; top: 220px; padding: 8px 10px; background: #fff; color: #222; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.2); font-size: 12px; }
+    .panel { position: fixed; left: 10px; top: 36px; bottom: 10px; width: 270px; overflow: auto; background: rgba(255,255,255,.95); color: #222; border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,.18); padding: 10px 12px; z-index: 10; }
+    .panel h3 { margin: 12px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #888; }
+    .panel button { margin: 0 4px 5px 0; padding: 5px 9px; border: 1px solid #ddd; border-radius: 7px; background: #f6f6f6; cursor: pointer; font-size: 12px; }
+    .panel button:hover { background: #ffe9e1; border-color: #d77757; }
+    .panel button.tour { background: #d77757; color: #fff; border-color: #d77757; font-weight: 600; }
+    #log { font: 11px ui-monospace, Menlo, monospace; color: #555; white-space: pre-wrap; max-height: 140px; overflow: auto; background: #f3f3f3; border-radius: 6px; padding: 6px; }
+  </style>
+</head>
+<body>
+  <div class="menubar"><span>Battery</span><span id="wifi">Wi‑Fi</span><span>Fri 10:41</span></div>
+
+  <div class="win" id="win">
+    <div class="bar"><i></i><i></i><i></i><span>zoom.us/download</span></div>
+    <div class="article" id="article">
+      <h1>Download Zoom for Mac</h1>
+      <p>To join a meeting from your Mac, download the Zoom app. Click the blue button below, then open the file in your Downloads folder and follow the steps.</p>
+      <p>Already have it? Open Zoom from your Applications folder.</p>
+      <span class="dl" id="dl">Download</span>
+    </div>
+  </div>
+
+  <div class="settings" id="settings">Settings ⚙︎</div>
+  <div class="helper" id="helper">CalHack: “Let me take a look…”</div>
+  <div class="dock" id="dock"><b></b><b id="dock2"></b><b></b></div>
+
+  <div class="panel" id="panel">
+    <button class="tour" data-act="tour">▶ Play demo tour</button>
+    <h3>Show / hide</h3>
+    <div data-group="basic"></div>
+    <h3>Hop</h3>
+    <div data-group="hop"></div>
+    <h3>Point</h3>
+    <div data-group="point"></div>
+    <h3>Scan</h3>
+    <div data-group="scan"></div>
+    <h3>Poses</h3>
+    <div data-group="pose"></div>
+    <h3>Other</h3>
+    <div data-group="other"></div>
+    <h3>Sent on "buddy"</h3>
+    <div id="log"></div>
+  </div>
+
+  <div id="buddy-layer" aria-hidden="true"></div>
+  <script src="buddy-preview.js"></script>
+  <script src="buddy-sprite.js"></script>
+  <script src="buddy.js"></script>
+</body>
+</html>

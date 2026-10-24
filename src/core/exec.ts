@@ -1,5 +1,22 @@
 // Runs commands. Read-only commands run inside a macOS sandbox that can't write files or use the internet.
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+/**
+ * Settings every command runs with. Homebrew sometimes needs the Mac password (e.g. installing Zoom),
+ * and there's no Terminal to type it into, so SUDO_ASKPASS points sudo at bin/calhack-askpass,
+ * which shows a password box and hands the answer straight to sudo.
+ */
+export function commandEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) if (typeof v === "string") env[k] = v;
+  env.HOMEBREW_NO_AUTO_UPDATE = "1";
+  env.NONINTERACTIVE = "1";
+  const askpass = join(process.env.CALHACK_ROOT ?? process.cwd(), "bin", "calhack-askpass");
+  if (existsSync(askpass)) env.SUDO_ASKPASS = askpass;
+  return env;
+}
 
 export interface ExecResult {
   code: number;
@@ -23,7 +40,7 @@ const MAX_OUTPUT = 20_000;
 
 function run(file: string, args: string[], timeoutMs: number): Promise<ExecResult> {
   return new Promise((resolve) => {
-    const child = spawn(file, args, { env: { ...process.env, HOMEBREW_NO_AUTO_UPDATE: "1", NONINTERACTIVE: "1" } });
+    const child = spawn(file, args, { env: commandEnv() });
     let output = "";
     const add = (chunk: Buffer) => {
       output += chunk.toString();

@@ -160,7 +160,7 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
     evidence.push({ kind: "run", command, code: r.code, output: tail(r.output, 6) });
     if (r.timedOut) return result({ status: "failed", message: "This took too long, so we stopped it.", output: tail(r.output) });
     if (r.code !== 0) {
-      if (/User cancell?ed/i.test(r.output)) return result({ status: "declined", message: "You cancelled the password box." });
+      if (/User cancell?ed|no password was provided|-128\)/i.test(r.output)) return result({ status: "declined", message: "You cancelled the password box." });
       return result({ status: "failed", message: `This step didn't work (error ${r.code}). We stopped here so nothing else goes wrong.`, output: tail(r.output) });
     }
     if (!planned.checkUsable) {

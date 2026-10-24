@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runSequence } from "../src/core/sequence.js";
 import { collectEvidence, enforce, rulesReceipt } from "../src/core/receipt.js";
-import { exitCodeFrom, gate, sameCommand } from "../src/droid/executor.js";
+import { approvedForms, exitCodeFrom, gate, sameCommand, withSettings } from "../src/droid/executor.js";
 import type { PlannedStep, Step, StepResult, StepStatus } from "../src/core/types.js";
 
 function planned(step: Partial<Step> & { id: string }): PlannedStep {
@@ -124,5 +124,16 @@ describe("Droid's permission gate", () => {
     expect(exitCodeFrom("ls: nope\n[Process exited with code 1]")).toBe(1);
     expect(exitCodeFrom("Error: Command failed (exit code: 127) zsh: not found")).toBe(127);
     expect(exitCodeFrom("all good")).toBeNull();
+  });
+  it("puts the password-box setting in front of the command Droid runs", () => {
+    expect(withSettings("brew install --cask zoom", { SUDO_ASKPASS: "/a b/askpass", NONINTERACTIVE: "1" })).toBe("export SUDO_ASKPASS='/a b/askpass' NONINTERACTIVE='1'; brew install --cask zoom");
+    expect(withSettings("ls", {})).toBe("ls");
+  });
+  it("accepts the approved command with a cd to home, but nothing else", () => {
+    const forms = approvedForms("cancel -a Office_Printer", "export NONINTERACTIVE='1'; cancel -a Office_Printer", "/Users/dad");
+    expect(gate([{ type: "exec", fullCommand: "cd /Users/dad && cancel -a Office_Printer" }], forms, false).allow).toBe(true);
+    expect(gate([{ type: "exec", fullCommand: "export NONINTERACTIVE='1'; cancel -a Office_Printer" }], forms, false).allow).toBe(true);
+    expect(gate([{ type: "exec", fullCommand: "cd /tmp && cancel -a Office_Printer" }], forms, false).allow).toBe(false);
+    expect(gate([{ type: "exec", fullCommand: "cd /Users/dad && cancel -a Office_Printer && rm -rf ~" }], forms, false).allow).toBe(false);
   });
 });

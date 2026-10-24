@@ -40,12 +40,13 @@ const BAD: StepStatus[] = ["failed", "blocked", "declined"];
 const GOOD: StepStatus[] = ["done", "done-unverified", "already-done"];
 const RANK: Record<Verdict, number> = { done: 0, "couldnt-verify": 1, "not-done": 2 };
 
-export function collectEvidence(steps: PlannedStep[], results: Map<string, StepResult>, final?: Evidence | null): NumberedEvidence[] {
+/** `final` is the goal check, or several (e.g. a fix guide's checks run again after the fix). */
+export function collectEvidence(steps: PlannedStep[], results: Map<string, StepResult>, final?: Evidence | Evidence[] | null): NumberedEvidence[] {
   const list: NumberedEvidence[] = [];
   for (const p of steps) {
     for (const e of results.get(p.step.id)?.evidence ?? []) list.push({ ...e, ref: "", stepId: p.step.id, stepTitle: p.step.title });
   }
-  if (final) list.push({ ...final, ref: "", stepId: null, stepTitle: "Final check" });
+  for (const f of final ? (Array.isArray(final) ? final : [final]) : []) list.push({ ...f, kind: "final", ref: "", stepId: null, stepTitle: "Final check" });
   return list.map((e, i) => ({ ...e, ref: "E" + (i + 1) }));
 }
 
@@ -65,8 +66,7 @@ export function openProblems(steps: PlannedStep[], results: Map<string, StepResu
 /** The best verdict the checks allow. */
 function ceiling(steps: PlannedStep[], results: Map<string, StepResult>, evidence: NumberedEvidence[]): Verdict {
   if (openProblems(steps, results).length) return "not-done";
-  const final = evidence.find((e) => e.kind === "final");
-  if (final && final.code !== 0) return "not-done";
+  if (evidence.some((e) => e.kind === "final" && e.code !== 0)) return "not-done";
   const unfinished = steps.some((p) => p.step.kind !== "info" && !results.get(p.step.id));
   if (unfinished) return "not-done";
   return "done";

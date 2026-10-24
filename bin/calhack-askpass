@@ -1,0 +1,9 @@
+#!/bin/sh
+# sudo calls this (through SUDO_ASKPASS) when an approved step, like `brew install --cask zoom`,
+# needs the Mac password and there's no Terminal to type it into.
+# It shows a password box and prints the answer straight to sudo. CalHack's own code never reads or stores it.
+# Cancel exits with an error, so sudo stops and the step fails cleanly.
+exec /usr/bin/osascript \
+  -e 'set msg to "A step you approved in CalHack needs your Mac password to finish installing." & return & return & "Your password goes straight to macOS. CalHack never sees or stores it."' \
+  -e 'set r to display dialog msg default answer "" with hidden answer with title "CalHack" buttons {"Cancel", "OK"} default button "OK" with icon caution' \
+  -e 'text returned of r'

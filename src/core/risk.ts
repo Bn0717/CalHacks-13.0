@@ -64,8 +64,52 @@ const READ_ONLY_SUBCOMMANDS: Record<string, (args: string[]) => boolean> = {
   node: (a) => ["-v", "--version"].includes(a[0] ?? ""),
   command: (a) => a[0] === "-v" || a[0] === "-V",
   "lpinfo": () => true,
+  // macOS's own ipconfig: only the "get" questions (Windows' ipconfig is caught as the wrong platform).
+  ipconfig: (a) => MAC_IPCONFIG_READ.has(a[0] ?? ""),
+  dscacheutil: (a) => a[0] === "-q" || a[0] === "-statistics",
+  curl: (a) => isQuietUrlCheck(a),
   "lpoptions": (a) => a.every((x) => x !== "-o" && x !== "-x" && x !== "-d"),
 };
+
+/** macOS ipconfig questions that only read. */
+const MAC_IPCONFIG_READ = new Set(["getifaddr", "getoption", "getpacket", "getv6packet", "getsummary", "ifcount", "getiflist", "getra"]);
+
+/**
+ * `curl -sS -o /dev/null -w '%{http_code}' https://…`: asks a website "are you there?" and throws the answer away.
+ * Only these few options count; anything that saves, uploads or reads a config file doesn't.
+ */
+function isQuietUrlCheck(a: string[]): boolean {
+  const plain = new Set(["-s", "-S", "-sS", "-Ss", "-f", "-fsS", "-sSf", "-I", "-L", "--head", "--silent", "--show-error", "--fail"]);
+  const urls: string[] = [];
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    if (plain.has(x)) continue;
+    if (x === "-o" || x === "--output") {
+      if (a[++i] !== "/dev/null") return false;
+    } else if (x === "-w" || x === "--write-out") {
+      const v = a[++i] ?? "";
+      if (!v || v.startsWith("@")) return false;
+    } else if (x === "-m" || x === "--max-time" || x === "--connect-timeout") {
+      if (!/^\d{1,3}$/.test(a[++i] ?? "")) return false;
+    } else if (x.startsWith("https://")) {
+      urls.push(x);
+    } else {
+      return false;
+    }
+  }
+  // Without -o /dev/null the page would just be printed, which is fine too, but keep it to one address.
+  return urls.length === 1;
+}
+
+/** Fixed AppleScript lines that only read or set the sound volume, e.g. `osascript -e 'get volume settings'`. */
+function volumeScript(seg: Segment): "read" | "set" | null {
+  if (seg.cmd !== "osascript") return null;
+  const a = seg.argv.slice(1);
+  if (a.length !== 2 || a[0] !== "-e") return null;
+  if (/^get volume settings$/.test(a[1])) return "read";
+  if (/^set volume (without output muted|output volume \d{1,3})$/.test(a[1])) return "set";
+  return null;
+}
 
 const VERSION_FLAGS = new Set(["--version", "-version", "-v", "-V", "--help", "-h", "version"]);
 
@@ -74,6 +118,7 @@ function segmentIsReadOnly(seg: Segment): boolean {
   if (seg.writesTo.length) return false;
   if (seg.argv.some(isSubstitutionWord)) return false;
   const args = seg.argv.slice(1);
+  if (volumeScript(seg) === "read") return true;
   if (ALWAYS_READ_ONLY.has(seg.cmd)) {
     // `env FOO=bar cmd` and `log erase` are not just reading.
     if (seg.cmd === "log") return ["show", "stream", "stats"].includes(args[0] ?? "");
@@ -151,6 +196,8 @@ function runsStdin(seg: Segment): boolean {
 
 /** A shell or interpreter told to run text given right on the command line. */
 function runsInlineCode(seg: Segment): string | null {
+  // Our fixed sound-volume lines are known text, not hidden code.
+  if (volumeScript(seg)) return null;
   const args = seg.argv.slice(1);
   if (SHELLS.has(seg.cmd)) {
     const i = args.indexOf("-c");
@@ -199,7 +246,9 @@ function ruleSegment(seg: Segment, findings: Finding[]): void {
   }
 
   // Fake password boxes and hidden AppleScript.
-  if (seg.cmd === "osascript") {
+  if (seg.cmd === "osascript" && volumeScript(seg)) {
+    // Only reads or sets the sound volume: a normal change, nothing else.
+  } else if (seg.cmd === "osascript") {
     if (/display dialog/i.test(joined) && /hidden answer|password/i.test(joined)) {
       findings.push({ rule: "fake-password-box", level: "blocked", reason: "Shows a pop-up asking for your password. This is how Mac password-stealing malware works." });
     } else if (/do shell script/i.test(joined)) {
@@ -345,7 +394,8 @@ const WINDOWS_CMDS = new Set(["powershell", "powershell.exe", "pwsh", "cmd", "cm
 const LINUX_CMDS = new Set(["apt", "apt-get", "yum", "dnf", "pacman", "zypper", "snap", "systemctl", "service", "update-grub", "modprobe", "lsmod", "dpkg", "rpm"]);
 
 function detectPlatform(text: string, segs: Segment[]): Assessment["wrongPlatform"] {
-  if (segs.some((s) => WINDOWS_CMDS.has(s.cmd) || s.cmd.endsWith(".exe") || s.cmd.endsWith(".bat") || s.cmd.endsWith(".ps1")) || /\b[A-Z]:\\/.test(text) || /^\s*Get-|Set-|New-Item/.test(text)) {
+  const macIpconfig = (s: Segment) => s.cmd === "ipconfig" && MAC_IPCONFIG_READ.has(s.argv[1] ?? "");
+  if (segs.some((s) => (WINDOWS_CMDS.has(s.cmd) && !macIpconfig(s)) || s.cmd.endsWith(".exe") || s.cmd.endsWith(".bat") || s.cmd.endsWith(".ps1")) || /\b[A-Z]:\\/.test(text) || /^\s*Get-|Set-|New-Item/.test(text)) {
     return { platform: "windows", reason: "This command is for Windows, not a Mac." };
   }
   if (segs.some((s) => LINUX_CMDS.has(s.cmd))) {

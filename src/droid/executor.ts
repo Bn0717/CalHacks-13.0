@@ -11,7 +11,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ExecResult } from "../core/exec.js";
+import { commandEnv, type ExecResult } from "../core/exec.js";
 import { normalizeCommand } from "../core/normalize.js";
 
 export interface DroidExecResult extends ExecResult {
@@ -39,6 +39,16 @@ export function sameCommand(asked: string, approved: string): boolean {
   return normalizeCommand(asked) === normalizeCommand(approved);
 }
 
+/**
+ * The exact forms of one approved command that Droid may run: with or without the settings our code
+ * puts in front, and with or without first going to the home folder (where the session already is).
+ * Droid sometimes adds that "cd". Nothing else is accepted.
+ */
+export function approvedForms(approved: string, wrapped: string, home: string): string[] {
+  const cds = ["", `cd ${home} && `, `cd '${home}' && `, `cd "${home}" && `, "cd ~ && "];
+  return [...new Set([approved, wrapped].flatMap((c) => cds.map((cd) => cd + c)))];
+}
+
 /** One tool request from Droid, reduced to what our gate looks at. */
 export interface ToolRequest {
   type: string;
@@ -51,12 +61,10 @@ export interface ToolRequest {
  * The gate. Droid may run the approved command, exactly, one time, in a request of its own.
  * Anything else (another command, a file edit, a retry, a "fixed" version) is refused.
  */
-export function gate(requests: ToolRequest[], approved: string, alreadyRan: boolean): { allow: boolean; lines: string[] } {
-  const allow =
-    !alreadyRan &&
-    requests.length === 1 &&
-    requests[0].type === "exec" &&
-    sameCommand(requests[0].fullCommand || requests[0].command || "", approved);
+export function gate(requests: ToolRequest[], approved: string | string[], alreadyRan: boolean): { allow: boolean; lines: string[] } {
+  const forms = Array.isArray(approved) ? approved : [approved];
+  const asked = requests[0]?.fullCommand || requests[0]?.command || "";
+  const allow = !alreadyRan && requests.length === 1 && requests[0].type === "exec" && forms.some((f) => sameCommand(asked, f));
   const lines = requests.map((r) => {
     const what = short(r.fullCommand ?? r.command ?? r.filePath ?? r.type);
     if (allow) return `✅ Allowed: ${what}`;
@@ -78,7 +86,7 @@ const RESULT_SCHEMA = {
 function promptFor(command: string): string {
   return [
     "You are the executor inside CalHack, a Mac helper. CalHack has already checked this command and the person approved it.",
-    "Run exactly this one shell command with your shell tool, once, from the person's home folder:",
+    "Run exactly this one shell command with your shell tool, once. You are already in the person's home folder, so don't add cd or change it in any way:",
     "",
     command,
     "",
@@ -98,11 +106,29 @@ export function exitCodeFrom(output: string): number | null {
   return m ? Number(m[1] ?? m[2]) : null;
 }
 
+/**
+ * Droid's shell doesn't pass our settings through, so our code puts them in front of the approved command.
+ * The gate then approves exactly this wrapped command. (SUDO_ASKPASS lets Homebrew show a password box.)
+ */
+export function withSettings(command: string, env: Record<string, string> = commandEnv()): string {
+  const keep = ["SUDO_ASKPASS", "HOMEBREW_NO_AUTO_UPDATE", "NONINTERACTIVE"].filter((k) => env[k]);
+  if (!keep.length) return command;
+  const q = (v: string) => "'" + v.replace(/'/g, "'\\''") + "'";
+  return `export ${keep.map((k) => `${k}=${q(env[k])}`).join(" ")}; ${command}`;
+}
+
+/** Log lines show the step's own command, not the settings our code put in front of it. */
+function hideSettings(line: string): string {
+  return line.replace(/export (?:SUDO_ASKPASS|HOMEBREW_NO_AUTO_UPDATE|NONINTERACTIVE)=[^;]*; /g, "");
+}
+
 /** Only the shell tool stays on. No web, no file reading, no scripts, no sub-agents. */
 const KEEP_TOOLS = new Set(["Execute"]);
 
 /** Runs one approved command through Droid. Throws when Droid can't start, so the caller can fall back. */
-export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Promise<DroidExecResult> {
+export async function runWithDroid(approved: string, timeoutMs = 15 * 60_000): Promise<DroidExecResult> {
+  const command = withSettings(approved);
+  const forms = approvedForms(approved, command, homedir());
   const sdk = await import("@factory/droid-sdk/node");
   const { AutonomyLevel, DroidMessageType, OutputFormatType, ToolConfirmationOutcome, ToolConfirmationType, createSession } = sdk;
   if (ToolConfirmationType.Execute !== "exec") throw new Error("This Droid SDK version names its tools differently.");
@@ -121,13 +147,13 @@ export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Pr
     modelId: process.env.CALHACK_DROID_MODEL?.trim() || "claude-sonnet-5-5",
     autonomyLevel: AutonomyLevel.Off,
     disableBuiltinSkills: true,
-    env: { ...Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => typeof e[1] === "string")), HOMEBREW_NO_AUTO_UPDATE: "1", NONINTERACTIVE: "1" },
+    env: commandEnv(),
     abortSignal: abort.signal,
     permissionHandler({ toolUses }) {
       // Only the one approved command, only once. Everything else is refused.
       const requests = toolUses.map((t) => t.details as ToolRequest);
-      const { allow, lines } = gate(requests, command, allowedOnce);
-      log.push(...lines);
+      const { allow, lines } = gate(requests, forms, allowedOnce);
+      log.push(...lines.map(hideSettings));
       if (allow) allowedOnce = true;
       else for (const r of requests) refused.add(normalizeCommand(r.fullCommand ?? r.command ?? ""));
       return allow ? ToolConfirmationOutcome.ProceedOnce : ToolConfirmationOutcome.Cancel;
@@ -140,7 +166,7 @@ export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Pr
     const off = tools.map((t) => t.id).filter((id) => !KEEP_TOOLS.has(id));
     await session.updateSettings({ disabledToolIds: off });
     log.push(`Droid's tools: only Execute is on (${off.length} others turned off)`);
-    log.push(`Droid got the step: ${short(command)}`);
+    log.push(`Droid got the step: ${short(approved)}`);
 
     // Every shell command Droid really starts. Droid's own settings auto-run some "harmless" commands
     // without asking, so this is checked too, not just the permission requests.
@@ -159,19 +185,19 @@ export async function runWithDroid(command: string, timeoutMs = 15 * 60_000): Pr
         const input = (msg.input ?? {}) as Record<string, unknown>;
         const asked = String(input.command ?? input.fullCommand ?? "");
         calls.set(msg.toolUseId, asked);
-        log.push(`Droid wants to use ${msg.name}${asked ? `: ${short(asked)}` : ""}`);
+        log.push(hideSettings(`Droid wants to use ${msg.name}${asked ? `: ${short(asked, 400)}` : ""}`));
       } else if (msg.type === DroidMessageType.ToolResult) {
         const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
         const asked = calls.get(msg.toolUseId) ?? "";
         log.push(`${msg.isError ? "❌" : "📄"} ${msg.toolName} result: ${short(content, 120)}`);
         if (msg.toolName !== "Execute") continue;
-        if (!ranApproved && sameCommand(asked, command)) {
+        if (!ranApproved && forms.some((f) => sameCommand(asked, f))) {
           ranApproved = true;
           toolOutput = content;
           toolError = msg.isError;
         } else if (!refused.has(normalizeCommand(asked))) {
           violation = asked || "an unknown command";
-          log.push(`⛔ Droid ran something we didn't approve: ${short(violation)}. Stopping.`);
+          log.push(hideSettings(`⛔ Droid ran something we didn't approve: ${short(violation, 400)}. Stopping.`));
           await session.interrupt().catch(() => {});
           break;
         }
