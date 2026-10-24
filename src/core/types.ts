@@ -32,7 +32,7 @@ export type StepKind = "command" | "download" | "manual" | "info";
 
 /** A fixed action (built by our code, see recipes.ts) that does a manual step for the person. */
 export interface Recipe {
-  id: "add-printer" | "open-app";
+  id: "add-printer" | "open-app" | "sound-output";
   /** Short label, e.g. "Add your network printer". */
   label: string;
   /** For open-app: the app's name. */

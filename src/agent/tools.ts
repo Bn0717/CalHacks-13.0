@@ -9,9 +9,11 @@ import { assessCommand } from "../core/risk.js";
 import type { Executor } from "../core/runner.js";
 import type { Evidence } from "../core/types.js";
 import { buildFixes, diagnose, getGuide, verifyFix, type CheckRunner, type Diagnosis } from "../core/fixes/index.js";
-import { runRecipe } from "../core/recipes.js";
+import { OFFICIAL_PUBLISHERS } from "../core/official.js";
+import { NEVER_OPEN, realRecipeDeps, recipeNormal, runRecipe } from "../core/recipes.js";
 import { uninstallApp } from "../core/uninstall.js";
 import { matchOutput, type SoundOutput } from "../mac/audio.js";
+import { autopilot, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 
 export interface AppInfo {
@@ -27,9 +29,12 @@ export interface FileInfo {
 
 /** Everything the tools touch on the Mac, so tests can swap in fakes. */
 export interface MacDeps {
-  sandboxed(command: string): Promise<ExecResult>;
+  sandboxed(command: string, timeoutMs?: number): Promise<ExecResult>;
   checkRunner: CheckRunner;
+  /** Runs a risky or system-changing command. In the app this is Droid, behind CalHack's gate. */
   execute: Executor;
+  /** Runs a routine, harmless command directly (opening an app or page, a click). Not for anything risky. */
+  run(command: string): Promise<ExecResult>;
   listApps(): AppInfo[];
   findApp(name: string): string[];
   runningApps(): Promise<string[]>;
@@ -48,6 +53,8 @@ export interface MacDeps {
   /** Shows a file in Finder, or opens it. */
   reveal(path: string, open: boolean): Promise<void>;
   now(): number;
+  /** Lets CalHack see the screen so it can finish a step itself. Missing = it asks the person instead. */
+  screen?: ScreenDeps;
   home: string;
   /** Apps CalHack must never close: Finder, CalHack itself, and (while developing) the app it was started from. */
   protectedApps: string[];
@@ -69,14 +76,12 @@ export interface AgentUI {
   status(line: string): void;
   /** Says it out loud (and as a caption). Short and calm. */
   say(text: string): void;
-  /** Moves the buddy: "bar" (home), "work" (typing on the bar), "top" (the browser/screen), "dock". */
-  buddy(spot: "bar" | "work" | "top" | "dock", pose: "idle" | "scan" | "type" | "carry" | "think" | "stop" | "wave"): void;
   /** A short question (spoken) with 2-4 answer buttons, and an optional longer note shown below it. */
   ask(question: string, choices: string[], note?: string): Promise<string>;
   confirm(c: ConfirmRequest): Promise<boolean>;
   /** A teaching screen. Resolves when the person closes it. */
   explain(e: { title: string; paragraphs: string[]; steps?: string[] }): Promise<void>;
-  /** Something only the person can click (macOS doesn't allow it by command). The buddy points. */
+  /** Something only the person can click (macOS doesn't allow it by command). The bar tells them what to click. */
   guide(g: { instruction: string; clickTarget?: string; settingsUrl?: string }): Promise<"done" | "skip">;
   /** Details for "show what's happening". */
   detail(text: string, mono?: boolean): void;
@@ -139,6 +144,55 @@ function n(input: Record<string, unknown>, key: string): number | null {
 function asFolder(value: string): UserFolder | null {
   const f = USER_FOLDERS.find((x) => x.toLowerCase() === value.toLowerCase());
   return f ?? null;
+}
+
+/** Recipes run their changing commands through the same executor as everything else (Droid, behind its gate). */
+function recipeDeps(ctx: ToolContext) {
+  return { ...realRecipeDeps, sandboxed: (c: string, t?: number) => ctx.mac.sandboxed(c, t), normal: recipeNormal((c, t) => ctx.mac.execute(c, t), (c) => ctx.mac.run(c)) };
+}
+
+/** Only macOS Settings pages, written the way macOS writes them. */
+const SETTINGS_URL = /^x-apple\.systempreferences:[A-Za-z0-9._\-?=&]+$/;
+
+function isOfficialHost(host: string): boolean {
+  return OFFICIAL_PUBLISHERS.some((p) => p.domains.some((d) => host === d || host.endsWith("." + d)));
+}
+
+/** An https link to a maker's or Apple's own site, or null. */
+function officialUrl(raw: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.port || !isOfficialHost(url.hostname.toLowerCase())) return null;
+  return url.href;
+}
+
+function shq(text: string): string {
+  return "'" + text.replace(/'/g, "'\\''") + "'";
+}
+
+/**
+ * A step only the screen can finish (a click somewhere). CalHack opens the page, then looks at the screen every few seconds
+ * and does the clicks itself. The AI judges each action: parts that need the person's own hands, and anything it can't work out, go to the person.
+ */
+async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickTarget?: string; settingsUrl?: string }): Promise<{ result: "done" | "skip"; by: "calhack" | "person"; trail: string[] }> {
+  const url = g.settingsUrl && SETTINGS_URL.test(g.settingsUrl) ? g.settingsUrl : undefined;
+  if (!ctx.mac.screen) return { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
+  if (url) {
+    const r = await ctx.mac.run(`open ${shq(url)}`);
+    addEvidence(ctx, { kind: "run", command: `open ${shq(url)}`, code: r.code, output: tail(r.output, 2) });
+    await new Promise((x) => setTimeout(x, 1500));
+  }
+  ctx.ui.say("Let me take care of that for you.");
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget });
+  if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
+  if (r.outcome === "skipped") return { result: "skip", by: "person", trail: r.trail };
+  // It couldn't finish: the person gets the plain version, and is told why.
+  const why = r.needsAccessibility ? `${r.trail.at(-1)}. For now: ` : "";
+  return { result: await ctx.ui.guide({ ...g, instruction: why + g.instruction }), by: "person", trail: r.trail };
 }
 
 function appLabel(path: string): string {
@@ -401,9 +455,57 @@ const openApp: AgentTool = {
   async run(input, ctx) {
     const app = oneApp(ctx, s(input, "app_name"));
     if ("problem" in app) return app.problem;
-    const r = await runRecipe({ id: "open-app", label: "Open", app: appLabel(app.path) });
+    const name = appLabel(app.path);
+    if (NEVER_OPEN.has(name.toLowerCase())) {
+      return name.toLowerCase() === "system settings"
+        ? "Use open_settings to open System Settings (it opens the right page)."
+        : `Not opened: ${name} can run anything on the Mac, so CalHack never opens it for someone. Tell the person why.`;
+    }
+    // Opening an app is routine, so it runs directly; "is it running?" is checked in the read-only box.
+    const r = await runRecipe({ id: "open-app", label: "Open", app: name }, recipeDeps(ctx));
+    for (const l of r.log ?? []) ctx.ui.detail(l, true);
     const refs = r.evidence.map((e) => addEvidence(ctx, { ...e, kind: e.kind === "run" && /pgrep/.test(e.command) ? "after" : e.kind }));
     return `[${refs.join(", ")}] ${r.message}`;
+  },
+};
+
+const openSettings: AgentTool = {
+  name: "open_settings",
+  kind: "act",
+  description: "Open System Settings at the right page for the person (for example Sound, Printers & Scanners, Wi-Fi, Bluetooth, or a Privacy page), so they never have to find it. Give the x-apple.systempreferences: link for the page. Use this before guide_person when the person has to click something there.",
+  input_schema: obj({ settings_url: str("An x-apple.systempreferences: link, e.g. x-apple.systempreferences:com.apple.Sound-Settings.extension") }),
+  label: () => "Opening System Settings…",
+  async run(input, ctx) {
+    const url = s(input, "settings_url");
+    if (!SETTINGS_URL.test(url)) return "Refused: that isn't a System Settings link (it must look like x-apple.systempreferences:com.apple.…).";
+    const command = `open ${shq(url)}`;
+    const r = await ctx.mac.run(command);
+    addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `Couldn't open it: ${tail(r.output, 2)}`;
+    // This separate read-only check proves System Settings is really up.
+    let up = false;
+    for (let i = 0; i < 5 && !up; i++) {
+      if (i) await new Promise((x) => setTimeout(x, 600));
+      up = (await ctx.mac.sandboxed("pgrep -x 'System Settings'")).code === 0;
+    }
+    const ref = addEvidence(ctx, { kind: "after", command: "pgrep -x 'System Settings'", code: up ? 0 : 1, output: up ? "System Settings is open" : "System Settings did not start" });
+    return `[${ref}] ${up ? "System Settings is open at that page." : "I ran the command but System Settings didn't appear."}`;
+  },
+};
+
+const openWebsite: AgentTool = {
+  name: "open_website",
+  kind: "act",
+  description: "Open a page from Apple's or an app maker's own website in the person's browser (for example an official help page or the maker's download page). Only official sites; anything else is refused. Opening a page isn't installing anything.",
+  input_schema: obj({ url: str("A full https:// link on an official site, e.g. https://support.apple.com/...") }),
+  label: () => "Opening a web page…",
+  async run(input, ctx) {
+    const url = officialUrl(s(input, "url"));
+    if (!url) return "Refused: CalHack only opens https pages on Apple's or the maker's own website.";
+    const command = `open ${shq(url)}`;
+    const r = await ctx.mac.run(command);
+    const ref = addEvidence(ctx, { kind: "after", command, code: r.code, output: r.code === 0 ? "opened" : tail(r.output, 2) });
+    return r.code === 0 ? `[${ref}] Opened ${new URL(url).hostname} in the browser.` : `Couldn't open it: ${tail(r.output, 2)}`;
   },
 };
 
@@ -415,7 +517,6 @@ const trashApp: AgentTool = {
   label: (i) => `Moving ${s(i, "app_name")} to the Trash…`,
   async run(input, ctx) {
     const name = s(input, "app_name");
-    ctx.ui.buddy("dock", "carry");
     const r = await uninstallApp(name, { find: ctx.mac.findApp, exists: ctx.mac.exists, quit: ctx.mac.quitApp, trash: ctx.mac.trash }, (m) => ctx.ui.status(m));
     const gone = r.ok && r.paths.length > 0;
     const ref = addEvidence(ctx, { kind: "after", command: r.paths.length ? `test ! -e ${JSON.stringify(r.paths[0])}` : `find app ${name}`, code: gone ? 0 : 1, output: r.message });
@@ -500,7 +601,6 @@ const fixProblem: AgentTool = {
       ctx.ui.status(f.label);
       ctx.ui.say(`${f.label}.`);
       if (f.kind === "command") {
-        ctx.ui.buddy("work", "type");
         const command = f.admin && !/^sudo\b/.test(f.command) ? "sudo " + f.command : f.command;
         const r = await ctx.mac.execute(command);
         addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 3) });
@@ -508,16 +608,19 @@ const fixProblem: AgentTool = {
         done.push(`${f.label}: ${r.code === 0 ? "done" : `failed (${tail(r.output, 1)})`}`);
         if (r.code !== 0) break;
       } else if (f.kind === "recipe") {
-        const r = await runRecipe({ id: f.recipe, label: f.label });
+        const r = await runRecipe({ id: f.recipe, label: f.label }, recipeDeps(ctx));
+        for (const l of r.log ?? []) ctx.ui.detail(l, true);
         for (const e of r.evidence) addEvidence(ctx, e);
         done.push(`${f.label}: ${r.ok ? "done" : r.message}`);
         if (!r.ok) {
-          const g = await ctx.ui.guide({ instruction: r.message, clickTarget: "Add Printer, Scanner or Fax…", settingsUrl: "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension" });
-          done.push(`The person was shown where to click: ${g}`);
+          // Couldn't do it ourselves: try the screen, then the person. The fix says where; printers are the default.
+          const fb = f.manual ?? { clickTarget: "Add Printer, Scanner or Fax…", settingsUrl: "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension", explain: r.message };
+          const g = await finishOnScreen(ctx, { instruction: f.manual ? `${r.message} ${fb.explain}` : r.message, clickTarget: fb.clickTarget, settingsUrl: fb.settingsUrl });
+          done.push(g.by === "calhack" ? "CalHack added it on screen" : `The person was shown where to click: ${g.result}`);
         }
       } else {
-        const g = await ctx.ui.guide({ instruction: f.manual.explain, clickTarget: f.manual.clickTarget, settingsUrl: f.manual.settingsUrl });
-        done.push(`${f.label}: the person ${g === "done" ? "did it" : "skipped it"}`);
+        const g = await finishOnScreen(ctx, { instruction: f.manual.explain, clickTarget: f.manual.clickTarget, settingsUrl: f.manual.settingsUrl });
+        done.push(`${f.label}: ${g.by === "calhack" ? "CalHack did it on screen" : `the person ${g.result === "done" ? "did it" : "skipped it"}`}`);
       }
       wait = Math.max(wait, f.waitAfterMs);
     }
@@ -540,7 +643,6 @@ const installApp: AgentTool = {
     const name = s(input, "app_name");
     const ok = await ctx.ui.confirm({ title: `Install ${name}?`, message: `I'll download ${name} from its maker's official website, check it's genuine, and install it. Your Mac will ask for your password.`, yes: "Yes, install", no: "Not now" });
     if (!ok) return "The person said no. Don't install.";
-    ctx.ui.buddy("top", "carry");
     const r = await ctx.mac.installOfficial(name);
     const refs = r.evidence.map((e) => addEvidence(ctx, e));
     if (r.ok) ctx.beforeAfter.push({ label: name, before: "Not installed", after: "Installed" });
@@ -585,7 +687,6 @@ const trashFiles: AgentTool = {
         return "The person didn't confirm. Nothing was moved.";
       }
     }
-    ctx.ui.buddy("dock", "carry");
     let moved = 0;
     const failed: string[] = [];
     for (const f of safe) {
@@ -623,7 +724,6 @@ const runCommand: AgentTool = {
         if (!ok) return "The person said no. Not run.";
       }
     }
-    ctx.ui.buddy("work", "type");
     const r = await ctx.mac.execute(command);
     for (const l of r.log ?? []) ctx.ui.detail(l, true);
     const ref = addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 4) });
@@ -636,13 +736,15 @@ const runCommand: AgentTool = {
 const guidePerson: AgentTool = {
   name: "guide_person",
   kind: "talk",
-  description: "Only when macOS doesn't allow a tool to do it (e.g. giving an app camera/microphone permission, signing in, a password-protected setting): show the person one simple thing to click. The buddy points at it. Returns whether they did it.",
+  description: "For a step that is still incomplete and only a click on screen can finish (e.g. adding a printer in Settings, choosing an option in an app). CalHack opens the page and then looks at the screen every few seconds and does the clicks itself. Anything private (permissions, passwords, sign-in, payments, deleting) it hands to the person, who is shown what to click. Returns who did it.",
   input_schema: obj({ instruction: str("One short, plain instruction"), click_target: strOrNull("The exact on-screen label to click, or null"), settings_url: strOrNull("An x-apple.systempreferences: link that opens the right page, or null") }),
-  label: () => "Showing you where to click…",
+  label: () => "Asking you to click something…",
   async run(input, ctx) {
     const url = s(input, "settings_url");
-    const r = await ctx.ui.guide({ instruction: s(input, "instruction"), clickTarget: s(input, "click_target") || undefined, settingsUrl: /^x-apple\.systempreferences:[A-Za-z0-9._\-?=&]+$/.test(url) ? url : undefined });
-    return r === "done" ? "The person says they did it. Check it worked if you can." : "The person skipped it.";
+    const g = await finishOnScreen(ctx, { instruction: s(input, "instruction"), clickTarget: s(input, "click_target") || undefined, settingsUrl: SETTINGS_URL.test(url) ? url : undefined });
+    const steps = g.trail.length ? ` (${g.trail.join("; ")})` : "";
+    if (g.result === "skip") return `The person skipped it${steps}.`;
+    return g.by === "calhack" ? `CalHack did it on the screen${steps}. The last screen check is in the evidence; still check it worked with a tool.` : `The person says they did it${steps}. Check it worked if you can.`;
   },
 };
 
@@ -671,7 +773,6 @@ const explainIrreversible: AgentTool = {
   }),
   label: () => "Explaining something important…",
   async run(input, ctx) {
-    ctx.ui.buddy("bar", "stop");
     const what = s(input, "what");
     ctx.ui.say("Wait. This one can't be undone, so I won't do it myself.");
     const choice = await ctx.ui.ask(
@@ -719,7 +820,7 @@ const finish: AgentTool = {
 
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
-  quitApp, openApp, trashApp, setVolume, setSoundOutput, fixProblem, installApp, trashFiles, runCommand,
+  quitApp, openApp, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, fixProblem, installApp, trashFiles, runCommand,
   guidePerson, askPerson, explainIrreversible, finish,
 ];
 

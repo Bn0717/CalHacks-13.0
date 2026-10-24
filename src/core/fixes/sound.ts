@@ -103,10 +103,12 @@ const fixes: FixDef[] = [
     command: () => `osascript -e 'set volume output volume ${FIX_VOLUME}'`,
   },
   {
-    // macOS doesn't let a command pick the output device, so we point at the switch.
+    // No shell command picks the output device, but CalHack's own audio helper does (the "sound-output" recipe).
+    // The manual instructions are only the fallback if that fails.
     id: "pick-output",
-    label: "Pick where sound plays (I'll show you where)",
+    label: "Pick where sound plays",
     applies: (f) => bool(f, "outputOdd") || (bool(f, "outputBluetooth") && !bool(f, "muted") && !isLow(f)),
+    recipe: "sound-output",
     manual: {
       clickTarget: "Output",
       settingsUrl: SOUND_SETTINGS,

@@ -3,7 +3,7 @@
 import { assessCommand } from "./risk.js";
 import { runAsAdmin, runNormally, runSandboxed, type ExecResult } from "./exec.js";
 import { downloadAndVerify } from "./download.js";
-import { realRecipeDeps, recipeKey, runRecipe, type RecipeDeps } from "./recipes.js";
+import { realRecipeDeps, recipeKey, recipeNormal, runRecipe, type RecipeDeps } from "./recipes.js";
 import type { Evidence, PlannedStep, StepResult } from "./types.js";
 
 export interface RunHooks {
@@ -14,6 +14,11 @@ export interface RunHooks {
    * `note` says why we couldn't do it for them, when we tried.
    */
   waitForUser(planned: PlannedStep, note?: string): Promise<"done" | "skip">;
+  /**
+   * Before asking the person: look at the screen and do the clicks ourselves. Private parts still go to the person.
+   * `handled` = the step was finished or the person did/skipped it (so don't ask again).
+   */
+  tryOnScreen?(planned: PlannedStep, note?: string): Promise<{ handled: "done" | "skip" | false; evidence: Evidence[]; note?: string }>;
   /** A short progress line, e.g. "Checking if it's already done…". */
   progress?(planned: PlannedStep, message: string): void;
 }
@@ -95,7 +100,7 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
     if (earlier?.ok) return result({ status: "done", message: `Done together with step ${earlier.stepId}.` });
     if (!earlier) {
       say(recipe.label + "…");
-      const deps = options.recipeDeps ?? { ...realRecipeDeps, normal: execute };
+      const deps = options.recipeDeps ?? { ...realRecipeDeps, normal: recipeNormal(execute) };
       const outcome = await runRecipe(recipe, deps);
       options.recipesTried?.set(key, { stepId: id, ok: outcome.ok });
       evidence.push(...outcome.evidence);
@@ -106,8 +111,18 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
     }
   }
   if (step.kind === "manual") {
-    say("Waiting for you…");
-    const answer = await hooks.waitForUser(planned, note);
+    let answer: "done" | "skip" | undefined;
+    if (hooks.tryOnScreen) {
+      say("Doing it for you…");
+      const t = await hooks.tryOnScreen(planned, note);
+      evidence.push(...t.evidence);
+      if (t.handled) answer = t.handled;
+      else note = t.note ?? note;
+    }
+    if (!answer) {
+      say("Waiting for you…");
+      answer = await hooks.waitForUser(planned, note);
+    }
     if (answer === "skip") return result({ status: "skipped", message: "You skipped this step." });
   } else if (step.kind === "download" && step.url) {
     if (!(await hooks.approve(planned, `Download ${step.url}`))) {
@@ -121,7 +136,7 @@ export async function runPlannedStep(planned: PlannedStep, hooks: RunHooks, opti
         return result({ status: "failed", message: `Downloaded to ${dl.path}, but we stopped there. ${dl.signature.summary}` });
       }
       const open = await hooks.approve(planned, `Open ${dl.path}? ${dl.signature.summary}`);
-      if (open) await runNormally(`open ${JSON.stringify(dl.path)}`, 30_000);
+      if (open) await execute(`open ${JSON.stringify(dl.path)}`, 30_000);
       return result({ status: open ? "waiting-for-user" : "done-unverified", message: `Downloaded and checked. ${dl.signature.summary}${open ? " The installer is open; follow its steps." : ""}` });
     } catch (err) {
       return result({ status: "failed", message: `The download didn't work: ${(err as Error).message}` });

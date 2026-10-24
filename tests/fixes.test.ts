@@ -307,10 +307,10 @@ describe("sound", () => {
     expect(buildFixes(d).map((f) => (f.kind === "command" ? f.command : f.kind))).toEqual(["osascript -e 'set volume output volume 50'"]);
   });
 
-  it("points at Sound settings when sound goes to a screen", async () => {
+  it("does it itself (falling back to Sound settings) when sound goes to a screen", async () => {
     const d = await diagnose(soundGuide, fakeRun({ osascript: { output: VOL_HDMI }, system_profiler: { output: audio("DELL U2720Q", "DisplayPort") } }).run);
     expect(d.problem).toBe("Sound is going to “DELL U2720Q”, which may not have speakers.");
-    expect(buildFixes(d)).toMatchObject([{ id: "pick-output", kind: "manual", manual: { clickTarget: "Output", settingsUrl: "x-apple.systempreferences:com.apple.Sound-Settings.extension" } }]);
+    expect(buildFixes(d)).toMatchObject([{ id: "pick-output", kind: "recipe", recipe: "sound-output", manual: { clickTarget: "Output", settingsUrl: "x-apple.systempreferences:com.apple.Sound-Settings.extension" } }]);
     expect(d.status[1]).toEqual({ label: "Volume", value: "Set on the speaker itself" });
   });
 

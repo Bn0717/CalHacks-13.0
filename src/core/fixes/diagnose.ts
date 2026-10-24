@@ -124,7 +124,7 @@ export function fixLabel(fix: FixDef, facts: Facts): string {
 /** A fix ready to show and run. */
 export type BuiltFix =
   | { id: string; kind: "command"; label: string; command: string; admin: boolean; assessment: Assessment; waitAfterMs: number }
-  | { id: string; kind: "recipe"; label: string; recipe: "add-printer"; waitAfterMs: number }
+  | { id: string; kind: "recipe"; label: string; recipe: "add-printer" | "sound-output"; manual?: FixDef["manual"]; waitAfterMs: number }
   | { id: string; kind: "manual"; label: string; manual: NonNullable<FixDef["manual"]>; waitAfterMs: number };
 
 /**
@@ -134,7 +134,7 @@ export type BuiltFix =
 export function buildFix(fix: FixDef, facts: Facts): BuiltFix | null {
   const label = fixLabel(fix, facts);
   const waitAfterMs = fix.waitAfterMs ?? 0;
-  if (fix.recipe) return { id: fix.id, kind: "recipe", label, recipe: fix.recipe, waitAfterMs };
+  if (fix.recipe) return { id: fix.id, kind: "recipe", label, recipe: fix.recipe, manual: fix.manual, waitAfterMs };
   if (fix.manual) return { id: fix.id, kind: "manual", label, manual: fix.manual, waitAfterMs };
   if (!fix.command) return null;
   let command: string;
