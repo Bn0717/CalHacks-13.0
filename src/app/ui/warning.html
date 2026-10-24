@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>CalHack warning</title>
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="warning.css">
+</head>
+<body>
+  <div class="card warn">
+    <div class="warn-body">
+      <div class="big">⛔ Stop! Don't paste that.</div>
+      <p>You just copied a command that looks dangerous. I swapped it out of your clipboard so it can't be pasted by accident.</p>
+      <ul class="reasons" id="reasons"></ul>
+      <details><summary>What you copied</summary><pre id="command"></pre></details>
+      <div class="row">
+        <button class="yes" id="ok">Keep me safe</button>
+        <button id="restore">I trust it, copy it back</button>
+      </div>
+    </div>
+  </div>
+  <script src="warning.js"></script>
+</body>
+</html>

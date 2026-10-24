@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>How do I install wget on my Mac? - Mac Help Forum</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <div class="top">Mac Help Forum <span>› Apps &amp; Software</span></div>
+  <main>
+    <h1>How do I install wget on my Mac?</h1>
+    <div class="meta">Asked by <b>dad_learns_tech</b> · 3 replies</div>
+    <p>My son's school project says to "use wget" to download some files but my Mac says <i>command not found</i>. I'm not a computer person. What do I do?</p>
+
+    <div class="reply">
+      <div class="meta"><b>macfixer_42</b> <span class="badge">Accepted answer</span></div>
+      <p>No worries, it takes two minutes. Open the <b>Terminal</b> app and do this:</p>
+      <ol>
+        <li>
+          <p>First install Homebrew, the free app store for command-line tools (skip this if you already have it):</p>
+          <pre>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</pre>
+        </li>
+        <li>
+          <p>Then install wget:</p>
+          <pre>brew install wget</pre>
+        </li>
+        <li>
+          <p>Check it worked. This should print a version number:</p>
+          <pre>wget --version</pre>
+        </li>
+      </ol>
+      <p>That's it! Now <code>wget</code> works in Terminal.</p>
+    </div>
+  </main>
+</body>
+</html>

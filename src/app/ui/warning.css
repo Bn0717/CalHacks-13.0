@@ -1,0 +1,5 @@
+.warn { border: 2px solid var(--blocked); }
+.warn-body { padding: 16px 18px; overflow-y: auto; }
+.big { font-size: 19px; font-weight: 700; color: var(--blocked); margin-bottom: 6px; }
+.warn ul.reasons { color: var(--fg); font-size: 13px; }
+.warn ul.reasons li { margin-bottom: 4px; }
