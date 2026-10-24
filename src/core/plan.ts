@@ -140,7 +140,8 @@ export function planSteps(steps: Step[], source: InstructionSource): Plan {
     if (assessment.outdated) reasons.push(assessment.outdated.reason);
 
     // A check command is only used when it is itself read-only.
-    const checkUsable = !!step.checkCommand && assessCommand(step.checkCommand).level === "safe";
+    const checkAssessment = step.checkCommand ? assessCommand(step.checkCommand) : null;
+    const checkUsable = !!checkAssessment && checkAssessment.level === "safe" && checkAssessment.readOnly && !checkAssessment.wrongPlatform;
 
     return { step, assessment, level, reasons: [...new Set(reasons)], inSource, checkUsable, needsReview, flags: runsSomething ? [...new Set(flags)] : [], recipe: pageWarnings.length ? undefined : recipeFor(step) };
   });

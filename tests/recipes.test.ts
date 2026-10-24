@@ -74,6 +74,16 @@ describe("opening an app", () => {
     expect(r).toMatchObject({ ok: true, message: "Zoom is open and running." });
     expect(ran[0]).toBe("open '/Applications/zoom.us.app'");
   });
+  it("does not claim a launch command proves the app is running", async () => {
+    const { deps } = fakeDeps({ pgrep: { code: 1, output: "" } });
+    const r = await runRecipe({ id: "open-app", label: "", app: "Zoom" }, deps);
+    expect(r.ok).toBe(true);
+    expect(r.message).toContain("couldn't verify");
+    expect(r.evidence.at(-1)).toMatchObject({ kind: "after", code: 1, outcome: "unknown" });
+    const p = planSteps([manual("Open Zoom")], { kind: "clipboard", text: "Open Zoom" }).steps[0];
+    const result = await runPlannedStep(p, { approve: async () => true, waitForUser: async () => "done" }, { recipeDeps: deps });
+    expect(result.status).toBe("done-unverified");
+  });
 });
 
 describe("running click steps", () => {
@@ -92,7 +102,9 @@ describe("running click steps", () => {
     const a = await runPlannedStep(plan.steps[0], hooks, opts);
     const b = await runPlannedStep(plan.steps[1], hooks, opts);
     expect(a.status).toBe("done");
-    expect(b.message).toBe("Done together with step 1.");
+    expect(b.message).toBe("Performed together with step 1.");
+    expect(b.status).toBe("done");
+    expect(b.evidence).toEqual(a.evidence);
     expect(asked).toBe(0);
   });
 

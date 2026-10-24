@@ -14,17 +14,18 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describeEnvironment, probeEnvironment, type Environment } from "../core/probe.js";
 import { applyAiConcerns, planSteps, type Plan } from "../core/plan.js";
-import { check, runPlannedStep, type Executor, type RunHooks } from "../core/runner.js";
+import { check, recheckPlannedStep, runPlannedStep, type Executor, type RunHooks } from "../core/runner.js";
 import { runNormally, runSandboxed } from "../core/exec.js";
 import { runSequence } from "../core/sequence.js";
 import { collectEvidence, type Receipt } from "../core/receipt.js";
 import { assessCommand } from "../core/risk.js";
 import { scanForScamSigns } from "../core/source.js";
-import { runRecipe } from "../core/recipes.js";
-import { installFromOfficial, knownInstaller } from "../core/install.js";
+import { runRecipe, type RecipeOutcome } from "../core/recipes.js";
+import { summarizeGoal, verifiedStep, verifyGoal, verifyInstalledApp } from "../core/verification.js";
+import { installFromOfficial, knownInstaller, realInstallDeps, type InstallResult } from "../core/install.js";
 import { checkOfficial } from "../core/official.js";
 import { buildFixes, diagnose, getGuide, guideMenu, realCheckRunner, verifyFix, type BuiltFix, type Diagnosis, type FixGuide } from "../core/fixes/index.js";
-import type { Evidence, InstructionSource, PlannedStep, Step, StepResult } from "../core/types.js";
+import type { GoalVerification, InstructionSource, PlannedStep, Step, StepResult } from "../core/types.js";
 import { reviewRun } from "../ai/review.js";
 import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
@@ -80,7 +81,9 @@ interface Job {
   useUpdated: Set<string>;
   useRecipe: Set<string>;
   results: Map<string, StepResult>;
-  recipesTried: Map<string, { stepId: string; ok: boolean }>;
+  recipesTried: Map<string, RecipeOutcome & { stepId: string }>;
+  installedAppPath?: string;
+  installationResult?: InstallResult;
   receipt: Receipt | null;
   beforeAfter: { label: string; before: string; after: string }[];
   /** Extra lines for "show what's happening", e.g. what Droid did while searching. */
@@ -750,7 +753,7 @@ function installLines(j: Job, runningId?: string): StepLine[] {
   const i = j.install!;
   return INSTALL_STEPS(i.appName, i.publisher, new URL(i.url).hostname).map((s) => {
     const r = j.results.get(s.id);
-    const status: StepLine["status"] = r ? (r.status === "done" ? "done" : r.status === "declined" ? "skipped" : "failed") : s.id === runningId ? "running" : "todo";
+    const status: StepLine["status"] = r ? (["done", "already-done", "done-unverified"].includes(r.status) ? verifiedStep(r) ? "done" : "unverified" : r.status === "declined" ? "skipped" : "failed") : s.id === runningId ? "running" : "todo";
     return { id: s.id, text: s.text, status, note: r && r.status !== "done" ? r.message : undefined };
   });
 }
@@ -865,13 +868,13 @@ async function runAll(): Promise<void> {
   running = true;
   stopRequested = false;
   j.receipt = null;
-  j.recipesTried.clear();
-  // "Try again" reruns what failed; everything that worked is kept.
-  for (const [id, r] of j.results) if (["failed", "declined", "skipped"].includes(r.status)) j.results.delete(id);
+  for (const [key, outcome] of j.recipesTried) if (!outcome.ok) j.recipesTried.delete(key);
+  // runSequence retains completed actions and refreshes their read-only checks first.
   say(j.mode === "fix" ? "Okay, I'm fixing it now." : "Okay, I'm on it.", "now");
   const hooks = runHooks(j);
   try {
     await runSequence(j.plan.steps, j.results, {
+      recheck: (p, previous) => recheckPlannedStep(p, previous, { recipesTried: j.recipesTried }),
       runOne: (p) => {
         stageStep(j, p);
         return runPlannedStep(p, hooks, {
@@ -907,7 +910,7 @@ async function finish(j: Job): Promise<void> {
   showBar({ phase: "looking", message: "Checking it worked…" });
   say("Let me check it worked.", "queue");
   buddyHome("scan");
-  let final: Evidence[] = [];
+  let verification: GoalVerification = summarizeGoal([], "No usable final goal check was supplied.");
   let goalMessage = j.parse?.finish?.message;
 
   if (j.mode === "fix" && j.guide && j.before) {
@@ -915,20 +918,13 @@ async function finish(j: Job): Promise<void> {
     if (wait) await sleep(Math.min(wait, 15_000));
     const v = await verifyFix(j.guide, realCheckRunner, j.before);
     j.beforeAfter = v.rows;
-    // Each check counts as passed only if it no longer finds a problem.
-    final = v.after.results.filter((r) => r.command).map((r) => ({ kind: "final" as const, command: r.command!, code: r.status === "problem" ? 1 : 0, output: r.detail }));
+    verification = v.goal;
     goalMessage = v.fixed ? `the problem is gone: ${v.rows.map((r) => `${r.label}: ${r.after}`).join(", ")}` : undefined;
     if (!v.fixed && v.stillWrong) j.extraDetail.push({ text: `Still wrong: ${v.stillWrong}` });
-  } else if (j.parse?.finish) {
-    const a = assessCommand(j.parse.finish.command);
-    if (a.level === "safe" && a.readOnly) {
-      const r = await runSandboxed(j.parse.finish.command).catch(() => null);
-      if (r) final = [{ kind: "final", command: j.parse.finish.command, code: r.code, output: r.output.trim().split("\n").slice(-6).join("\n") }];
-    }
-  }
+  } else verification = await verifyGoal(j.parse?.finish?.command);
 
-  const evidence = collectEvidence(j.plan.steps, j.results, final);
-  j.receipt = await reviewRun({ goal: j.goal, goalMessage, steps: j.plan.steps, results: j.results, evidence });
+  const evidence = collectEvidence(j.plan.steps, j.results, verification);
+  j.receipt = await reviewRun({ goal: j.goal, goalMessage, steps: j.plan.steps, results: j.results, evidence, verification });
   showDone(j);
 }
 
@@ -963,37 +959,56 @@ async function runInstall(j: Job): Promise<void> {
   const set = (id: string, r: Omit<StepResult, "id">) => j.results.set(id, { id, ...r });
   const line = (id: string, text: string) => showWorking(j, j.plan.steps.find((p) => p.step.id === id), text);
   try {
-    j.results.clear();
     j.receipt = null;
-    say(`Okay, I'm downloading ${appName} from ${publisher}'s official website.`, "now");
-    const top = screenTopCenter();
-    buddyTo(top.x, top.y, "carry");
-    line("1", `Downloading ${appName}…`);
-    const result = await installFromOfficial({ url, publisher, appName }, (stage, message) => {
-      if (stage === "check") set("1", { status: "done", message: "Downloaded." });
-      if (stage === "install") {
-        set("2", { status: "done", message: `Signed by ${publisher}.` });
-        say("Installing now. Your Mac will ask for your password.", "queue");
-        const d = dockSpot();
-        buddyTo(d.x, d.y - 10, "carry");
+    if (!j.installedAppPath || j.installationResult && !j.installationResult.ok) {
+      if (!j.installationResult?.actionCompleted) j.results.clear();
+      say(j.installationResult?.actionCompleted ? `Checking ${appName} again.` : `Okay, I'm downloading ${appName} from ${publisher}'s official website.`, "now");
+      const top = screenTopCenter();
+      buddyTo(top.x, top.y, "carry");
+      line(j.installationResult?.actionCompleted ? "3" : "1", j.installationResult?.actionCompleted ? `Checking ${appName}…` : `Downloading ${appName}…`);
+      const result = await installFromOfficial({ url, publisher, appName }, (stage, message) => {
+        if (stage === "check") set("1", { status: "done-unverified", actionCompleted: true, message: "Download finished." });
+        if (stage === "install") {
+          set("2", { status: "done-unverified", actionCompleted: true, message: `Signed by ${publisher}.` });
+          say("Installing now. Your Mac will ask for your password.", "queue");
+          const d = dockSpot();
+          buddyTo(d.x, d.y - 10, "carry");
+        }
+        line(stage === "download" ? "1" : stage === "check" ? "2" : "3", message);
+      }, realInstallDeps, j.installationResult);
+      j.installationResult = result;
+      j.installedAppPath = result.appPath;
+      if (!result.ok) {
+        const failedAt = j.results.has("2") ? "3" : j.results.has("1") ? "2" : "1";
+        set(failedAt, { status: /cancelled/i.test(result.message) ? "declined" : "failed", actionCompleted: result.actionCompleted, message: result.message, evidence: result.evidence });
+      } else {
+        const installed: StepResult = { id: "3", status: "done", actionCompleted: true, message: result.message, evidence: result.evidence };
+        if (!verifiedStep(installed)) installed.status = "done-unverified";
+        set("3", installed);
       }
-      line(stage === "download" ? "1" : stage === "check" ? "2" : "3", message);
-    });
-    if (!result.ok) {
-      const failedAt = j.results.has("2") ? "3" : j.results.has("1") ? "2" : "1";
-      set(failedAt, { status: /cancelled/i.test(result.message) ? "declined" : "failed", message: result.message, evidence: result.evidence });
     } else {
-      set("3", { status: "done", message: result.message, evidence: result.evidence });
-      line("4", `Opening ${appName}…`);
-      const appFile = basename(result.appPath ?? "", ".app") || appName;
-      const opened = await runRecipe({ id: "open-app", label: `Open ${appName}`, app: appFile });
-      set("4", { status: opened.ok ? "done" : "failed", message: opened.message, evidence: opened.evidence });
-      if (opened.ok) j.beforeAfter = [{ label: appName, before: "Not installed", after: "Installed and open" }];
+      const p = j.plan.steps.find((p) => p.step.id === "3");
+      if (p && j.results.has("3")) j.results.set("3", await recheckPlannedStep(p, j.results.get("3")!));
+    }
+    if (j.installedAppPath && j.installationResult?.ok && j.results.get("3")?.status === "done" && !stopRequested) {
+      if (!j.results.get("4")?.actionCompleted) {
+        line("4", `Opening ${appName}…`);
+        const appFile = basename(j.installedAppPath, ".app") || appName;
+        const opened = await runRecipe({ id: "open-app", label: `Open ${appName}`, app: appFile });
+        const opening: StepResult = { id: "4", status: opened.ok ? "done" : "failed", actionCompleted: opened.ok, message: opened.message, evidence: opened.evidence };
+        if (opened.ok && !verifiedStep(opening)) opening.status = "done-unverified";
+        set("4", opening);
+      } else {
+        const p = j.plan.steps.find((p) => p.step.id === "4");
+        if (p) j.results.set("4", await recheckPlannedStep(p, j.results.get("4")!));
+      }
     }
     showBar({ phase: "looking", message: "Checking it worked…" });
     const steps = j.plan.steps;
-    const evidence = collectEvidence(steps, j.results, null);
-    j.receipt = await reviewRun({ goal: j.goal, goalMessage: `${appName} is installed and opens`, steps, results: j.results, evidence });
+    const verification = j.installedAppPath ? await verifyInstalledApp(j.installedAppPath) : summarizeGoal([], "Installation did not reach final verification.");
+    if (verification.status === "passed") j.beforeAfter = [{ label: appName, before: "Not installed", after: "Installed and open" }];
+    const evidence = collectEvidence(steps, j.results, verification);
+    j.receipt = await reviewRun({ goal: j.goal, goalMessage: `${appName} is installed and opens`, steps, results: j.results, evidence, verification });
     showDone(j);
   } catch (error) {
     showError(friendlyError(error));

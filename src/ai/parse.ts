@@ -65,6 +65,7 @@ Rules:
 - One command per step, in the order the instructions give them. Leave out the shell prompt ("$ ").
 - Use kind "download" for a file the person must download, "manual" for something they must click, open or do themselves (e.g. "Open Zoom", "Click Add Printer"), and "info" only for tips with nothing to do. Title manual "open the app" steps exactly "Open <App name>".
 - check_command must only read information (never install, write, delete or use the internet). Prefer simple checks: command -v, brew list, test -e, defaults read, system_profiler, lpstat -p.
+- Checks must test the specific requested outcome. A command merely listing information is not a passing predicate: use its output to test the desired state. Never use unconditional success or suppress a failed predicate with || true. finish_check must prove the whole requested goal, not only a prerequisite. Return null when that cannot be checked.
 - Look at the computer description: if a step is for Windows or Linux, or needs something this Mac doesn't have, say so in concerns.
 - Be honest in risk_opinion and concerns. Commands that download and run code, hide what they do, turn off security features, or ask for passwords are "blocked".
 - Write explanations in plain, friendly English with no jargon. Keep every sentence short.

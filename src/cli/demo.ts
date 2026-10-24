@@ -7,15 +7,16 @@ import { fetchPageText, fileText } from "../mac/text.js";
 import { describeEnvironment, probeEnvironment } from "../core/probe.js";
 import { applyAiConcerns, planSteps } from "../core/plan.js";
 import { runPlannedStep, type Executor } from "../core/runner.js";
-import { runNormally, runSandboxed } from "../core/exec.js";
+import { runNormally } from "../core/exec.js";
+import { verifyGoal } from "../core/verification.js";
 import { runSequence } from "../core/sequence.js";
 import { collectEvidence } from "../core/receipt.js";
-import { assessCommand } from "../core/risk.js";
 import { reviewRun } from "../ai/review.js";
 import { droidProblem, runWithDroid } from "../droid/executor.js";
 import { friendlyError, hasApiKey } from "../ai/client.js";
 import { parseInstructions } from "../ai/parse.js";
-import type { Evidence, InstructionSource, PlannedStep, StepResult } from "../core/types.js";
+import type { InstructionSource, PlannedStep, StepResult } from "../core/types.js";
+import type { RecipeOutcome } from "../core/recipes.js";
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith("--")) ?? "http://localhost:4321/install-wget.html";
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
     return { ...(await runNormally(command, timeoutMs)), ranBy: "calhack" };
   };
   const results = new Map<string, StepResult>();
-  const recipesTried = new Map<string, { stepId: string; ok: boolean }>();
+  const recipesTried = new Map<string, RecipeOutcome & { stepId: string }>();
   await runSequence(plan.steps, results, {
     runOne: (p) =>
       runPlannedStep(
@@ -99,14 +100,9 @@ async function main(): Promise<void> {
   rl.close();
 
   console.log("\n— Receipt —");
-  let final: Evidence | null = null;
-  const a = parsed.finish ? assessCommand(parsed.finish.command) : null;
-  if (parsed.finish && a?.level === "safe" && a.readOnly) {
-    const r = await runSandboxed(parsed.finish.command);
-    final = { kind: "final", command: parsed.finish.command, code: r.code, output: r.output.trim().slice(-400) };
-  }
-  const evidence = collectEvidence(plan.steps, results, final);
-  const receipt = await reviewRun({ goal: parsed.goal, goalMessage: parsed.finish?.message, steps: plan.steps, results, evidence });
+  const verification = await verifyGoal(parsed.finish?.command);
+  const evidence = collectEvidence(plan.steps, results, verification);
+  const receipt = await reviewRun({ goal: parsed.goal, goalMessage: parsed.finish?.message, steps: plan.steps, results, evidence, verification });
   console.log(`${receipt.verdict === "done" ? "✅" : receipt.verdict === "not-done" ? "❌" : "⚠️"} ${receipt.headline}`);
   for (const p of receipt.proofs) console.log(`   ✔ ${p.claim}   (proof: ${p.evidence.map((e) => `${e.ref} \`${e.command}\``).join(", ")})`);
   for (const p of receipt.problems) console.log(`   • ${p}`);

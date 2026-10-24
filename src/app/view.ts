@@ -3,11 +3,12 @@
 import type { Receipt } from "../core/receipt.js";
 import type { PlannedStep, StepResult, StepStatus } from "../core/types.js";
 import type { DetailLine, Note, ReceiptView, StepLine } from "./protocol.js";
+import { verifiedStep } from "../core/verification.js";
 
 const LINE: Record<StepStatus, StepLine["status"]> = {
   "already-done": "done",
   done: "done",
-  "done-unverified": "done",
+  "done-unverified": "unverified",
   failed: "failed",
   blocked: "blocked",
   skipped: "skipped",
@@ -18,6 +19,7 @@ const LINE: Record<StepStatus, StepLine["status"]> = {
 
 const NOTE: Partial<Record<StepStatus, string>> = {
   "already-done": "Already done",
+  "done-unverified": "Ran, not verified",
   blocked: "Not safe, skipped",
   declined: "You said no",
   "not-for-this-computer": "Not for this Mac",
@@ -28,8 +30,8 @@ export function stepLines(steps: PlannedStep[], results: Map<string, StepResult>
     .filter((p) => p.step.kind !== "info")
     .map((p) => {
       const r = results.get(p.step.id);
-      const status: StepLine["status"] = r ? LINE[r.status] : p.step.id === runningId ? "running" : p.level === "blocked" ? "blocked" : "todo";
-      const note = r ? (NOTE[r.status] ?? (r.status === "failed" ? r.message : undefined)) : p.level === "blocked" ? "Not safe, will skip" : undefined;
+      const status: StepLine["status"] = r ? (["done", "already-done"].includes(r.status) && !verifiedStep(r) ? "unverified" : LINE[r.status]) : p.step.id === runningId ? "running" : p.level === "blocked" ? "blocked" : "todo";
+      const note = status === "unverified" ? "Ran, not verified" : r ? (NOTE[r.status] ?? (["failed", "skipped", "waiting-for-user"].includes(r.status) ? r.message : undefined)) : p.level === "blocked" ? "Not safe, will skip" : undefined;
       return { id: p.step.id, text: p.step.title, status, note };
     });
 }
@@ -86,7 +88,7 @@ export function detailLines(steps: PlannedStep[], results: Map<string, StepResul
     if (p.step.command) out.push({ stepId: p.step.id, text: p.step.command, mono: true });
     if (r?.ranBy) out.push({ stepId: p.step.id, text: r.ranBy === "droid" ? "Run by Droid" : "Run by CalHack" });
     for (const l of r?.log ?? []) out.push({ stepId: p.step.id, text: l, mono: true });
-    for (const e of r?.evidence ?? []) out.push({ stepId: p.step.id, text: `${e.code === 0 ? "✔" : "✘"} ${e.command}`, mono: true });
+    for (const e of r?.evidence ?? []) out.push({ stepId: p.step.id, text: `${e.kind === "run" ? e.code === 0 ? "Command exited successfully" : "Command failed" : e.outcome === "passed" ? "Outcome check passed" : e.outcome === "failed" ? "Outcome check failed" : "Outcome not verified"} (exit ${e.code}): ${e.command}`, mono: true });
   }
   return out;
 }

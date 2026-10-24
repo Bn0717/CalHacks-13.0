@@ -125,15 +125,28 @@ export type StepStatus =
 export interface Evidence {
   /** "before" = already done?, "after" = did it work?, "run" = the step itself, "final" = the goal check. */
   kind: "before" | "after" | "run" | "final";
+  /** An interpreted outcome, never inferred from an action's exit code. */
+  outcome?: "passed" | "failed" | "unknown";
+  /** Distinguishes predicates that interpret the same command differently. */
+  checkId?: string;
   command: string;
   code: number;
   /** The last part of the output. */
   output: string;
 }
 
+export interface GoalVerification {
+  status: "passed" | "failed" | "unknown";
+  checks: Evidence[];
+  reason?: string;
+}
+
 export interface StepResult {
   id: string;
   status: StepStatus;
+  skipReason?: "information" | "user" | "obsolete" | "option-failed" | "alternative-verified" | "awaiting-verification";
+  /** A completed action is retained on retry, even when its outcome check failed. */
+  actionCompleted?: boolean;
   /** One plain-English line about what happened. */
   message: string;
   /** The last part of the command's output, for troubleshooting. */

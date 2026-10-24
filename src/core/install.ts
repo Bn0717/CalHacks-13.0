@@ -8,6 +8,7 @@ import { basename, join } from "node:path";
 import { checkSignature, downloadAndVerify, DOWNLOAD_FOLDER, type DownloadResult } from "./download.js";
 import { runAsAdmin, runNormally, runSandboxed, type ExecResult } from "./exec.js";
 import type { Evidence } from "./types.js";
+import { runOutcomeCheck } from "./verification.js";
 
 export interface InstallRequest {
   /** Direct installer address on the maker's own site (.pkg or .dmg). */
@@ -24,6 +25,8 @@ export interface InstallProgress {
 
 export interface InstallResult {
   ok: boolean;
+  /** Installation completed; retries must only recheck its outcome. */
+  actionCompleted?: boolean;
   /** One plain line, e.g. "Zoom is installed." or why it stopped. */
   message: string;
   appPath?: string;
@@ -133,7 +136,8 @@ export function findInstalledApp(before: Map<string, number>, after: Map<string,
   return byName(changed) ?? changed[0] ?? byName([...after.keys()]);
 }
 
-export async function installFromOfficial(req: InstallRequest, onProgress: InstallProgress = () => {}, deps: InstallDeps = realInstallDeps): Promise<InstallResult> {
+export async function installFromOfficial(req: InstallRequest, onProgress: InstallProgress = () => {}, deps: InstallDeps = realInstallDeps, previous?: InstallResult): Promise<InstallResult> {
+  if (previous?.actionCompleted) return verifyInstallation(req, deps.apps(), [...previous.evidence], previous.signer, onProgress, deps, previous.appPath);
   const evidence: Evidence[] = [];
   const lower = new URL(req.url).pathname.toLowerCase();
   const kind = lower.endsWith(".pkg") ? "pkg" : lower.endsWith(".dmg") ? "dmg" : null;
@@ -197,16 +201,22 @@ export async function installFromOfficial(req: InstallRequest, onProgress: Insta
     }
   }
 
-  // 3. Check it's really there and signed.
+  return verifyInstallation(req, before, evidence, sig.signer, onProgress, deps);
+}
+
+/** Read-only, and safe to repeat after an installer finished without conclusive proof. */
+async function verifyInstallation(req: InstallRequest, before: Map<string, number>, evidence: Evidence[], signer: string | undefined, onProgress: InstallProgress, deps: InstallDeps, knownPath?: string): Promise<InstallResult> {
   onProgress("verify", `Checking ${req.appName} is installed…`);
-  const appPath = findInstalledApp(before, deps.apps(), req.appName);
-  if (!appPath) return { ok: false, message: `The installer finished, but I can't find ${req.appName} in Applications.`, evidence, signer: sig.signer };
-  const there = `test -d ${q(appPath)}`;
-  const t = await deps.sandboxed(there);
-  evidence.push({ kind: "after", command: there, code: t.code, output: "" });
-  const verify = `codesign --verify ${q(appPath)}`;
-  const v = await deps.sandboxed(verify);
-  evidence.push({ kind: "after", command: verify, code: v.code, output: tail(v.output) });
-  if (t.code !== 0) return { ok: false, message: `I can't find ${req.appName} in Applications.`, evidence, signer: sig.signer };
-  return { ok: true, message: `${req.appName} is installed${v.code === 0 ? " and its signature checks out" : ""}.`, appPath, signer: sig.signer, evidence };
+  const appPath = knownPath ?? findInstalledApp(before, deps.apps(), req.appName);
+  if (!appPath) return { ok: false, actionCompleted: true, message: `The installer finished, but I can't find ${req.appName} in Applications.`, evidence, signer };
+  const there = await runOutcomeCheck(`test -d ${q(appPath)}`, "after", deps.sandboxed);
+  there.checkId = "app-present";
+  const signature = await runOutcomeCheck(`codesign --verify ${q(appPath)}`, "after", deps.sandboxed);
+  signature.checkId = "app-signature";
+  evidence.push(there, signature);
+  const ok = there.outcome === "passed" && signature.outcome === "passed";
+  const message = there.outcome !== "passed" ? `The installer finished; I couldn't verify ${req.appName} is in Applications.`
+    : signature.outcome !== "passed" ? `${req.appName} is present, but its installed signature could not be verified.`
+    : `${req.appName} is installed and its signature checks out.`;
+  return { ok, actionCompleted: true, message, appPath, signer, evidence };
 }

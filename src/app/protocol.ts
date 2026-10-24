@@ -51,7 +51,7 @@ export interface StepLine {
   id: string;
   /** Plain words, e.g. "Download Zoom from zoom.us, Zoom's own website". Never a raw command. */
   text: string;
-  status: "todo" | "running" | "done" | "skipped" | "blocked" | "failed" | "waiting";
+  status: "todo" | "running" | "done" | "unverified" | "skipped" | "blocked" | "failed" | "waiting";
   /** Short reason when skipped/blocked/failed. */
   note?: string;
 }

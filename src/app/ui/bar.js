@@ -567,18 +567,18 @@
     return el("span", { class: "mark pending", role: "img", "aria-label": "Not checked yet" });
   }
 
-  const STEP_TAG = { skipped: ["Skipped", ""], blocked: ["Won't do", "bad"], failed: ["Didn't work", "bad"], done: ["Done", ""] };
+  const STEP_TAG = { skipped: ["Skipped", ""], blocked: ["Won't do", "bad"], failed: ["Didn't work", "bad"], unverified: ["Ran, not verified", ""], done: ["Done", ""] };
   function stepList(steps) {
     return el("ol", { class: "steps" }, steps.map((st, i) => {
       const off = st.status === "skipped" || st.status === "blocked";
       const bad = st.status === "blocked" || st.status === "failed";
       const tag = STEP_TAG[st.status];
       return el("li", { class: "step" + (off ? " is-off" : "") + (bad ? " is-bad" : "") },
-        st.status === "done" ? el("span", { class: "mark ok", "aria-label": "Done" }, icon("check")) : el("span", { class: "step-num", "aria-hidden": "true" }, String(i + 1)),
+        st.status === "done" ? el("span", { class: "mark ok", "aria-label": "Done" }, icon("check")) : st.status === "unverified" ? el("span", { class: "mark unknown", role: "img", "aria-label": "Ran, not verified" }, icon("question")) : el("span", { class: "step-num", "aria-hidden": "true" }, String(i + 1)),
         el("div", { class: "step-text" },
           st.text,
           tag && st.status !== "done" ? el("span", { class: "tag " + tag[1] }, tag[0]) : null,
-          st.note ? el("span", { class: "step-note" }, st.note) : null,
+          st.note && st.note !== tag?.[0] ? el("span", { class: "step-note" }, st.note) : null,
         ),
       );
     }));

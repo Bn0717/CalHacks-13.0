@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { findInstalledApp, installFromOfficial, signerMatches, stagePackage, type InstallDeps } from "../src/core/install.js";
 
 const ok = (output = "") => ({ code: 0, output, timedOut: false });
@@ -51,6 +51,37 @@ describe("installing from the official site", () => {
     const r = await installFromOfficial({ url: "https://zoom.us/x/Zoom.pkg", publisher: "Zoom", appName: "Zoom" }, undefined, other.d);
     expect(r.message).toMatch(/not Zoom/);
     expect(other.ran).toEqual([]);
+  });
+  it("retries discovery and verification without reinstalling after the installer succeeded", async () => {
+    let visible = false;
+    const { d, ran } = deps("Developer ID Installer: Zoom", {
+      apps: () => new Map(visible ? [["/Applications/zoom.us.app", 2]] : []),
+    });
+    const download = vi.spyOn(d, "download");
+    const request = { url: "https://zoom.us/Zoom.pkg", publisher: "Zoom", appName: "Zoom" };
+    const first = await installFromOfficial(request, undefined, d);
+    expect(first).toMatchObject({ ok: false, actionCompleted: true });
+    visible = true;
+    const second = await installFromOfficial(request, undefined, d, first);
+    expect(second).toMatchObject({ ok: true, actionCompleted: true, appPath: "/Applications/zoom.us.app" });
+    expect(download).toHaveBeenCalledOnce();
+    expect(ran.filter((c) => c.startsWith("admin:"))).toHaveLength(1);
+    expect(second.evidence.filter((e) => e.kind === "after").every((e) => e.outcome === "passed")).toBe(true);
+  });
+  it("does not accept an unavailable installed signature and can recheck it without reinstalling", async () => {
+    let signatureReady = false;
+    const { d, ran } = deps("Developer ID Installer: Zoom", {
+      sandboxed: async (command) => command.startsWith("codesign") && !signatureReady ? { code: 0, output: "partial", timedOut: true } : ok(),
+    });
+    const request = { url: "https://zoom.us/Zoom.pkg", publisher: "Zoom", appName: "Zoom" };
+    const first = await installFromOfficial(request, undefined, d);
+    expect(first).toMatchObject({ ok: false, actionCompleted: true });
+    expect(first.evidence.at(-1)).toMatchObject({ code: 0, outcome: "unknown" });
+    signatureReady = true;
+    const second = await installFromOfficial(request, undefined, d, first);
+    expect(second.ok).toBe(true);
+    expect(ran.filter((c) => c.startsWith("admin:"))).toHaveLength(1);
+    expect(second.evidence.at(-1)?.outcome).toBe("passed");
   });
 });
 
