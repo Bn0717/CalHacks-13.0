@@ -675,6 +675,19 @@
 
   const synth = window.speechSynthesis || null;
   const speech = { queue: [], current: null, timer: 0, speaking: false, voice: null, muted: false };
+  let heartAudio = null;
+  let heartUrl = null;
+  function stopHeart() {
+    if (heartAudio) {
+      heartAudio.onended = null;
+      heartAudio.onerror = null;
+      heartAudio.pause();
+      heartAudio.removeAttribute("src");
+      heartAudio = null;
+    }
+    if (heartUrl) URL.revokeObjectURL(heartUrl);
+    heartUrl = null;
+  }
   try { speech.muted = localStorage.getItem("calhack.muted") === "1"; } catch { /* no storage */ }
 
   // Silly or robotic macOS voices we never want.
@@ -683,6 +696,10 @@
     if (!synth) return null;
     const voices = synth.getVoices().filter((v) => /^en([-_]|$)/i.test(v.lang));
     if (!voices.length) return null;
+    // Electron's default can differ from the voice selected in macOS settings.
+    // Only voices exposed by speechSynthesis are usable here.
+    const systemVoice = voices.find((v) => v.default && !NOVELTY.test(v.name));
+    if (systemVoice) return systemVoice;
     const score = (v) => {
       let s = 0;
       if (/premium/i.test(v.name)) s += 100;
@@ -723,6 +740,7 @@
       speech.queue.length = 0;
       const wasTalking = !!speech.current;
       speech.current = null;
+      stopHeart();
       clearTimeout(speech.timer);
       if (synth && wasTalking) {
         try { synth.cancel(); } catch { /* ignore */ }
@@ -737,7 +755,8 @@
     if (!speech.current) next();
   }
 
-  function next() {
+  async function next() {
+    stopHeart();
     clearTimeout(speech.timer);
     const item = speech.queue.shift();
     speech.current = item || null;
@@ -749,8 +768,32 @@
     showCaption(item.text);
     const finish = () => { if (!item.cancelled && speech.current === item) next(); };
 
-    if (speech.muted || !synth || typeof SpeechSynthesisUtterance !== "function") {
+    if (speech.muted) {
       // Captions only: give people time to read before the next one.
+      setSpeaking(false);
+      speech.timer = setTimeout(finish, Math.max(1800, item.text.length * 65));
+      return;
+    }
+    if (typeof api.synthesize === "function") {
+      try {
+        const base64 = await api.synthesize(item.text);
+        if (speech.current !== item || item.cancelled || speech.muted) return;
+        const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        heartUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        const audio = new Audio(heartUrl);
+        heartAudio = audio;
+        audio.onended = finish;
+        audio.onerror = finish;
+        await audio.play();
+        if (speech.current === item && !item.cancelled) setSpeaking(true);
+        return;
+      } catch (error) {
+        if (speech.current !== item || item.cancelled || speech.muted) return;
+        stopHeart();
+        console.warn("Kokoro unavailable; using system speech:", error);
+      }
+    }
+    if (!synth || typeof SpeechSynthesisUtterance !== "function") {
       setSpeaking(false);
       speech.timer = setTimeout(finish, Math.max(1800, item.text.length * 65));
       return;
@@ -775,6 +818,7 @@
   }
 
   function stopSpeech(clear) {
+    stopHeart();
     speech.queue.length = 0;
     speech.current = null;
     clearTimeout(speech.timer);
@@ -803,6 +847,7 @@
       // Stop the voice, keep the caption on screen.
       const keep = speech.current;
       keep.cancelled = true; // ignore the "end" that cancel() fires
+      stopHeart();
       clearTimeout(speech.timer);
       try { synth && synth.cancel(); } catch { /* ignore */ }
       setSpeaking(false);

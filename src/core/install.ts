@@ -2,7 +2,7 @@
 // the address was verified as the maker's own site (src/core/official.ts), the file is signed,
 // and the signer is the same company. Every command here is built by our code, never by the AI.
 // .pkg installers run with the macOS password box; .dmg apps are copied into Applications.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { checkSignature, downloadAndVerify, DOWNLOAD_FOLDER, type DownloadResult } from "./download.js";
@@ -36,6 +36,7 @@ export interface InstallDeps {
   admin(command: string): Promise<ExecResult>;
   normal(command: string): Promise<ExecResult>;
   sandboxed(command: string): Promise<ExecResult>;
+  stagePackage(path: string): { path: string; cleanup(): void };
   apps(): Map<string, number>; // app bundle path → modified time
 }
 
@@ -90,7 +91,21 @@ function listApps(): Map<string, number> {
   return out;
 }
 
+/** Administrator processes may not have access to the user's protected Downloads folder. */
+export function stagePackage(path: string): { path: string; cleanup(): void } {
+  const dir = mkdtempSync(join(tmpdir(), "calhack-install-"));
+  const staged = join(dir, "installer.pkg");
+  try {
+    copyFileSync(path, staged);
+  } catch (error) {
+    rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+  return { path: staged, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
 export const realInstallDeps: InstallDeps = {
+  stagePackage,
   download: downloadOrCached,
   admin: (c) => runAsAdmin(c, 15 * 60_000),
   normal: (c) => runNormally(c, 15 * 60_000),
@@ -144,12 +159,22 @@ export async function installFromOfficial(req: InstallRequest, onProgress: Insta
   const before = deps.apps();
   onProgress("install", kind === "pkg" ? "Installing. Your Mac will ask for your password." : `Copying ${req.appName} into Applications…`);
   if (kind === "pkg") {
-    const command = `installer -pkg ${q(dl.path)} -target /`;
-    const r = await deps.admin(command);
-    evidence.push({ kind: "run", command: "sudo " + command, code: r.code, output: tail(r.output) });
-    if (r.code !== 0) {
-      if (/User cancell?ed|-128\)/i.test(r.output)) return { ok: false, message: "You cancelled the password box, so nothing was installed.", evidence, signer: sig.signer };
-      return { ok: false, message: "The installer didn't finish.", evidence, signer: sig.signer };
+    let staged: ReturnType<InstallDeps["stagePackage"]>;
+    try {
+      staged = deps.stagePackage(dl.path);
+    } catch (error) {
+      return { ok: false, message: `I couldn't prepare the installer: ${(error as Error).message}`, evidence, signer: sig.signer };
+    }
+    try {
+      const command = `/usr/sbin/installer -pkg ${q(staged.path)} -target /`;
+      const r = await deps.admin(command);
+      evidence.push({ kind: "run", command: "sudo " + command, code: r.code, output: tail(r.output) });
+      if (r.code !== 0) {
+        if (/User cancell?ed|-128\)/i.test(r.output)) return { ok: false, message: "You cancelled the password box, so nothing was installed.", evidence, signer: sig.signer };
+        return { ok: false, message: "The installer didn't finish.", evidence, signer: sig.signer };
+      }
+    } finally {
+      staged.cleanup();
     }
   } else {
     const mount = join(tmpdir(), `calhack-dmg-${Date.now()}`);

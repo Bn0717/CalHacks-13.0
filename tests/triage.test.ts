@@ -81,3 +81,17 @@ describe("triage", () => {
     expect(triageKey({ text: "my printer", guides: g })).not.toBe(triageKey({ text: "my sound", guides: g }));
   });
 });
+
+
+describe("removal requests", () => {
+  it("keeps the explicit removal goal even if the model says install", () => {
+    expect(cleanTriage({ ...base, kind: "search", goal: "Install Zoom", install_app: "Zoom" }, [], "uninstall Zoom"))
+      .toMatchObject({ kind: "search", goal: "uninstall Zoom" });
+    expect(cleanTriage({ ...base, kind: "search", goal: "Install Zoom", install_app: "Zoom" }, [], "uninstall Zoom"))
+      .not.toHaveProperty("installApp");
+  });
+  it("never routes a removal goal to the installer", () => {
+    const result = cleanTriage({ ...base, kind: "search", goal: "Remove Zoom", install_app: "Zoom" }, []);
+    expect(result.kind === "search" && result.installApp).toBeUndefined();
+  });
+});

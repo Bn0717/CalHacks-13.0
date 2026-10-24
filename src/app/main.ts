@@ -5,6 +5,9 @@
 // The helper bar (bottom-center) shows each moment, the buddy hops to where the work is, and a voice says what's happening.
 // Code decides what's safe. Droid (Factory) runs the approved commands. A separate Claude call writes the receipt.
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, session as electronSession, shell, systemPreferences, Tray } from "electron";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { findAppBundles, uninstallApp, uninstallRequest } from "../core/uninstall.js";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -33,6 +36,7 @@ import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
 import { describeSource, gatherInstructions } from "./gather.js";
 import { transcribe, voiceProblem } from "./voice-in.js";
+import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
 import { barLine, buddyHome, buddyPoint, buddyPose, buddyScanScreen, buddyTo, currentBar, dockSpot, ensureBar, focusBar, say, screenTopCenter, setBarRect, showBar, toBuddy } from "./windows.js";
@@ -298,6 +302,11 @@ async function onAnswer(text: string): Promise<void> {
       await searchFlow({ kind: "search", goal, query: goal + " on a Mac", say: "I'll look up the official help." });
       return;
     }
+    const removal = uninstallRequest(clean);
+    if (removal) {
+      await uninstallFlow(removal);
+      return;
+    }
     showBar({ phase: "looking", message: `“${clean}”. Let me think…` });
     buddyPose("think");
     const env = await getEnvironment();
@@ -317,9 +326,41 @@ async function route(t: Triage): Promise<void> {
     if (guide) return fixFlow(guide, t.say);
     return searchFlow({ kind: "search", goal: t.goal, query: t.goal, say: t.say });
   }
-  if (t.kind === "search") return searchFlow(t);
+  if (t.kind === "search") {
+    const removal = uninstallRequest(t.goal);
+    if (removal) return uninstallFlow(removal);
+    return searchFlow(t);
+  }
   if (t.kind === "clarify") return askWhat(t.question, t.suggestions.length ? t.suggestions : SUGGESTIONS);
   askWhat();
+}
+
+/** Direct requests authorize reversible removal; no researcher, page, or manual steps. */
+async function uninstallFlow(name: string): Promise<void> {
+  job = null;
+  running = true;
+  buddyHome("carry");
+  say(`I'll remove ${name} from Applications.`, "now");
+  try {
+    const result = await uninstallApp(name, {
+      find: findAppBundles,
+      exists: existsSync,
+      trash: (path) => shell.trashItem(path),
+      quit: async (path) => {
+        const literal = '"' + path.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+        // Checking `running` avoids launching the app just to close it.
+        const script = `with timeout of 15 seconds\nif application ${literal} is running then\ntell application ${literal} to quit\nrepeat 20 times\nif not (application ${literal} is running) then exit repeat\ndelay 0.25\nend repeat\nif application ${literal} is running then error "The app did not close, so it was not moved."\nend if\nend timeout`;
+        await promisify(execFile)("/usr/bin/osascript", ["-e", script], { timeout: 20_000 });
+      },
+    }, (message) => showBar({ phase: "looking", message }));
+    showBar({ phase: "done", receipt: {
+      verdict: result.ok ? "done" : "not-done", headline: result.message,
+      beforeAfter: [], proofs: result.ok && result.paths.length ? [{ claim: `${name} is no longer at its Applications location`, checks: result.paths.map((p) => `Confirmed absent: ${p}`) }] : [],
+      problems: result.ok ? [] : [result.message], reviewedBy: "rules",
+    }, steps: [], detail: [], canRetry: false, canSendSummary: false });
+    say(result.message, "now");
+    buddyHome(result.ok ? "celebrate" : "sad");
+  } finally { running = false; }
 }
 
 // ---------- Mode 1: follow the how-to on screen ----------
@@ -341,7 +382,7 @@ function newJob(mode: Job["mode"], goal: string, source: InstructionSource, plan
   };
 }
 
-async function instructionsFlow(source: InstructionSource, shot: Shot | null, sourceLabel?: string, extra: DetailLine[] = []): Promise<void> {
+async function instructionsFlow(source: InstructionSource, shot: Shot | null, sourceLabel?: string, extra: DetailLine[] = [], requestedGoal?: string): Promise<void> {
   showBar({ phase: "looking", message: `Reading ${describeSource(source)}…` });
   if (source.kind === "screenshot" && !shot) {
     askWhat("I couldn't read anything on your screen. What are you trying to do?");
@@ -350,6 +391,7 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
   const env = await getEnvironment();
   const parse = await parseInstructions({
     source,
+    requestedGoal,
     environment: describeEnvironment(env),
     screenshot: shot ? { data: shot.data, mediaType: shot.mediaType } : undefined,
     allowCache: true,
@@ -358,9 +400,13 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
     askWhat("I don't see any steps to follow here. What are you trying to do?");
     return;
   }
+  if (requestedGoal && /\b(uninstall|remove|delete)\b/i.test(requestedGoal) && parse.steps.some((s) => s.kind === "download")) {
+    showError("This page mixes removal with reinstalling. I couldn't isolate the removal steps, so I stopped without downloading anything.");
+    return;
+  }
   const plan = planSteps(parse.steps, source);
   applyAiConcerns(plan, parse.pageConcerns, parse.appliesToThisComputer);
-  const j = newJob("instructions", parse.goal, source, plan, sourceLabel ?? `From ${describeSource(source)}`);
+  const j = newJob("instructions", requestedGoal ?? parse.goal, source, plan, sourceLabel ?? `From ${describeSource(source)}`);
   j.parse = parse;
   j.extraDetail = extra;
 
@@ -378,7 +424,7 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
   const blocked = plan.steps.filter((p) => p.level === "blocked" && (p.step.kind === "command" || p.step.kind === "download")).length;
   const scam = plan.pageWarnings.some((w) => w.level === "blocked");
   if (scam) say("Careful. This page looks like a scam. I won't run anything from it.", "now");
-  else say(`Looks like you want to ${lower(parse.goal)}.${blocked ? " I'll skip a step that isn't safe." : ""} Ready when you are.`, "now");
+  else say(`Looks like you want to ${lower(j.goal)}.${blocked ? " I'll skip a step that isn't safe." : ""} Ready when you are.`, "now");
 }
 
 // ---------- Mode 2: fix a problem ----------
@@ -455,10 +501,7 @@ async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void>
     let url = page?.downloadUrl && checkOfficial(page).ok ? page.downloadUrl : null;
     const publisher = page?.publisher ?? known?.publisher ?? t.installApp;
     if (!url && known && checkOfficial({ url: known.url, downloadUrl: known.url, publisher: known.publisher, kind: "download" }).ok) url = known.url;
-    if (page) {
-      void shell.openExternal(page.url);
-      say(`Going to ${publisher}'s official website.`, "queue");
-    }
+
     if (!url) {
       showError(page ? `I opened ${publisher}'s official download page, but I couldn't find an installer link I trust. You can click Download there.` : `I couldn't find ${t.installApp}'s official website, so I stopped. I never download from other sites.`);
       return;
@@ -477,11 +520,10 @@ async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void>
     showError(`I found a page, but ${lower(verdict.reason)} So I stopped.`);
     return;
   }
-  void shell.openExternal(src.url);
-  say(`Going to ${src.publisher}'s official help page.`, "queue");
+  say(`Reading ${src.publisher}'s official help page.`, "queue");
   const text = await fetchPageText(src.url);
   const source: InstructionSource = { kind: "webpage", text, location: src.url, app: "CalHack" };
-  await instructionsFlow(source, null, `From ${verdict.host} (${src.publisher}'s official site)`, extra);
+  await instructionsFlow(source, null, `From ${verdict.host} (${src.publisher}'s official site)`, extra, t.goal);
 }
 
 const INSTALL_STEPS = (appName: string, publisher: string, host: string) => [
@@ -905,6 +947,10 @@ function watchClipboard(): void {
 
 // ---------- Messages from the windows ----------
 
+ipcMain.handle("voice-synthesize", (event, text: string) => {
+  if (event.sender !== ensureBar().webContents || event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted speech request");
+  return synthesize(ROOT, text);
+});
 ipcMain.on("bar-ok", () => void runAll());
 ipcMain.on("bar-retry", () => {
   if (job && !running) void runAll();
@@ -1041,7 +1087,7 @@ if (!app.requestSingleInstanceLock()) {
       }, 2500);
     }
   });
-  app.on("will-quit", () => globalShortcut.unregisterAll());
+  app.on("will-quit", () => { globalShortcut.unregisterAll(); stopVoiceOut(); });
   app.on("window-all-closed", () => {
     // Stay in the menu bar.
   });

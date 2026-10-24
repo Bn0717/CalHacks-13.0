@@ -39,6 +39,14 @@ cp .env.example .env          # then paste your key from console.anthropic.com
 
 ## Run
 
+For local speech with Kokoro's Heart (`af_heart`) voice, run `npm run voice:heart:setup`
+once, then restart CalHack. This installs an isolated Python runtime in `.kokoro/`
+and downloads the model and voices (about 340 MB). Speech is generated locally,
+without a cloud API key. The first phrase takes longer while the model loads;
+later phrases reuse it. Captions, mute, and interruption work as before. If Kokoro
+is missing or fails, the app falls back to macOS speech and logs the reason.
+This is speech output; `npm run voice:setup` separately configures microphone transcription.
+
 Two terminal windows:
 
 ```bash

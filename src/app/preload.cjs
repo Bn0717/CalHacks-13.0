@@ -11,6 +11,9 @@ const TO_APP = new Set([
 const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "point", "point-hide", "warning", "bar", "say", "buddy"]);
 
 contextBridge.exposeInMainWorld("calhack", {
+  synthesize(text) {
+    return ipcRenderer.invoke("voice-synthesize", text);
+  },
   send(channel, data) {
     if (TO_APP.has(channel)) ipcRenderer.send(channel, data);
   },
