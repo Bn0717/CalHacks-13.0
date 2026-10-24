@@ -12,6 +12,7 @@ import type { Executor } from "../core/runner.js";
 import { findAppBundles } from "../core/uninstall.js";
 import { findOfficialSource } from "../droid/research.js";
 import { listOutputs, setOutput } from "../mac/audio.js";
+import type { ScreenDeps } from "./autopilot.js";
 import { folderPath } from "./danger.js";
 import { listFilesIn, type AppInfo, type MacDeps } from "./tools.js";
 
@@ -134,14 +135,16 @@ export async function installOfficialApp(appName: string): Promise<{ ok: boolean
 }
 
 /** The real Mac. `trash` comes from Electron (shell.trashItem) in the app, or Finder in the terminal. */
-export function realMac(opts: { execute: Executor; trash: (path: string) => Promise<void>; protectedApps?: string[] }): MacDeps {
+export function realMac(opts: { execute: Executor; trash: (path: string) => Promise<void>; protectedApps?: string[]; screen?: ScreenDeps }): MacDeps {
   const home = homedir();
   return {
     home,
+    screen: opts.screen,
     protectedApps: ["Finder", "CalHack", "Electron", ...(opts.protectedApps ?? [])],
-    sandboxed: (c) => runSandboxed(c),
+    sandboxed: (c, t) => runSandboxed(c, t),
     checkRunner: realCheckRunner,
     execute: opts.execute,
+    run: (c) => runNormally(c, 30_000),
     listApps: () => listInstalledApps(home),
     findApp: (name) => findAppBundles(name),
     runningApps: () => runningAppNames().catch(() => []),

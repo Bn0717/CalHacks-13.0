@@ -2,14 +2,14 @@
 //  - follows the how-to you're reading (forum post, support page, PDF), or
 //  - fixes the problem you have ("my printer won't print"): read-only checks → OK → fix → same checks again, or
 //  - asks "Hi! What's going on?", and finds the official source (Apple support, the app maker's site) when it has no guide.
-// The helper bar (bottom-center) shows each moment, the buddy hops to where the work is, and a voice says what's happening.
+// The helper bar (bottom-center) shows each moment, and a voice says what's happening.
 // Code decides what's safe. Droid (Factory) runs the approved commands. A separate Claude call writes the receipt.
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, session as electronSession, shell, systemPreferences, Tray } from "electron";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { findAppBundles, uninstallApp, uninstallRequest } from "../core/uninstall.js";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describeEnvironment, probeEnvironment, type Environment } from "../core/probe.js";
@@ -20,21 +20,21 @@ import { runSequence } from "../core/sequence.js";
 import { collectEvidence, type Receipt } from "../core/receipt.js";
 import { assessCommand } from "../core/risk.js";
 import { scanForScamSigns } from "../core/source.js";
-import { runRecipe, type RecipeOutcome } from "../core/recipes.js";
+import { realRecipeDeps, recipeNormal, runRecipe, type RecipeOutcome } from "../core/recipes.js";
 import { summarizeGoal, verifiedStep, verifyGoal, verifyInstalledApp } from "../core/verification.js";
 import { installFromOfficial, knownInstaller, realInstallDeps, type InstallResult } from "../core/install.js";
 import { checkOfficial } from "../core/official.js";
 import { buildFixes, diagnose, getGuide, guideMenu, realCheckRunner, verifyFix, type BuiltFix, type Diagnosis, type FixGuide } from "../core/fixes/index.js";
-import type { GoalVerification, InstructionSource, PlannedStep, Step, StepResult } from "../core/types.js";
+import type { Evidence, GoalVerification, InstructionSource, PlannedStep, Step, StepResult } from "../core/types.js";
 import { reviewRun } from "../ai/review.js";
 import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
+import { autopilot } from "../agent/autopilot.js";
 import { offlineGuide } from "../agent/offline.js";
 import { TOOLS as AGENT_TOOLS, type AgentUI } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
-import { locateOnScreen, type ScreenLocation } from "../ai/locate.js";
 import { droidProblem, runWithDroid } from "../droid/executor.js";
 import { findOfficialSource, type OfficialSource } from "../droid/research.js";
 import { fetchPageText } from "../mac/text.js";
@@ -44,7 +44,7 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { barLine, buddyHome, buddyPoint, buddyPose, buddyScanScreen, buddyTo, currentBar, dockSpot, ensureBar, focusBar, say, screenTopCenter, setBarRect, showBar, toBuddy } from "./windows.js";
+import { currentBar, ensureBar, focusBar as focusBarNow, say as sayNow, setBarRect, showBar as showBarNow } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -106,6 +106,48 @@ const approvals = new Map<string, (yes: boolean) => void>();
 const manualWaits = new Map<string, (answer: "done" | "skip") => void>();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- Flows ----------
+// Each piece of work the person starts (the hotkey, a request, OK) runs as one flow. Cancel/✕ ends it: its loops
+// stop at the next check, and anything it still tries to show or say is dropped, so the bar stays closed.
+
+const flowStore = new AsyncLocalStorage<number>();
+let currentFlow = 0;
+
+function startFlow(run: () => Promise<void>): Promise<void> {
+  return flowStore.run(++currentFlow, run);
+}
+
+/** False once this flow was cancelled. Code outside any flow (the tray, the copy guard) is always live. */
+function live(): boolean {
+  const id = flowStore.getStore();
+  return id === undefined || id === currentFlow;
+}
+
+function showBar(state: BarState): void {
+  if (live()) showBarNow(state);
+}
+
+function say(text: string, mode?: Parameters<typeof sayNow>[1]): void {
+  if (live()) sayNow(text, mode);
+}
+
+function focusBar(): void {
+  if (live()) focusBarNow();
+}
+
+/** Ends the current flow and closes the bar, whatever it was doing. */
+function cancelFlow(): void {
+  currentFlow++;
+  stopRequested = true;
+  releaseWaits();
+  job = null;
+  pendingLookup = null;
+  busy = false;
+  running = false;
+  agentRunning = false;
+  showBarNow({ phase: "hidden" });
+}
 
 // ---------- Screen ----------
 
@@ -189,7 +231,6 @@ function showPlan(j: Job): void {
       canSendSummary: false,
     });
     say("Good news. This is already done on your Mac.", "now");
-    buddyHome("celebrate");
     return;
   }
   showBar({
@@ -202,7 +243,6 @@ function showPlan(j: Job): void {
     cancelLabel: scam ? "Close" : "Not now",
     source: j.sourceLabel,
   });
-  buddyHome(scam ? "stop" : "wave");
   if (!scam) autoOk();
 }
 
@@ -228,13 +268,11 @@ function showWorking(j: Job, current?: PlannedStep, line?: string): void {
 function showError(message: string): void {
   showBar({ phase: "error", message });
   say(message, "now");
-  buddyHome("sad");
 }
 
 function askWhat(question = "Hi! What's going on?", suggestions = SUGGESTIONS): void {
   showBar({ phase: "ask", question, suggestions, listening: false, transcribing: false });
   say(question, "now");
-  buddyHome("think");
   focusBar();
 }
 
@@ -245,6 +283,10 @@ async function onHotkey(): Promise<void> {
     ensureBar().showInactive();
     return;
   }
+  await startFlow(lookAndHelp);
+}
+
+async function lookAndHelp(): Promise<void> {
   busy = true;
   job = null;
   pendingLookup = null;
@@ -255,7 +297,6 @@ async function onHotkey(): Promise<void> {
 
     showBar({ phase: "looking", message: "Let me take a look…" });
     say("Let me take a look.", "now");
-    buddyHome("think");
 
     if (!hasApiKey()) {
       showError("I need a Claude API key first. Put ANTHROPIC_API_KEY in the .env file, then restart me.");
@@ -263,6 +304,7 @@ async function onHotkey(): Promise<void> {
     }
     const shot = screenAllowed() ? await captureScreen() : null;
     const source = await gatherInstructions({ app: appName, recentClipboard: recentClipboard() });
+    if (!live()) return;
     lastLook = { shot, screenText: source.text.slice(0, 6000) };
 
     // Our own scam check comes first: a fake "verify you're human" page gets the warning, whatever the AI thinks.
@@ -282,7 +324,7 @@ async function onHotkey(): Promise<void> {
   } catch (error) {
     showError(friendlyError(error));
   } finally {
-    busy = false;
+    if (live()) busy = false;
   }
 }
 
@@ -306,15 +348,13 @@ async function onAnswer(text: string): Promise<void> {
     showBar({ phase: "hidden" });
     return;
   }
-  busy = true;
-  try {
-    busy = false;
-    await agentFlow(clean, lastLook);
-  } catch (error) {
-    showError(friendlyError(error));
-  } finally {
-    busy = false;
-  }
+  await startFlow(async () => {
+    try {
+      await agentFlow(clean, lastLook);
+    } catch (error) {
+      showError(friendlyError(error));
+    }
+  });
 }
 
 async function route(t: Triage): Promise<void> {
@@ -336,7 +376,6 @@ async function route(t: Triage): Promise<void> {
 async function uninstallFlow(name: string): Promise<void> {
   job = null;
   running = true;
-  buddyHome("carry");
   say(`I'll remove ${name} from Applications.`, "now");
   try {
     const result = await uninstallApp(name, {
@@ -356,8 +395,7 @@ async function uninstallFlow(name: string): Promise<void> {
       problems: result.ok ? [] : [result.message], reviewedBy: "rules",
     }, steps: [], detail: [], canRetry: false, canSendSummary: false });
     say(result.message, "now");
-    buddyHome(result.ok ? "celebrate" : "sad");
-  } finally { running = false; }
+  } finally { if (live()) running = false; }
 }
 
 // ---------- The agent: understand → look → act → check → finish ----------
@@ -380,6 +418,15 @@ function autoAnswer(apply: (a: string) => void): void {
   if (a !== undefined) setTimeout(() => apply(a), 1500);
 }
 
+/** Answers everything waiting on the person with "no" / "skip", so a stopped run can unwind. */
+function releaseWaits(): void {
+  settleAgentWaits();
+  for (const resolve of approvals.values()) resolve(false);
+  for (const resolve of manualWaits.values()) resolve("skip");
+  approvals.clear();
+  manualWaits.clear();
+}
+
 function settleAgentWaits(): void {
   agentAsk?.("Stop");
   agentConfirm?.resolve(false);
@@ -393,25 +440,6 @@ function settleAgentWaits(): void {
 
 function capitalize(text: string): string {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
-}
-
-/** Points the buddy at something on screen (found with a screenshot), for things only the person can click. */
-async function pointAtTarget(target: string, title: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const shot = await captureScreen();
-    if (!shot) return false;
-    try {
-      const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target, stepTitle: title });
-      if (loc.found) {
-        buddyPoint(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), target);
-        return true;
-      }
-    } catch {
-      return false;
-    }
-    await sleep(1500);
-  }
-  return false;
 }
 
 async function agentFlow(request: string, look: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" }): Promise<void> {
@@ -437,19 +465,6 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     },
     say: (t) => say(t, "queue"),
     detail: (text, mono) => detail.push({ text, mono }),
-    buddy: (spot, pose) => {
-      if (spot === "bar") buddyHome(pose);
-      else if (spot === "work") {
-        const l = barLine();
-        buddyTo(l.x, l.y, pose);
-      } else if (spot === "top") {
-        const t = screenTopCenter();
-        buddyTo(t.x, t.y, pose);
-      } else {
-        const d = dockSpot();
-        buddyTo(d.x, d.y - 10, pose);
-      }
-    },
     ask: (question, choices, note) =>
       new Promise((resolve) => {
         agentAsk = (a) => {
@@ -459,7 +474,6 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
         };
         showBar({ phase: "ask", question, note, suggestions: choices, listening: false, transcribing: false });
         say(question, "now");
-        buddyHome("think");
         focusBar();
         autoAnswer((a) => agentAsk?.(a === "1" ? (choices[0] ?? a) : a));
       }),
@@ -475,7 +489,6 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
         };
         showBar({ phase: "confirm", title: c.title, message: c.message, details: c.details, yes: c.yes, no: c.no, typeToConfirm: c.typeToConfirm, tone: c.tone });
         say(c.title, "now");
-        buddyHome(c.tone === "danger" ? "stop" : "think");
         if (c.typeToConfirm) focusBar();
         autoAnswer((a) => agentConfirm?.resolve(/^y/i.test(a)));
       }),
@@ -488,7 +501,6 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
         };
         showBar({ phase: "explain", title: e.title, paragraphs: e.paragraphs, steps: e.steps });
         say(e.title, "now");
-        buddyHome("idle");
         focusBar();
         autoAnswer(() => agentExplain?.());
       }),
@@ -496,20 +508,17 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
       new Promise((resolve) => {
         agentGuide = (a) => {
           agentGuide = null;
-          buddyHome("idle");
           resolve(a);
           work();
         };
         const link = safeSettingsUrl(g.settingsUrl);
         if (link) void shell.openExternal(link);
-        showBar({ phase: "needs-you", goal, stepId: "agent", kind: "manual", question: g.instruction, why: ["macOS only lets you do this part yourself. I'll show you where."], showMe: !!g.clickTarget });
-        say(g.clickTarget ? "This part only you can do. I'll show you where to click." : g.instruction, "now");
-        if (g.clickTarget) setTimeout(() => void pointAtTarget(g.clickTarget!, g.instruction), link ? 1800 : 300);
-        pendingGuideTarget = g.clickTarget ? { target: g.clickTarget, title: g.instruction } : null;
+        const why = ["macOS only lets you do this part yourself.", g.clickTarget ? `Look for “${g.clickTarget}”.` : ""].filter(Boolean);
+        showBar({ phase: "needs-you", goal, stepId: "agent", kind: "manual", question: g.instruction, why });
+        say(g.instruction, "now");
       }),
   };
 
-  buddyHome("scan");
   work();
   const toolLabel = (name: string, input: Record<string, unknown>) => AGENT_TOOLS.find((t) => t.name === name)?.label(input) ?? "Working…";
   try {
@@ -517,14 +526,14 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     const context = lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
     // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
-    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts });
+    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen } : undefined });
     const result = await runAgent(
       { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
       ui,
       mac,
       {
         inbox: agentInbox,
-        stopped: () => stopRequested,
+        stopped: () => stopRequested || !live(),
         onTool: (name, input) => {
           finishStep();
           if (["ask_person", "explain_irreversible"].includes(name)) return;
@@ -547,9 +556,9 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
       canSendSummary: verdict === "not-done",
     });
     say(result.headline, "now");
-    buddyHome(verdict === "done" || verdict === "answered" ? "celebrate" : verdict === "cant-do" ? "stop" : "sad");
     summaryText = [`CalHack summary: ${request || "Help"}`, `Result: ${result.headline}`, ...result.details, "What I did:", ...result.toolCalls.map((t) => `- ${t.name}: ${t.result.split("\n")[0].slice(0, 160)}`)].join("\n");
   } catch (error) {
+    if (!live()) return;
     settleAgentWaits();
     agentRunning = false;
     running = false;
@@ -562,9 +571,11 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     }
     showError(isConnectionError(error) && !request ? "I can't reach the internet right now. Tell me what's wrong: I can still check your printer, sound and Wi-Fi without it." : friendlyError(error));
   } finally {
-    settleAgentWaits();
-    agentRunning = false;
-    running = false;
+    if (live()) {
+      settleAgentWaits();
+      agentRunning = false;
+      running = false;
+    }
   }
 }
 
@@ -577,7 +588,6 @@ function isConnectionError(error: unknown): boolean {
 
 /** What "Send this to my son / IT" copies after an agent run. */
 let summaryText: string | null = null;
-let pendingGuideTarget: { target: string; title: string } | null = null;
 
 // ---------- Mode 1: follow the how-to on screen ----------
 
@@ -612,6 +622,7 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
     screenshot: shot ? { data: shot.data, mediaType: shot.mediaType } : undefined,
     allowCache: true,
   });
+  if (!live()) return;
   if (parse.steps.length === 0) {
     askWhat("I don't see any steps to follow here. What are you trying to do?");
     return;
@@ -635,6 +646,7 @@ async function instructionsFlow(source: InstructionSource, shot: Shot | null, so
       if (c?.passed) j.results.set(p.step.id, { id: p.step.id, status: "already-done", message: "Already done on this Mac, so we skipped it.", evidence: [c.evidence] });
     }),
   );
+  if (!live()) return;
   job = j;
   showPlan(j);
   const blocked = plan.steps.filter((p) => p.level === "blocked" && (p.step.kind === "command" || p.step.kind === "download")).length;
@@ -650,7 +662,6 @@ async function fixFlow(guide: FixGuide, intro: string): Promise<void> {
   const update = () => showBar({ phase: "checking", title: `Checking: ${guide.title.toLowerCase()}`, checks: [...checks] });
   update();
   say(intro || "Let me check a few things.", "now");
-  buddyHome("scan");
 
   const before = await diagnose(guide, realCheckRunner, (id, r) => {
     const i = guide.checks.findIndex((c) => c.id === id);
@@ -658,6 +669,7 @@ async function fixFlow(guide: FixGuide, intro: string): Promise<void> {
     if (i + 1 < checks.length && checks[i + 1].status === "pending") checks[i + 1] = { ...checks[i + 1], status: "running" };
     update();
   });
+  if (!live()) return;
   const fixes = buildFixes(before);
 
   if (!before.problem || fixes.length === 0) {
@@ -667,7 +679,6 @@ async function fixFlow(guide: FixGuide, intro: string): Promise<void> {
       : "Everything I checked looks fine. Want me to look up the official help for this?";
     showBar({ phase: "ask", question, suggestions: ["Yes, look it up", "No thanks"], listening: false, transcribing: false });
     say(question, "now");
-    buddyHome("think");
     focusBar();
     return;
   }
@@ -675,6 +686,7 @@ async function fixFlow(guide: FixGuide, intro: string): Promise<void> {
   const steps: Step[] = fixes.map((f, i): Step => {
     const id = String(i + 1);
     if (f.kind === "command") return { id, title: f.label, explanation: f.label, kind: "command", command: f.admin && !/^sudo\b/.test(f.command) ? "sudo " + f.command : f.command };
+    if (f.kind === "recipe" && f.manual) return { id, title: f.label, explanation: f.manual.explain, kind: "manual", clickTarget: f.manual.clickTarget, settingsUrl: f.manual.settingsUrl };
     if (f.kind === "recipe") return { id, title: f.label, explanation: "Add your printer again, without needing a driver.", kind: "manual", clickTarget: "Add Printer, Scanner or Fax…" };
     return { id, title: f.label, explanation: f.manual.explain, kind: "manual", clickTarget: f.manual.clickTarget, settingsUrl: f.manual.settingsUrl };
   });
@@ -697,13 +709,12 @@ async function fixFlow(guide: FixGuide, intro: string): Promise<void> {
 async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void> {
   showBar({ phase: "looking", message: t.installApp ? `Finding ${t.installApp}'s official website…` : "Looking for the official help page…" });
   say("I'm pulling up the website for you.", "now");
-  const top = screenTopCenter();
-  buddyTo(top.x, top.y, "scan");
 
   let src: OfficialSource | null = null;
   const extra: DetailLine[] = [];
   try {
     src = await findOfficialSource(t.goal, t.query, { installApp: t.installApp });
+    if (!live()) return;
     extra.push({ text: "🤖 Droid searched the web (web tools only, it can't run anything):" }, ...src.log.map((l) => ({ text: l, mono: true })));
   } catch (error) {
     const log = (error as { log?: string[] }).log ?? [];
@@ -738,6 +749,7 @@ async function searchFlow(t: Extract<Triage, { kind: "search" }>): Promise<void>
   }
   say(`Reading ${src.publisher}'s official help page.`, "queue");
   const text = await fetchPageText(src.url);
+  if (!live()) return;
   const source: InstructionSource = { kind: "webpage", text, location: src.url, app: "CalHack" };
   await instructionsFlow(source, null, `From ${verdict.host} (${src.publisher}'s official site)`, extra, t.goal);
 }
@@ -776,7 +788,6 @@ function installOffer(appName: string, publisher: string, url: string, page: Off
     cancelLabel: "Not now",
     source: j.sourceLabel,
   });
-  buddyHome("wave");
   say(`Do you want to install ${appName} on your Mac?`, "queue");
   autoOk();
 }
@@ -809,23 +820,12 @@ const execute: Executor = async (command, timeoutMs) => {
   return { ...(await runNormally(command, timeoutMs)), ranBy: "calhack", log: [`Droid is off (${problem}), so CalHack ran it.`] };
 };
 
-/** Where the buddy goes, and what it says, when a step starts. */
+/** What the bar shows, and what it says, when a step starts. */
 function stageStep(j: Job, p: PlannedStep): void {
   const s = p.step;
   showWorking(j, p);
-  if (p.level === "blocked") {
-    buddyHome("stop");
-    return;
-  }
-  if (s.kind === "info") return;
+  if (p.level === "blocked" || s.kind === "info") return;
   say(`Okay, ${lower(s.title)}.`, "queue");
-  if (s.kind === "command" || (s.kind === "manual" && p.recipe && j.useRecipe.has(s.id))) {
-    const l = barLine();
-    buddyTo(l.x, l.y, "type");
-  } else if (s.kind === "download") {
-    const top = screenTopCenter();
-    buddyTo(top.x, top.y, "carry");
-  }
 }
 
 function runHooks(j: Job): RunHooks {
@@ -835,9 +835,8 @@ function runHooks(j: Job): RunHooks {
         // The person already said OK to the plan. Only flagged steps ask again.
         if (planned.flags.length === 0 && !planned.needsReview) return resolve(true);
         approvals.set(planned.step.id, resolve);
-        showBar({ phase: "needs-you", goal: j.goal, stepId: planned.step.id, kind: "approve", question: `${planned.step.title}: go ahead?`, why: planned.flags, command: detail, showMe: false });
+        showBar({ phase: "needs-you", goal: j.goal, stepId: planned.step.id, kind: "approve", question: `${planned.step.title}: go ahead?`, why: planned.flags, command: detail });
         say("Quick question before I go on.", "now");
-        buddyHome("think");
       }),
     waitForUser: (planned, note) =>
       new Promise((resolve) => {
@@ -850,13 +849,44 @@ function runHooks(j: Job): RunHooks {
           kind: "manual",
           question: target ? `Your turn: click “${target}”.` : planned.step.title,
           why: [note, planned.step.explanation].filter((x): x is string => !!x && x !== planned.step.title),
-          showMe: !!target,
         });
-        say(target ? "This one's for you. I'll show you where to click." : `This one's for you: ${lower(planned.step.title)}.`, "queue");
+        say(target ? `This one's for you: click “${target}”.` : `This one's for you: ${lower(planned.step.title)}.`, "queue");
         const link = safeSettingsUrl(planned.step.settingsUrl);
         if (link) void shell.openExternal(link);
-        if (target) setTimeout(() => void showMe(planned.step.id), link ? 1500 : 200);
       }),
+    tryOnScreen: async (planned) => {
+      const evidence: Evidence[] = [];
+      if (!screenAllowed()) return { handled: false, evidence, note: "I can't see your screen, so it's yours." };
+      const s = planned.step;
+      const instruction = [s.title, s.explanation, s.clickTarget ? `Click “${s.clickTarget}”.` : ""].filter(Boolean).join(" ");
+      const mac = realMac({ execute, trash: (p) => shell.trashItem(p), screen: { capture: captureScreen } });
+      const link = safeSettingsUrl(s.settingsUrl);
+      if (link) {
+        await mac.run(`open '${link}'`);
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      const ui = {
+        status: (line: string) => showWorking(j, planned, line),
+        say: (text: string) => say(text, "queue"),
+        detail: () => {},
+        // A private moment in the middle: the person does just that part, then it carries on.
+        guide: (g: { instruction: string }) =>
+          new Promise<"done" | "skip">((resolve0) => {
+            // Show that the answer was heard right away; the next look at the screen takes a few seconds.
+            const resolve = (a: "done" | "skip") => {
+              showWorking(j, planned, a === "done" ? "Thanks, carrying on…" : "Okay, skipping that…");
+              resolve0(a);
+            };
+            manualWaits.set(s.id, resolve);
+            showBar({ phase: "needs-you", goal: j.goal, stepId: s.id, kind: "manual", question: g.instruction, why: ["This part needs you."] });
+            say(g.instruction, "now");
+          }),
+      } as unknown as AgentUI;
+      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [] }, { instruction, clickTarget: s.clickTarget });
+      if (r.outcome === "done") return { handled: "done", evidence };
+      if (r.outcome === "skipped") return { handled: "skip", evidence };
+      return { handled: false, evidence, note: r.needsAccessibility ? `${r.trail.at(-1)}.` : r.trail.length ? `I tried and couldn't finish: ${r.trail.at(-1)}.` : undefined };
+    },
     progress: (planned, message) => showWorking(j, planned, message),
   };
 }
@@ -888,20 +918,21 @@ async function runAll(): Promise<void> {
         if (process.env.CALHACK_DEBUG) console.log(`[step] ${JSON.stringify(r)}`);
         showWorking(j);
       },
-      stopped: () => stopRequested,
+      stopped: () => stopRequested || !live(),
     });
-    if (!stopRequested) await finish(j);
+    if (!stopRequested && live()) await finish(j);
     else {
       showBar({ phase: "done", receipt: { verdict: "not-done", headline: "Stopped. Nothing else was changed.", beforeAfter: [], proofs: [], problems: [], reviewedBy: "rules" }, steps: jobSteps(j), detail: jobDetail(j), canRetry: true, canSendSummary: true });
       say("Okay, I stopped.", "now");
-      buddyHome("idle");
     }
   } catch (error) {
     showError(friendlyError(error));
   } finally {
-    running = false;
-    approvals.clear();
-    manualWaits.clear();
+    if (live()) {
+      running = false;
+      approvals.clear();
+      manualWaits.clear();
+    }
   }
 }
 
@@ -909,7 +940,6 @@ async function runAll(): Promise<void> {
 async function finish(j: Job): Promise<void> {
   showBar({ phase: "looking", message: "Checking it worked…" });
   say("Let me check it worked.", "queue");
-  buddyHome("scan");
   let verification: GoalVerification = summarizeGoal([], "No usable final goal check was supplied.");
   let goalMessage = j.parse?.finish?.message;
 
@@ -923,6 +953,7 @@ async function finish(j: Job): Promise<void> {
     if (!v.fixed && v.stillWrong) j.extraDetail.push({ text: `Still wrong: ${v.stillWrong}` });
   } else verification = await verifyGoal(j.parse?.finish?.command);
 
+  if (!live()) return;
   const evidence = collectEvidence(j.plan.steps, j.results, verification);
   j.receipt = await reviewRun({ goal: j.goal, goalMessage, steps: j.plan.steps, results: j.results, evidence, verification });
   showDone(j);
@@ -940,13 +971,10 @@ function showDone(j: Job): void {
   });
   if (r.verdict === "done") {
     say(`Looks like it's finished. ${r.headline.replace(/^(Done|Fixed)\.?\s*/i, "")}`, "now");
-    buddyHome("celebrate");
   } else if (r.verdict === "couldnt-verify") {
     say("The steps ran, but I couldn't confirm it worked.", "now");
-    buddyHome("think");
   } else {
     say("I couldn't finish this one. I can copy a note about what I tried, for someone who can help.", "now");
-    buddyHome("sad");
   }
 }
 
@@ -963,16 +991,12 @@ async function runInstall(j: Job): Promise<void> {
     if (!j.installedAppPath || j.installationResult && !j.installationResult.ok) {
       if (!j.installationResult?.actionCompleted) j.results.clear();
       say(j.installationResult?.actionCompleted ? `Checking ${appName} again.` : `Okay, I'm downloading ${appName} from ${publisher}'s official website.`, "now");
-      const top = screenTopCenter();
-      buddyTo(top.x, top.y, "carry");
       line(j.installationResult?.actionCompleted ? "3" : "1", j.installationResult?.actionCompleted ? `Checking ${appName}…` : `Downloading ${appName}…`);
       const result = await installFromOfficial({ url, publisher, appName }, (stage, message) => {
         if (stage === "check") set("1", { status: "done-unverified", actionCompleted: true, message: "Download finished." });
         if (stage === "install") {
           set("2", { status: "done-unverified", actionCompleted: true, message: `Signed by ${publisher}.` });
           say("Installing now. Your Mac will ask for your password.", "queue");
-          const d = dockSpot();
-          buddyTo(d.x, d.y - 10, "carry");
         }
         line(stage === "download" ? "1" : stage === "check" ? "2" : "3", message);
       }, realInstallDeps, j.installationResult);
@@ -994,7 +1018,7 @@ async function runInstall(j: Job): Promise<void> {
       if (!j.results.get("4")?.actionCompleted) {
         line("4", `Opening ${appName}…`);
         const appFile = basename(j.installedAppPath, ".app") || appName;
-        const opened = await runRecipe({ id: "open-app", label: `Open ${appName}`, app: appFile });
+        const opened = await runRecipe({ id: "open-app", label: `Open ${appName}`, app: appFile }, { ...realRecipeDeps, normal: recipeNormal(execute) });
         const opening: StepResult = { id: "4", status: opened.ok ? "done" : "failed", actionCompleted: opened.ok, message: opened.message, evidence: opened.evidence };
         if (opened.ok && !verifiedStep(opening)) opening.status = "done-unverified";
         set("4", opening);
@@ -1013,77 +1037,8 @@ async function runInstall(j: Job): Promise<void> {
   } catch (error) {
     showError(friendlyError(error));
   } finally {
-    running = false;
+    if (live()) running = false;
   }
-}
-
-// ---------- "Show me": the buddy points at what to click ----------
-
-/**
- * Opens what the AI says would show the target. Only safe things: installed apps,
- * System Settings pages, and https pages from the same site as the instructions.
- */
-async function openSafely(open: NonNullable<ScreenLocation["open_first"]>, j: Job): Promise<string | null> {
-  if (open.kind === "settings") {
-    const link = safeSettingsUrl(open.target);
-    if (!link) return null;
-    await shell.openExternal(link);
-    return "System Settings";
-  }
-  if (open.kind === "app") {
-    if (!/^[\w .&+'-]{1,60}$/.test(open.target)) return null;
-    const dirs = ["/Applications", "/System/Applications", "/System/Applications/Utilities", join(homedir(), "Applications")];
-    const path = dirs.map((d) => join(d, open.target + ".app")).find((p) => existsSync(p));
-    if (!path) return null;
-    if (await shell.openPath(path)) return null;
-    return open.target;
-  }
-  try {
-    const url = new URL(open.target);
-    const pageHost = j.source.location ? new URL(j.source.location).hostname : null;
-    const fromPage = j.source.text.includes(open.target);
-    if (url.protocol !== "https:" || !(fromPage || (pageHost && url.hostname === pageHost))) return null;
-    await shell.openExternal(url.toString());
-    return url.hostname;
-  } catch {
-    return null;
-  }
-}
-
-async function showMe(id: string): Promise<void> {
-  const j = job;
-  if (!j) return;
-  const p = j.plan.steps.find((x) => x.step.id === id);
-  if (!p?.step.clickTarget) return;
-  const target = p.step.clickTarget;
-  // Look, and if it isn't there, open what would show it and look again (twice at most).
-  for (let attempt = 0; attempt < 3; attempt++) {
-    buddyPose("scan");
-    const shot = await captureScreen();
-    if (!shot) {
-      say("I can't see your screen yet. Please turn on Screen Recording for me.", "now");
-      return;
-    }
-    try {
-      const loc = await locateOnScreen({ screenshot: shot.data, mediaType: shot.mediaType, width: shot.width, height: shot.height, target, stepTitle: p.step.title });
-      if (loc.found) {
-        // The buddy layer covers the main display exactly, so screenshot pixels × toScreen = layer position.
-        buddyPoint(Math.round(loc.x * shot.toScreen), Math.round(loc.y * shot.toScreen), target);
-        say(`It's right here: ${target}.`, "now");
-        return;
-      }
-      const opened = loc.open_first && attempt < 2 ? await openSafely(loc.open_first, j) : null;
-      if (!opened) {
-        say(loc.hint, "now");
-        return;
-      }
-      await sleep(1800);
-    } catch (error) {
-      say(friendlyError(error), "now");
-      return;
-    }
-  }
-  say(`I couldn't find it. Look for “${target}”.`, "now");
 }
 
 // ---------- Voice in ----------
@@ -1179,9 +1134,9 @@ ipcMain.handle("voice-synthesize", (event, text: string) => {
   if (event.sender !== ensureBar().webContents || event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted speech request");
   return synthesize(ROOT, text);
 });
-ipcMain.on("bar-ok", () => void runAll());
+ipcMain.on("bar-ok", () => void startFlow(runAll));
 ipcMain.on("bar-retry", () => {
-  if (job && !running) void runAll();
+  if (job && !running) void startFlow(runAll);
   else if (!job) void onHotkey();
 });
 ipcMain.on("bar-confirm", (_e, data: { yes?: boolean; typed?: string }) => {
@@ -1194,23 +1149,10 @@ ipcMain.on("bar-confirm", (_e, data: { yes?: boolean; typed?: string }) => {
 ipcMain.on("bar-explain-ok", () => agentExplain?.());
 ipcMain.on("bar-stop", () => {
   stopRequested = true;
-  settleAgentWaits();
-  for (const [id, resolve] of approvals) {
-    resolve(false);
-    approvals.delete(id);
-  }
+  releaseWaits();
 });
-ipcMain.on("bar-cancel", () => {
-  if (agentRunning) {
-    stopRequested = true;
-    settleAgentWaits();
-    showBar({ phase: "hidden" });
-    return;
-  }
-  if (running) return;
-  job = null;
-  showBar({ phase: "hidden" });
-});
+// Cancel and ✕ work on every screen, including while checks are running.
+ipcMain.on("bar-cancel", () => cancelFlow());
 ipcMain.on("bar-answer", (_e, data: { text?: string }) => void onAnswer(String(data?.text ?? "").slice(0, 500)));
 ipcMain.on("bar-approve", (_e, data: { stepId: string; yes: boolean }) => {
   approvals.get(data.stepId)?.(!!data.yes);
@@ -1223,14 +1165,6 @@ ipcMain.on("bar-manual", (_e, data: { stepId: string; answer: "done" | "skip" })
   }
   manualWaits.get(data.stepId)?.(data.answer === "skip" ? "skip" : "done");
   manualWaits.delete(data.stepId);
-  buddyHome("idle");
-});
-ipcMain.on("bar-show-me", (_e, data: { stepId: string }) => {
-  if (data.stepId === "agent") {
-    if (pendingGuideTarget) void pointAtTarget(pendingGuideTarget.target, pendingGuideTarget.title);
-    return;
-  }
-  void showMe(data.stepId);
 });
 ipcMain.on("bar-send-summary", () => {
   if (!job && summaryText) {
@@ -1245,7 +1179,6 @@ ipcMain.on("bar-send-summary", () => {
 ipcMain.on("bar-rect", (_e, rect: { x: number; y: number; width: number; height: number }) => {
   if (rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) setBarRect(rect);
 });
-ipcMain.on("bar-speaking", (_e, data: { speaking: boolean }) => toBuddy({ type: "talking", on: !!data?.speaking }));
 /**
  * Mic state for whichever screen is showing. On the "ask" screen it's part of the screen; on every other screen
  * the bar's bottom row shows it, and what was heard appears there as a note.
@@ -1267,7 +1200,6 @@ ipcMain.on("bar-mic-start", async () => {
     return;
   }
   if (currentBar().phase === "ask") askState({ listening: true, transcribing: false, heard: undefined });
-  buddyPose("talk");
 });
 ipcMain.on("bar-mic-cancel", () => {
   if (currentBar().phase === "ask") askState({ listening: false, transcribing: false });

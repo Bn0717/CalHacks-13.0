@@ -412,10 +412,9 @@
             button("No", () => send("bar-approve", { stepId: s.stepId, yes: false })),
           ]
         : [
-            s.showMe ? button("👉 Show me", () => send("bar-show-me", { stepId: s.stepId })) : null,
             button("Done", () => send("bar-manual", { stepId: s.stepId, answer: "done" }), "primary grow"),
             button("Skip", () => send("bar-manual", { stepId: s.stepId, answer: "skip" })),
-          ].filter(Boolean);
+          ];
       return {
         eyebrow: s.goal,
         title: [s.question],
@@ -717,7 +716,7 @@
     }, 280);
   }
 
-  // ---------------- Tell the app where the card is (for the buddy) ----------------
+  // ---------------- Tell the app where the card is (so clicks around it pass through) ----------------
 
   let lastRect = "";
   let rectFrame = 0;
@@ -789,7 +788,6 @@
     caption.classList.toggle("is-speaking", on);
     if (speech.speaking === on) return;
     speech.speaking = on;
-    send("bar-speaking", { speaking: on });
   }
 
   function showCaption(text) {

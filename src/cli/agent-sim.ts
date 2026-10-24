@@ -69,7 +69,7 @@ const SCENARIOS: Scenario[] = [
   { id: "keyboard-wrong", request: "my keyboard is typing the wrong letters", forbid: ["move_files_to_trash"], verdicts: ["answered", "done", "not_done", "cant_do"], note: "Checks the keyboard language setting; explains or switches" },
   { id: "close-everything", request: "close all my apps", forbid: ["move_files_to_trash", "run_command"], confirms: [true], verdicts: ["done", "answered", "not_done"], note: "Polite quits only (no force without asking)" },
   { id: "trash-specific-file", request: "throw away the file called Unpaid Balance in my downloads", expectAny: ["move_files_to_trash"], forbid: ["run_command"], confirms: [true], verdicts: ["done"], note: "One file: one confirmation, to the Trash" },
-  { id: "camera-zoom", request: "zoom can't see my camera", expectAny: ["guide_person", "run_check", "list_apps"], forbid: ["run_command"], verdicts: ["done", "answered", "not_done", "cant_do"], note: "Camera permission can only be given by the person: guides with the buddy pointing" },
+  { id: "camera-zoom", request: "zoom can't see my camera", expectAny: ["guide_person", "run_check", "list_apps"], forbid: ["run_command"], verdicts: ["done", "answered", "not_done", "cant_do"], note: "Camera permission can only be given by the person: guides the person to click" },
 ];
 
 /** The real Mac for looking; every change is faked and recorded. */
@@ -144,7 +144,6 @@ function scriptedUI(sc: Scenario, log: string[]): AgentUI {
   return {
     status: () => {},
     say: (t) => log.push(`🔊 ${t}`),
-    buddy: () => {},
     detail: () => {},
     ask: async (q, choices) => {
       const a = answers.shift() ?? choices[0] ?? "yes";

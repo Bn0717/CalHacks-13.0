@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addPrinterCommand, parsePrinterList, printerDisplayName, printerQueueName, recipeFor, runRecipe, type RecipeDeps } from "../src/core/recipes.js";
+import { addPrinterCommand, parsePrinterList, printerDisplayName, printerQueueName, realRecipeDeps, recipeFor, runRecipe, type RecipeDeps } from "../src/core/recipes.js";
 import { planSteps } from "../src/core/plan.js";
 import { runPlannedStep, type RunHooks } from "../src/core/runner.js";
 import type { Step } from "../src/core/types.js";
@@ -119,5 +119,34 @@ describe("running click steps", () => {
     expect(notes[0]).toMatch(/couldn't find a printer/);
     expect(notes[1]).toBeUndefined();
     expect(ran.filter((c) => c.startsWith("lpinfo")).length).toBe(1);
+  });
+});
+
+describe("sound-output recipe", () => {
+  const outs = (defaultId: number) => [
+    { id: 1, name: "Dad’s AirPods Pro", transport: "bluetooth", default: defaultId === 1 },
+    { id: 2, name: "MacBook Air Speakers", transport: "built-in", default: defaultId === 2 },
+  ];
+  it("picks the built-in speakers and checks they're in use", async () => {
+    let current = 1;
+    const deps = {
+      ...realRecipeDeps,
+      wait: async () => {},
+      outputs: { list: async () => outs(current), set: async (id: number) => void (current = id) },
+    };
+    const r = await runRecipe({ id: "sound-output", label: "x" }, deps);
+    expect(r.ok).toBe(true);
+    expect(current).toBe(2);
+    expect(r.evidence[0]).toMatchObject({ code: 0 });
+  });
+  it("says so when it didn't switch", async () => {
+    const deps = { ...realRecipeDeps, wait: async () => {}, outputs: { list: async () => outs(1), set: async () => {} } };
+    const r = await runRecipe({ id: "sound-output", label: "x" }, deps);
+    expect(r.ok).toBe(false);
+    expect(r.evidence[0]).toMatchObject({ code: 1 });
+  });
+  it("is chosen for the 'pick where sound plays' step", () => {
+    const step = { id: "1", title: "Pick where sound plays", kind: "manual" as const, explanation: "Pick your Mac's speakers" };
+    expect(recipeFor(step)?.id).toBe("sound-output");
   });
 });

@@ -11,7 +11,6 @@ function fakeUI(confirms: boolean[] = [], answers: string[] = []) {
   const ui: AgentUI = {
     status: () => {},
     say: () => {},
-    buddy: () => {},
     detail: () => {},
     ask: async (_q, choices) => answers.shift() ?? choices[0],
     confirm: async (c) => {
@@ -24,19 +23,25 @@ function fakeUI(confirms: boolean[] = [], answers: string[] = []) {
   return { ui, asked };
 }
 
-function fakeMac(files: FileInfo[] = []): MacDeps & { trashed: string[]; ran: string[] } {
+function fakeMac(files: FileInfo[] = []): MacDeps & { trashed: string[]; ran: string[]; direct: string[] } {
+  const direct: string[] = [];
   const trashed: string[] = [];
   const ran: string[] = [];
   const ok = { code: 0, output: "", timedOut: false };
   return {
     trashed,
     ran,
+    direct,
     home: HOME,
     sandboxed: async () => ok,
     checkRunner: async () => ({ code: 0, output: "" }),
     execute: async (c) => {
       ran.push(c);
       return { ...ok, ranBy: "droid" };
+    },
+    run: async (c) => {
+      direct.push(c);
+      return ok;
     },
     listApps: () => [{ name: "Zoom", path: "/Applications/zoom.us.app" }],
     findApp: () => [],
@@ -215,5 +220,48 @@ describe("closing apps", () => {
     const { ui } = fakeUI();
     const out = await tool("quit_app").run({ app_name: "Finder", force: false }, ctx(mac, ui));
     expect(out).toMatch(/has to stay open/);
+  });
+});
+
+describe("opening things for the person", () => {
+  it("opens a Settings page directly (no Droid, it is routine), then checks Settings is running", async () => {
+    const mac = fakeMac();
+    const { ui } = fakeUI();
+    const out = await tool("open_settings").run({ settings_url: "x-apple.systempreferences:com.apple.Sound-Settings.extension" }, ctx(mac, ui));
+    expect(mac.direct).toEqual(["open 'x-apple.systempreferences:com.apple.Sound-Settings.extension'"]);
+    expect(mac.ran).toEqual([]);
+    expect(out).toMatch(/System Settings is open/);
+  });
+
+  it("refuses anything that isn't a Settings link", async () => {
+    const mac = fakeMac();
+    const { ui } = fakeUI();
+    for (const u of ["https://evil.example", "file:///etc/passwd", "x-apple.systempreferences:a;rm -rf ~"]) {
+      expect(await tool("open_settings").run({ settings_url: u }, ctx(mac, ui))).toMatch(/Refused/);
+    }
+    expect(mac.direct).toEqual([]);
+  });
+
+  it("opens only official https sites", async () => {
+    const mac = fakeMac();
+    const { ui } = fakeUI();
+    expect(await tool("open_website").run({ url: "https://support.apple.com/en-us/102229" }, ctx(mac, ui))).toMatch(/Opened support\.apple\.com/);
+    for (const u of ["http://support.apple.com/x", "https://support.apple.com.evil.example/x", "https://user@support.apple.com/x", "javascript:alert(1)"]) {
+      expect(await tool("open_website").run({ url: u }, ctx(mac, ui))).toMatch(/Refused/);
+    }
+    expect(mac.direct).toHaveLength(1);
+    expect(mac.ran).toEqual([]);
+  });
+
+  it("opens apps directly and never opens Terminal-like apps", async () => {
+    const mac = fakeMac();
+    mac.findApp = (n) => [`/Applications/${n}.app`];
+    const { ui } = fakeUI();
+    await tool("open_app").run({ app_name: "Calculator" }, ctx(mac, ui));
+    expect(mac.direct.some((c) => c.startsWith("open "))).toBe(true);
+    expect(mac.ran).toEqual([]);
+    const before = mac.direct.length;
+    expect(await tool("open_app").run({ app_name: "Terminal" }, ctx(mac, ui))).toMatch(/Not opened/);
+    expect(mac.direct.length).toBe(before);
   });
 });

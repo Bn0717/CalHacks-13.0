@@ -44,8 +44,8 @@ export interface FixDef {
   /** Needs the Mac password (macOS shows its own password box). The command starts with sudo. */
   admin?: boolean;
   /** Instead of a command, use a fixed action from recipes.ts. */
-  recipe?: "add-printer";
-  /** When macOS doesn't allow a fix by command: CalHack points at the right switch. */
+  recipe?: "add-printer" | "sound-output";
+  /** When macOS doesn't allow a fix by command: CalHack points at the right switch. With a recipe, this is only the fallback if the recipe fails. */
   manual?: { clickTarget: string; settingsUrl: string; explain: string };
   /** How long to wait after this fix before checking again (e.g. Wi-Fi takes a few seconds to reconnect). */
   waitAfterMs?: number;

@@ -120,7 +120,6 @@
       question: "Is it OK if I install Zoom into Applications?",
       why: ["It changes what's installed on your Mac.", "It needs your Mac password."],
       command: "brew install --cask zoom",
-      showMe: false,
     },
     "needs-you (manual)": {
       phase: "needs-you",
@@ -129,7 +128,6 @@
       kind: "manual",
       question: "Please click \"Allow\" in the box that just popped up.",
       why: ["Only you can say yes to this. I'm not allowed to click it for you."],
-      showMe: true,
     },
     "done (fixed)": {
       phase: "done",
@@ -259,7 +257,6 @@
     send(channel, data) {
       const shown = data && data.wav ? { wav: "ArrayBuffer(" + data.wav.byteLength + " bytes)" } : data;
       log("→ " + channel + (shown !== undefined ? " " + JSON.stringify(shown) : ""));
-      if (channel === "bar-rect") placeBuddy(data);
       setTimeout(() => fakeApp(channel, data), 0);
     },
     on(channel, cb) {
@@ -284,17 +281,6 @@
     cancel() { clearInterval(levelTimer); },
     onLevel(fn) { levelFn = fn; },
   };
-
-  // Shows where the buddy would sit, from the rect the bar sends.
-  function placeBuddy(r) {
-    const buddy = document.getElementById("buddy");
-    const stage = document.getElementById("stage");
-    if (!buddy || !stage) return;
-    // In the real window the page is the window; here the rect is already page-relative.
-    buddy.hidden = false;
-    buddy.style.left = r.x + 54 + "px";
-    buddy.style.top = r.y + 8 + "px";
-  }
 
   // ?cycle: show every state and press every button, to catch script errors.
   function selfTest() {
@@ -358,7 +344,6 @@
         emit("say", { text: "First, I'll clear the stuck jobs.", mode: "queue" });
         emit("say", { text: "Then I'll turn the printer back on.", mode: "queue" });
       }),
-      btn("hide buddy dot", () => { document.getElementById("buddy").hidden = true; }),
     );
     const tip = document.createElement("span");
     tip.textContent = "Dark mode follows your system setting.";

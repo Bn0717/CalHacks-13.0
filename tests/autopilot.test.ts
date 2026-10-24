@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+import { actionCommand, autopilot, type Action, type Shot } from "../src/agent/autopilot.js";
+import type { AgentUI, MacDeps, ToolContext } from "../src/agent/tools.js";
+
+const shot = (n = 0): Shot => ({ data: "img" + n, mediaType: "image/jpeg", width: 1000, height: 600, toScreen: 2 });
+const act = (a: Partial<Action>): Action => ({ kind: "click", target: "the Add button", screen: "normal", handling: "agent", sensitivity: "routine", reason: "", x: 100, y: 50, ...a });
+
+function setup(actions: Action[], guideAnswers: ("done" | "skip")[] = []) {
+  const ran: string[] = [];
+  const direct: string[] = [];
+  const guided: string[] = [];
+  let n = 0;
+  const ui = { status() {}, say() {}, detail() {}, guide: async (g: { instruction: string }) => (guided.push(g.instruction), guideAnswers.shift() ?? "done") } as unknown as AgentUI;
+  const mac = {
+    execute: async (c: string) => (ran.push(c), { code: 0, output: "", timedOut: false, ranBy: "droid" as const }),
+    run: async (c: string) => (direct.push(c), { code: 0, output: "", timedOut: false }),
+    screen: { capture: async () => shot(n++) },
+  } as unknown as MacDeps;
+  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [] };
+  const queue = [...actions];
+  const run = () => autopilot(ctx, { instruction: "Change the wallpaper", intervalMs: 0, wait: async () => {}, decide: async () => queue.shift() ?? act({ kind: "done" }) });
+  return { run, ran, direct, guided, ctx };
+}
+
+describe("autopilot commands", () => {
+  it("scales screenshot pixels to screen points", () => {
+    const c = actionCommand(act({ x: 100, y: 50 }), shot())!;
+    expect(c).toContain("const X = 200, Y = 100, N = 1;");
+    expect(c).toContain("AXIsProcessTrusted");
+    expect(actionCommand(act({ kind: "double_click", x: 100, y: 50 }), shot())).toContain("N = 2;");
+  });
+  it("refuses clicks outside the screenshot, odd keys and long or control-character text", () => {
+    expect(actionCommand(act({ x: 5000 }), shot())).toBeNull();
+    expect(actionCommand(act({ kind: "key", key: "cmd+q" }), shot())).toBeNull();
+    expect(actionCommand(act({ kind: "type", text: "a\nb" }), shot())).toBeNull();
+    expect(actionCommand(act({ kind: "type", text: "x".repeat(101) }), shot())).toBeNull();
+  });
+  it("can't be broken out of when typing", () => {
+    const c = actionCommand(act({ kind: "type", text: `a" & (do shell script "x") & "` }), shot())!;
+    expect(c).toContain('\\"');
+    expect(c.startsWith("osascript -e '")).toBe(true);
+  });
+});
+
+describe("autopilot loop: the AI's judgment decides the route", () => {
+  it("routine actions the agent handles run directly, and the loop ends when the screen shows it's done", async () => {
+    const t = setup([act({ target: "Wallpaper in the sidebar" }), act({ kind: "done", reason: "Wallpaper page is open" })]);
+    const r = await t.run();
+    expect(r.outcome).toBe("done");
+    expect(t.direct).toHaveLength(1);
+    expect(t.ran).toEqual([]);
+    expect(t.guided).toEqual([]);
+    expect(t.ctx.evidence.at(-1)).toMatchObject({ kind: "after", code: 0 });
+  });
+
+  it("sensitive actions the agent handles go through Droid", async () => {
+    const t = setup([act({ kind: "key", key: "return", sensitivity: "sensitive", reason: "confirms a change" })]);
+    await t.run();
+    expect(t.ran).toHaveLength(1);
+    expect(t.direct).toEqual([]);
+  });
+
+  it("hands an action to the person when the AI says it needs them, and carries on afterwards", async () => {
+    const t = setup([act({ handling: "person", target: "the password box", reason: "Please enter your password" }), act({ target: "OK" })]);
+    const r = await t.run();
+    expect(t.guided).toEqual(["Please enter your password (the password box)"]);
+    expect(t.ran).toEqual([]);
+    expect(t.direct).toHaveLength(1);
+    expect(r.outcome).toBe("done");
+  });
+
+  it("explains the one-time Accessibility permission instead of a vague failure, and opens that page", async () => {
+    const t = setup([act({})]);
+    (t.ctx.mac as { run: unknown }).run = async (c: string) =>
+      c.startsWith("osascript") ? (t.direct.push(c), { code: 1, output: "osascript is not allowed assistive access. (-25211)", timedOut: false }) : (t.direct.push(c), { code: 0, output: "", timedOut: false });
+    const r = await t.run();
+    expect(r.needsAccessibility).toBe(true);
+    expect(r.trail.at(-1)).toMatch(/Accessibility/);
+    expect(t.direct.some((c) => c.includes("Privacy_Accessibility"))).toBe(true);
+  });
+
+  it.each(["sign_in", "payment", "permission_prompt", "personal_details"] as const)("never clicks or types on a %s screen, even if the AI says the agent can", async (screen) => {
+    const t = setup([act({ screen, handling: "agent", target: "the submit button" }), act({ kind: "type", screen, handling: "agent", text: "hi" }), act({ kind: "key", key: "return", screen, handling: "agent" })]);
+    await t.run();
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+    expect(t.guided).toHaveLength(3);
+  });
+
+  it("stops if the person skips", async () => {
+    const t = setup([act({ handling: "person", reason: "Click Allow" })], ["skip"]);
+    expect((await t.run()).outcome).toBe("skipped");
+  });
+
+  it("makes no keyword guesses: the same words can be agent or person depending on the AI's call", async () => {
+    const t = setup([act({ target: "Privacy & Security in the sidebar", reason: "just opening the page" }), act({ kind: "done" })]);
+    await t.run();
+    expect(t.guided).toEqual([]);
+    expect(t.direct).toHaveLength(1);
+  });
+
+  it("gives up without a screen", async () => {
+    const t = setup([]);
+    delete (t.ctx.mac as { screen?: unknown }).screen;
+    expect((await t.run()).outcome).toBe("gave_up");
+  });
+
+  it("falls back to the person when the AI call fails", async () => {
+    const t = setup([]);
+    const r = await autopilot(t.ctx, { instruction: "x", intervalMs: 0, wait: async () => {}, decide: async () => { throw new Error("boom"); } });
+    expect(r.outcome).toBe("gave_up");
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+  });
+});

@@ -23,7 +23,6 @@
     .tall .stage { height: 560px; }
     .stage { position: relative; inset: auto; width: 620px; max-width: 100%; height: 420px; margin: 0 auto; outline: 1px dashed rgba(255,255,255,0.7); }
     .still *, .still *::before, .still *::after { transition: none !important; animation-duration: 0s !important; }
-    .buddy { position: fixed; width: 44px; height: 44px; border-radius: 50%; background: #d97757; border: 3px solid #fff; pointer-events: none; transform: translate(-50%, -100%); transition: left 200ms, top 200ms; z-index: 5; }
   </style>
 </head>
 <body>
@@ -36,7 +35,6 @@
 
   <div class="stage" id="stage">
     <section class="card is-hidden" id="card" role="dialog" aria-label="CalHack helper" tabindex="-1">
-      <div class="seat" aria-hidden="true"></div>
       <header class="head" id="head">
         <div class="head-text">
           <div class="eyebrow" id="eyebrow"></div>
@@ -61,7 +59,6 @@
       </div>
     </section>
   </div>
-  <div class="buddy" id="buddy" hidden></div>
 
   <script src="bar-preview.js"></script>
   <script src="bar.js"></script>

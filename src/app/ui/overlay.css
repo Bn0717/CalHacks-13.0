@@ -1,8 +1,0 @@
-html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; pointer-events: none; font: 600 14px -apple-system, BlinkMacSystemFont, sans-serif; }
-#ring, #arrow, #label { position: absolute; display: none; transition: left 0.9s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
-#ring { width: 56px; height: 56px; margin: -31px 0 0 -31px; border: 3px solid #ff3b6b; border-radius: 50%; box-shadow: 0 0 0 4px rgba(255, 59, 107, 0.25); animation: pulse 1.1s ease-in-out infinite; }
-#arrow path { fill: none; stroke: #ff3b6b; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
-#arrow { animation: nudge 1.1s ease-in-out infinite; }
-#label { background: #ff3b6b; color: white; padding: 6px 10px; border-radius: 9px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
-@keyframes pulse { 50% { transform: scale(1.18); } }
-@keyframes nudge { 50% { transform: translate(-6px, -6px); } }

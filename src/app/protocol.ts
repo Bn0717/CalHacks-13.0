@@ -1,4 +1,4 @@
-// The contract between the app (main.ts) and its windows: the helper bar and the buddy layer.
+// The contract between the app (main.ts) and its window: the helper bar.
 // The windows are plain JS (no build step), so they follow these shapes by hand.
 // Every message goes through preload.cjs: window.calhack.send(channel, data) / window.calhack.on(channel, cb).
 // All text shown to the person is plain, friendly English. Pages insert it as text, never as HTML.
@@ -36,7 +36,7 @@ export type BarState =
   /** A teaching screen: how to do something yourself (CalHack won't do it, e.g. it can't be undone). */
   | { phase: "explain"; title: string; paragraphs: string[]; steps?: string[] }
   /** A step needs the person: an OK for a flagged step, or a click they must do themselves. */
-  | { phase: "needs-you"; goal: string; stepId: string; kind: "approve" | "manual"; question: string; why: string[]; command?: string; showMe: boolean }
+  | { phase: "needs-you"; goal: string; stepId: string; kind: "approve" | "manual"; question: string; why: string[]; command?: string }
   /** Finished: the receipt. */
   | { phase: "done"; receipt: ReceiptView; steps: StepLine[]; detail: DetailLine[]; canRetry: boolean; canSendSummary: boolean }
   | { phase: "error"; message: string };
@@ -105,25 +105,9 @@ export type BarToApp =
   | { channel: "bar-answer"; data: { text: string } } // typed answer, or a suggestion chip
   | { channel: "bar-approve"; data: { stepId: string; yes: boolean } }
   | { channel: "bar-manual"; data: { stepId: string; answer: "done" | "skip" } }
-  | { channel: "bar-show-me"; data: { stepId: string } }
   | { channel: "bar-send-summary" } // copies a "here's what I tried" summary to the clipboard
   | { channel: "bar-mic-start" } // hold-to-talk pressed
   | { channel: "bar-mic-audio"; data: { wav: ArrayBuffer } } // hold-to-talk released: 16 kHz mono 16-bit WAV
   | { channel: "bar-mic-cancel" }
-  | { channel: "bar-speaking"; data: { speaking: boolean } } // so the buddy can "talk"
-  | { channel: "bar-rect"; data: { x: number; y: number; width: number; height: number } }; // where the bar is on screen (for the buddy)
+  | { channel: "bar-rect"; data: { x: number; y: number; width: number; height: number } }; // where the card is, so clicks around it pass through
 
-// ---------------- App → buddy layer: channel "buddy" ----------------
-
-export type BuddyPose = "idle" | "wave" | "scan" | "think" | "type" | "carry" | "stop" | "point" | "celebrate" | "sad" | "talk";
-
-export type BuddyCommand =
-  | { type: "show"; x: number; y: number; pose?: BuddyPose } // appear (pop in) at a screen point
-  | { type: "hide" }
-  | { type: "hop"; x: number; y: number; pose?: BuddyPose; label?: string } // jump in an arc to a point, then take the pose
-  | { type: "pose"; pose: BuddyPose }
-  | { type: "point"; x: number; y: number; label: string } // hop next to a spot and point at it, with a small label
-  | { type: "scan"; rect: { x: number; y: number; width: number; height: number } } // look around an area (reading the screen)
-  | { type: "talking"; on: boolean };
-// Coordinates are screen points on the main display, with (0,0) at its top-left.
-// The buddy layer covers the main display exactly and lets clicks pass through.
