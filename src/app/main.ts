@@ -44,7 +44,7 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { currentBar, ensureBar, focusBar as focusBarNow, say as sayNow, setBarRect, showBar as showBarNow } from "./windows.js";
+import { currentBar, ensureBar, focusBar as focusBarNow, hidePointer, pointAt, say as sayNow, setBarRect, showBar as showBarNow } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -95,6 +95,13 @@ let job: Job | null = null;
 let busy = false;
 let running = false;
 let stopRequested = false;
+/** Aborted the moment the person presses Stop: Claude requests in flight are cancelled and screen loops end. */
+let stopController = new AbortController();
+/** A fresh stop signal for a new piece of work. */
+function freshStop(): AbortSignal {
+  stopController = new AbortController();
+  return stopController.signal;
+}
 let envCache: { env: Environment; at: number } | null = null;
 let lastExternalApp: string | null = null;
 /** The last screenshot and screen text, so an answer can be read together with what was on screen. */
@@ -136,10 +143,43 @@ function focusBar(): void {
   if (live()) focusBarNow();
 }
 
+/**
+ * Stop: ends the work at once. The request to Claude in flight is cancelled, screen loops end, and anything the old
+ * flow still tries to show or say is dropped, so a late answer never runs. The bar shows "Stopped" right away, with
+ * what was done so far. (A command already running, like an install, isn't killed halfway, but nothing runs after it.)
+ */
+function stopNow(): void {
+  const before = currentBar();
+  currentFlow++;
+  stopRequested = true;
+  stopController.abort();
+  hidePointer();
+  releaseWaits();
+  busy = false;
+  running = false;
+  agentRunning = false;
+  pendingLookup = null;
+  if (before.phase === "hidden") return;
+  const hasSteps = before.phase === "working" || before.phase === "plan" || before.phase === "done";
+  const steps: StepLine[] = hasSteps ? before.steps.map((st): StepLine => (["running", "todo", "waiting"].includes(st.status) ? { ...st, status: "skipped", note: "Stopped" } : st)) : [];
+  const detail = before.phase === "working" || before.phase === "done" ? before.detail : [];
+  showBarNow({
+    phase: "done",
+    receipt: { verdict: "not-done", headline: "Stopped. I won't change anything else.", beforeAfter: [], proofs: [], problems: [], reviewedBy: "rules" },
+    steps,
+    detail,
+    canRetry: !!job,
+    canSendSummary: false,
+  });
+  sayNow("Okay, I stopped.", "now");
+}
+
 /** Ends the current flow and closes the bar, whatever it was doing. */
 function cancelFlow(): void {
   currentFlow++;
   stopRequested = true;
+  stopController.abort();
+  hidePointer();
   releaseWaits();
   job = null;
   pendingLookup = null;
@@ -447,6 +487,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
   agentRunning = true;
   running = true;
   stopRequested = false;
+  const signal = freshStop();
   agentInbox.length = 0;
   const steps: StepLine[] = [];
   const detail: DetailLine[] = [];
@@ -508,12 +549,14 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
       new Promise((resolve) => {
         agentGuide = (a) => {
           agentGuide = null;
+          hidePointer();
           resolve(a);
           work();
         };
+        if (g.point && live()) pointAt(g.point.x, g.point.y, g.point.label);
         const link = safeSettingsUrl(g.settingsUrl);
         if (link) void shell.openExternal(link);
-        const why = ["macOS only lets you do this part yourself.", g.clickTarget ? `Look for “${g.clickTarget}”.` : ""].filter(Boolean);
+        const why = [g.point ? "I've circled it on your screen." : "macOS only lets you do this part yourself.", g.clickTarget ? `Look for “${g.clickTarget}”.` : ""].filter(Boolean);
         showBar({ phase: "needs-you", goal, stepId: "agent", kind: "manual", question: g.instruction, why });
         say(g.instruction, "now");
       }),
@@ -533,6 +576,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
       mac,
       {
         inbox: agentInbox,
+        signal,
         stopped: () => stopRequested || !live(),
         onTool: (name, input) => {
           finishStep();
@@ -870,21 +914,23 @@ function runHooks(j: Job): RunHooks {
         say: (text: string) => say(text, "queue"),
         detail: () => {},
         // A private moment in the middle: the person does just that part, then it carries on.
-        guide: (g: { instruction: string }) =>
+        guide: (g: { instruction: string; point?: { x: number; y: number; label: string } }) =>
           new Promise<"done" | "skip">((resolve0) => {
             // Show that the answer was heard right away; the next look at the screen takes a few seconds.
             const resolve = (a: "done" | "skip") => {
+              hidePointer();
               showWorking(j, planned, a === "done" ? "Thanks, carrying on…" : "Okay, skipping that…");
               resolve0(a);
             };
             manualWaits.set(s.id, resolve);
-            showBar({ phase: "needs-you", goal: j.goal, stepId: s.id, kind: "manual", question: g.instruction, why: ["This part needs you."] });
+            if (g.point && live()) pointAt(g.point.x, g.point.y, g.point.label);
+            showBar({ phase: "needs-you", goal: j.goal, stepId: s.id, kind: "manual", question: g.instruction, why: [g.point ? "This part needs you. I've circled it on your screen." : "This part needs you."] });
             say(g.instruction, "now");
           }),
       } as unknown as AgentUI;
-      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [] }, { instruction, clickTarget: s.clickTarget });
+      const r = await autopilot({ mac, ui, evidence, diagnoses: new Map(), beforeAfter: [], signal: stopController.signal }, { instruction, clickTarget: s.clickTarget });
       if (r.outcome === "done") return { handled: "done", evidence };
-      if (r.outcome === "skipped") return { handled: "skip", evidence };
+      if (r.outcome === "skipped" || r.outcome === "stopped") return { handled: "skip", evidence };
       return { handled: false, evidence, note: r.needsAccessibility ? `${r.trail.at(-1)}.` : r.trail.length ? `I tried and couldn't finish: ${r.trail.at(-1)}.` : undefined };
     },
     progress: (planned, message) => showWorking(j, planned, message),
@@ -897,6 +943,7 @@ async function runAll(): Promise<void> {
   if (j.mode === "install") return runInstall(j);
   running = true;
   stopRequested = false;
+  freshStop();
   j.receipt = null;
   for (const [key, outcome] of j.recipesTried) if (!outcome.ok) j.recipesTried.delete(key);
   // runSequence retains completed actions and refreshes their read-only checks first.
@@ -983,6 +1030,7 @@ async function runInstall(j: Job): Promise<void> {
   if (!j.install) return;
   running = true;
   stopRequested = false;
+  const signal = freshStop();
   const { url, publisher, appName } = j.install;
   const set = (id: string, r: Omit<StepResult, "id">) => j.results.set(id, { id, ...r });
   const line = (id: string, text: string) => showWorking(j, j.plan.steps.find((p) => p.step.id === id), text);
@@ -993,6 +1041,8 @@ async function runInstall(j: Job): Promise<void> {
       say(j.installationResult?.actionCompleted ? `Checking ${appName} again.` : `Okay, I'm downloading ${appName} from ${publisher}'s official website.`, "now");
       line(j.installationResult?.actionCompleted ? "3" : "1", j.installationResult?.actionCompleted ? `Checking ${appName}…` : `Downloading ${appName}…`);
       const result = await installFromOfficial({ url, publisher, appName }, (stage, message) => {
+        // Stop pressed during the download: never go on to install.
+        if (signal.aborted) throw new Error("Stopped.");
         if (stage === "check") set("1", { status: "done-unverified", actionCompleted: true, message: "Download finished." });
         if (stage === "install") {
           set("2", { status: "done-unverified", actionCompleted: true, message: `Signed by ${publisher}.` });
@@ -1147,10 +1197,7 @@ ipcMain.on("bar-confirm", (_e, data: { yes?: boolean; typed?: string }) => {
   c.resolve(ok);
 });
 ipcMain.on("bar-explain-ok", () => agentExplain?.());
-ipcMain.on("bar-stop", () => {
-  stopRequested = true;
-  releaseWaits();
-});
+ipcMain.on("bar-stop", () => stopNow());
 // Cancel and ✕ work on every screen, including while checks are running.
 ipcMain.on("bar-cancel", () => cancelFlow());
 ipcMain.on("bar-answer", (_e, data: { text?: string }) => void onAnswer(String(data?.text ?? "").slice(0, 500)));

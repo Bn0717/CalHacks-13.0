@@ -113,3 +113,42 @@ describe("autopilot loop: the AI's judgment decides the route", () => {
     expect(t.ran).toEqual([]);
   });
 });
+
+describe("autopilot: Stop and pointing", () => {
+  it("Stop while Claude is deciding: its answer is never acted on", async () => {
+    const t = setup([]);
+    const stop = new AbortController();
+    t.ctx.signal = stop.signal;
+    const r = await autopilot(t.ctx, {
+      instruction: "Change the wallpaper",
+      intervalMs: 0,
+      wait: async () => {},
+      decide: async () => {
+        stop.abort(); // the person presses Stop while the request is in flight
+        return act({ target: "Wallpaper" });
+      },
+    });
+    expect(r.outcome).toBe("stopped");
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+  });
+
+  it("Stop ends the wait between looks at once", async () => {
+    const t = setup([act({ kind: "wait" })]);
+    const stop = new AbortController();
+    t.ctx.signal = stop.signal;
+    setTimeout(() => stop.abort(), 20);
+    const started = Date.now();
+    const r = await autopilot(t.ctx, { instruction: "x", intervalMs: 60_000, decide: async () => act({ kind: "wait" }) });
+    expect(r.outcome).toBe("stopped");
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it("points at the thing the person should click, in screen points", async () => {
+    const points: unknown[] = [];
+    const t = setup([act({ handling: "person", target: "Pick a wallpaper you like", x: 300, y: 200 })]);
+    t.ctx.ui.guide = async (g) => (points.push(g.point), "done");
+    await t.run();
+    expect(points[0]).toEqual({ x: 600, y: 400, label: "Pick a wallpaper you like" });
+  });
+});

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <meta name="color-scheme" content="light">
+  <title>CalHack pointer</title>
+  <link rel="stylesheet" href="pointer.css">
+</head>
+<body>
+  <!-- A ring on the thing to click, with a short label. Clicks pass through this whole window. -->
+  <div class="spot is-hidden" id="spot" aria-hidden="true">
+    <div class="ring"></div>
+    <div class="ring echo"></div>
+    <div class="label" id="label"></div>
+  </div>
+  <script src="pointer.js"></script>
+</body>
+</html>
