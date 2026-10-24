@@ -111,3 +111,12 @@ export type BarToApp =
   | { channel: "bar-mic-cancel" }
   | { channel: "bar-rect"; data: { x: number; y: number; width: number; height: number } }; // where the card is, so clicks around it pass through
 
+
+// ---------------- App → pointer layer: channel "pointer" ----------------
+
+/**
+ * A ring and a short label right on the thing the person should click (when a part is theirs, like a password or a
+ * personal choice). The layer covers the main display, lets every click pass through, and is kept out of screenshots.
+ * x, y are screen points on the main display, (0,0) at its top-left.
+ */
+export type PointerCommand = { show: true; x: number; y: number; label: string } | { show: false };

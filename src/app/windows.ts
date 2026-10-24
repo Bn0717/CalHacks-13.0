@@ -2,7 +2,7 @@
 import { BrowserWindow, screen } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { BarState, SayMessage } from "./protocol.js";
+import type { BarState, PointerCommand, SayMessage } from "./protocol.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const UI = (name: string) => join(here, "ui", name);
@@ -16,6 +16,7 @@ let bar: BrowserWindow | null = null;
 /** Where the bar's card is, in screen points (sent by the bar page). */
 let barCard: { x: number; y: number; width: number; height: number } | null = null;
 let lastBarState: BarState = { phase: "hidden" };
+let pointer: BrowserWindow | null = null;
 
 function makeWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWindow {
   const win = new BrowserWindow({
@@ -75,7 +76,10 @@ export function showBar(state: BarState): void {
   const w = ensureBar();
   whenLoaded(w, () => {
     w.webContents.send("bar", state);
-    if (state.phase === "hidden") w.hide();
+    if (state.phase === "hidden") {
+      w.hide();
+      hidePointer();
+    }
     else if (!w.isVisible()) w.showInactive();
   });
 }
@@ -107,4 +111,35 @@ export function setBarRect(rect: { x: number; y: number; width: number; height: 
   const b = bar.getBounds();
   barCard = { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height };
   if (process.env.CALHACK_DEBUG) console.log(`[rect] window ${JSON.stringify(b)} card ${JSON.stringify(rect)}`);
+}
+
+// ---------- Pointer layer ----------
+// A see-through layer over the main display. It never takes clicks or focus, so the person clicks the real button under the ring.
+
+function ensurePointer(): BrowserWindow {
+  if (pointer && !pointer.isDestroyed()) return pointer;
+  const b = screen.getPrimaryDisplay().bounds;
+  pointer = makeWindow({ x: b.x, y: b.y, width: b.width, height: b.height, focusable: false, enableLargerThanScreen: true });
+  pointer.setAlwaysOnTop(true, "screen-saver");
+  pointer.setIgnoreMouseEvents(true);
+  pointer.loadFile(UI("pointer.html"));
+  pointer.on("closed", () => (pointer = null));
+  return pointer;
+}
+
+/** Puts a ring and a label on a screen point (main display, in points). */
+export function pointAt(x: number, y: number, label: string): void {
+  const b = screen.getPrimaryDisplay().bounds;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > b.width || y > b.height) return;
+  const w = ensurePointer();
+  whenLoaded(w, () => {
+    w.webContents.send("pointer", { show: true, x, y, label: label.slice(0, 80) } satisfies PointerCommand);
+    if (!w.isVisible()) w.showInactive();
+  });
+}
+
+export function hidePointer(): void {
+  if (!pointer || pointer.isDestroyed() || !pointer.isVisible()) return;
+  pointer.webContents.send("pointer", { show: false } satisfies PointerCommand);
+  pointer.hide();
 }
