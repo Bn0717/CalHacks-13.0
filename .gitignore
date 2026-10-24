@@ -5,3 +5,5 @@ dist/
 .DS_Store
 downloads/
 .kokoro/
+*.swp
+*.mp4
