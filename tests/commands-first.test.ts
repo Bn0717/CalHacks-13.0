@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screenChanged, waitForSettle, type ScreenDeps } from "../src/agent/autopilot.js";
 import { TOOLS, type AgentUI, type MacDeps, type ToolContext } from "../src/agent/tools.js";
 
@@ -131,26 +134,48 @@ describe("check_screen", () => {
 });
 
 describe("settings with no command, done by CalHack in the app (no person needed)", () => {
-  function settingsMac(opts: { pointer?: number; reading?: number; dnd?: number; settingsOpen?: boolean } = {}) {
-    const state = { pointer: opts.pointer ?? 1, reading: opts.reading ?? 4, dnd: opts.dnd ?? 0, page: "display" as "display" | "text" };
+  // Logs from the routes go to a throwaway folder, never the real ~/.cache/calhack.
+  beforeEach(() => {
+    vi.stubEnv("HOME", mkdtempSync(join(tmpdir(), "calhack-test-")));
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** Like macOS 26: Text size opens a panel (sheet) in front of the Display page; only the panel's items are listed then. */
+  function settingsMac(opts: { pointer?: number; reading?: number; dnd?: number; settingsOpen?: boolean; panelOpen?: boolean; sliderFails?: boolean } = {}) {
+    const state = { pointer: opts.pointer ?? 1, reading: opts.reading ?? 4, dnd: opts.dnd ?? 0, page: (opts.panelOpen ? "text" : "display") as "display" | "text" };
     const ran: string[] = [];
+    const pressed: string[] = [];
     const items = (): import("../src/mac/ui.js").UiItem[] =>
       state.page === "display"
         ? [
             { path: "1", role: "AXButton", name: "Text size, Set your preferred reading size for supported apps", frame: { x: 0, y: 0, w: 1, h: 1 } },
             { path: "2", role: "AXSlider", name: "Pointer size", value: state.pointer, frame: { x: 0, y: 0, w: 1, h: 1 } },
           ]
-        : [{ path: "3", role: "AXSlider", name: "Preferred reading size", value: state.reading, frame: { x: 0, y: 0, w: 1, h: 1 } }];
+        : [
+            { path: "3", role: "AXSlider", name: "Preferred reading size", value: state.reading, frame: { x: 0, y: 0, w: 1, h: 1 } },
+            { path: "4", role: "AXButton", name: "Done", frame: { x: 0, y: 0, w: 1, h: 1 } },
+          ];
     const mac = {
       run: async (c: string) => (ran.push(c), { code: 0, output: "", timedOut: false }),
-      sandboxed: async () => ({ code: opts.settingsOpen ? 0 : 1, output: "", timedOut: false }),
+      sandboxed: async () => ({ code: opts.settingsOpen || opts.panelOpen ? 0 : 1, output: "", timedOut: false }),
       ui: {
-        list: async () => ({ app: "System Settings", window: "", items: items() }),
+        list: async () => ({ app: "System Settings", window: "", sheet: state.page === "text", items: items() }),
         act: async (_app: string, it: import("../src/mac/ui.js").UiItem, how: string) => {
           if (it.name.startsWith("Text size")) state.page = "text";
           if (it.name === "Pointer size") state.pointer = Math.round((state.pointer + (how === "increase" ? 0.3 : -0.3)) * 10) / 10;
-          if (it.name === "Preferred reading size") state.reading += how === "increase" ? 1 : -1;
+          if (it.name === "Preferred reading size") {
+            if (opts.sliderFails) return { ok: false, error: "Moving the slider didn't work (-25200)." };
+            state.reading += how === "increase" ? 1 : -1;
+          }
           return { ok: true };
+        },
+        closeSheet: async (_app: string, button: string) => {
+          if (state.page !== "text") return { ok: true, pressed: null, closed: true };
+          pressed.push(button);
+          if (button === "Done") state.page = "display";
+          return { ok: state.page === "display", pressed: button, closed: state.page === "display" };
         },
         type: async () => ({ ok: true }),
         command: () => "",
@@ -162,7 +187,7 @@ describe("settings with no command, done by CalHack in the app (no person needed
       },
     } as unknown as MacDeps;
     const ctx: ToolContext = { mac, ui: { status() {}, say() {}, detail() {} } as unknown as AgentUI, evidence: [], diagnoses: new Map(), beforeAfter: [] };
-    return { ctx, state, ran };
+    return { ctx, state, ran, pressed };
   }
 
   it("makes the mouse pointer larger by itself, proves it, and closes System Settings again", async () => {
@@ -184,6 +209,52 @@ describe("settings with no command, done by CalHack in the app (no person needed
     const t = settingsMac();
     const out = await tool("change_setting").run({ setting: "text_size", value: "larger" }, t.ctx);
     expect(out).toMatch(/Size 4 → Size 6 \(checked\)/);
+  });
+
+  it("closes the Text Size panel with Done, keeping the new size, and logs it", async () => {
+    const t = settingsMac({ settingsOpen: true });
+    await tool("change_setting").run({ setting: "text_size", value: "larger" }, t.ctx);
+    expect(t.pressed).toEqual(["Done"]);
+    expect(t.state).toMatchObject({ page: "display", reading: 6 });
+    const log = readFileSync(join(process.env.HOME!, ".cache", "calhack", "autopilot.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(log.at(-1)).toMatchObject({ outcome: "sheet_closed", action: { taken: "close_panel" }, sheetClose: { mode: "keep", pressed: "Done", closed: true } });
+  });
+
+  it("closes the panel even when moving the slider fails", async () => {
+    const t = settingsMac({ settingsOpen: true, sliderFails: true });
+    await tool("change_setting").run({ setting: "text_size", value: "larger" }, t.ctx);
+    expect(t.pressed).toEqual(["Done"]);
+    expect(t.state.page).toBe("display");
+  });
+
+  it("leaves a panel the person already had open (the route can't reach its slider behind it)", async () => {
+    // The slider search waits ~6 s before giving up: run the clock fast.
+    vi.useFakeTimers();
+    try {
+      const t = settingsMac({ panelOpen: true });
+      const running = tool("change_setting").run({ setting: "pointer_size", value: "larger" }, t.ctx);
+      await vi.advanceTimersByTimeAsync(7000);
+      const out = await running;
+      expect(out).toMatch(/couldn't find the "Pointer size" slider/);
+      expect(t.pressed).toEqual([]);
+      expect(t.state.page).toBe("text");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("text size then pointer size: the pointer slider is found because the panel was closed", async () => {
+    const t = settingsMac({ settingsOpen: true });
+    await tool("change_setting").run({ setting: "text_size", value: "larger" }, t.ctx);
+    const out = await tool("change_setting").run({ setting: "pointer_size", value: "larger" }, t.ctx);
+    expect(out).toMatch(/Normal → 1.9× normal \(checked\)/);
+  });
+
+  it("presses nothing more once Stop was pressed", async () => {
+    const t = settingsMac({ settingsOpen: true });
+    t.ctx.stopped = () => true;
+    await tool("change_setting").run({ setting: "text_size", value: "larger" }, t.ctx);
+    expect(t.pressed).toEqual([]);
   });
 
   it("turns on Do Not Disturb and reads it back", async () => {

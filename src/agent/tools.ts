@@ -17,6 +17,7 @@ import { parsePower, parseWifiDevice, safeDevice } from "../core/fixes/wifi.js";
 import { matchOutput, type SoundOutput } from "../mac/audio.js";
 import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
+import { closeOpenedSheet } from "./uipilot.js";
 
 export interface AppInfo {
   name: string;
@@ -639,14 +640,21 @@ async function waitForItem(ui: NonNullable<MacDeps["ui"]>, app: string, match: (
   return null;
 }
 
-/** Opens a System Settings page, runs `work` on it, and closes System Settings again if it wasn't open before. */
+/**
+ * Opens a System Settings page, runs `work` on it, then leaves things as they were: a panel the work opened (like Text Size)
+ * is closed, keeping the change, and System Settings is closed again if it wasn't open before.
+ */
 async function onSettingsPage<T>(ctx: ToolContext, url: string, work: (ui: NonNullable<MacDeps["ui"]>) => Promise<T>): Promise<T> {
   const ui = ctx.mac.ui!;
   const wasOpen = (await ctx.mac.sandboxed("pgrep -x 'System Settings'")).code === 0;
+  // A panel the person already had open is theirs: it stays.
+  const before = wasOpen ? await ui.list("System Settings").catch(() => null) : null;
+  const hadSheet = !!before && !("error" in before) && !!before.sheet;
   await ctx.mac.run(`open ${shq(url)}`);
   try {
     return await work(ui);
   } finally {
+    await closeOpenedSheet(ctx, ui, { app: "System Settings", hadSheet, step: `Settings page ${url}`, record: fileRecord }).catch(() => null);
     if (!wasOpen) await ctx.mac.run(`osascript -e 'tell application "System Settings" to quit'`).catch(() => {});
   }
 }

@@ -4,6 +4,7 @@
 //   ui-elements list [app name]              → JSON: the app's front window, one entry per item you can act on
 //   ui-elements act  <app name> <path> <role> <name> <press|select|focus|increase|decrease>
 //   ui-elements type <app name> <path> <role> <name> <text>
+//   ui-elements closesheet <app name> <Done|OK|Cancel>   → closes the panel in front, checks it closed
 //
 // "path" is the item's position in the window ("0.3.1"), from list. Before acting, the item at that path must still have
 // the same role and name; if it moved, it is looked up again by role and name. Password boxes are never typed into.
@@ -125,6 +126,41 @@ if cmd == "controlcenter" {
   exit(0)
 }
 
+// Closes the panel (sheet) in front of an app's window by pressing one of its closing buttons, then checks it closed.
+//   ui-elements closesheet <app name> <Done|OK|Cancel>
+// Only these three names are ever pressed, and only inside a panel: never "Forget This Network…" or anything else.
+// System Settings leaves the panel's default and cancel buttons unset, so the button is found by its exact name.
+// Escape is not used: it keeps changes on panels that apply them right away (Text Size), so it isn't a real Cancel.
+let CLOSE_NAMES: Set<String> = ["Done", "OK", "Cancel"]
+if cmd == "closesheet" {
+  guard args.count >= 4 else { fail("usage: closesheet <app> <Done|OK|Cancel>", 2) }
+  let want = args[3]
+  guard CLOSE_NAMES.contains(want) else { fail("Only Done, OK or Cancel close a panel.") }
+  guard let app = appNamed(args[2]) else { fail("That app isn't running.") }
+  guard let sheet = frontWindow(app), role(sheet) == "AXSheet" else { out(["ok": true, "pressed": NSNull(), "closed": true]); exit(0) }
+  var button: AXUIElement?
+  func look(_ e: AXUIElement, _ d: Int) {
+    if button != nil || d > 40 { return }
+    if role(e) == "AXButton" && name(e) == want { button = e; return }
+    for c in children(e) { look(c, d + 1) }
+  }
+  look(sheet, 0)
+  guard let b = button else { fail("The panel has no \(want) button.") }
+  let r = AXUIElementPerformAction(b, kAXPressAction as CFString)
+  if r != .success { fail("Pressing \(want) didn't work (\(r.rawValue)).") }
+  // The panel takes a moment to slide away: closed once the app's focused window is no longer a panel.
+  var closed = false
+  for _ in 0..<30 {
+    Thread.sleep(forTimeInterval: 0.05)
+    if let w = frontWindow(app), role(w) == "AXSheet" { continue }
+    closed = true
+    break
+  }
+  if closed { out(["ok": true, "pressed": want, "closed": true]) }
+  else { out(["ok": false, "pressed": want, "closed": false, "error": "I pressed \(want), but the panel is still open."]) }
+  exit(0)
+}
+
 if cmd == "list" {
   guard let app = appNamed(args.count > 2 ? args[2] : nil) else { fail("That app isn't running.") }
   guard let window = frontWindow(app) else { fail("\(app.localizedName ?? "The app") has no open window.") }
@@ -146,7 +182,8 @@ if cmd == "list" {
     for (i, c) in children(e).enumerated() { walk(c, path.isEmpty ? "\(i)" : "\(path).\(i)", d + 1) }
   }
   walk(window, "", 0)
-  out(["ok": true, "app": app.localizedName ?? "", "window": str(window, kAXTitleAttribute), "items": items])
+  // A panel (sheet) in front is the app's focused window: then only the panel's items are listed.
+  out(["ok": true, "app": app.localizedName ?? "", "window": str(window, kAXTitleAttribute), "sheet": role(window) == "AXSheet", "items": items])
   exit(0)
 }
 

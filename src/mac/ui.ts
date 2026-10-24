@@ -31,8 +31,13 @@ export interface UiItem {
 export interface UiWindow {
   app: string;
   window: string;
+  /** A panel (sheet) is open in front of the page, so the items are only the panel's. */
+  sheet?: boolean;
   items: UiItem[];
 }
+
+/** The only buttons that ever close a panel. The helper refuses any other name. */
+export type CloseButton = "Done" | "OK" | "Cancel";
 
 function swiftSource(): string | null {
   const root = process.env.CALHACK_ROOT ?? join(here, "..", "..");
@@ -74,7 +79,7 @@ export function parseWindow(raw: Record<string, unknown>): UiWindow | { error: s
   const items = (Array.isArray(raw.items) ? raw.items : []).filter(
     (i): i is UiItem => !!i && typeof i === "object" && typeof (i as UiItem).path === "string" && typeof (i as UiItem).role === "string",
   );
-  return { app: String(raw.app ?? ""), window: String(raw.window ?? ""), items: items.map((i) => ({ ...i, name: String(i.name ?? "") })) };
+  return { app: String(raw.app ?? ""), window: String(raw.window ?? ""), ...(raw.sheet === true ? { sheet: true } : {}), items: items.map((i) => ({ ...i, name: String(i.name ?? "") })) };
 }
 
 /** The front window of an app (or of the app in front), with every item you can act on. */
@@ -92,6 +97,12 @@ export async function actOn(app: string, item: UiItem, how: "press" | "select" |
 export async function controlCenter(moduleId: string, switchId: string, want: "on" | "off" | "status"): Promise<{ ok: boolean; error?: string; before?: number; after?: number }> {
   const r = await call(["controlcenter", moduleId, switchId, want]);
   return { ok: !!r.ok, error: r.error ? String(r.error) : undefined, before: typeof r.before === "number" ? r.before : undefined, after: typeof r.after === "number" ? r.after : undefined };
+}
+
+/** Closes the panel in front of an app's window with one of its closing buttons, and checks it closed. No panel: nothing pressed. */
+export async function closeSheet(app: string, button: CloseButton): Promise<{ ok: boolean; pressed: string | null; closed: boolean; error?: string }> {
+  const r = await call(["closesheet", app, button]);
+  return { ok: !!r.ok, pressed: typeof r.pressed === "string" ? r.pressed : null, closed: r.closed === true, error: r.error ? String(r.error) : undefined };
 }
 
 /** Types into a text field (never a password box: the helper refuses). */

@@ -293,14 +293,17 @@ export type CancelStage = "before_look" | "during_model_call" | "model_answer_dr
  *   sinceCaptureMs = from the screenshot the decision was based on to the action finishing (how stale the click was).
  * - cancelled: true if Stop/Cancel ended it. Then cancelledAt (ISO time), cancelledDuring and previousInstruction
  *   (the instruction executed just before it, if any) say when and where.
+ * - sheetClose: closing a panel CalHack opened (round 0 for the fixed Settings routes): the mode, the button pressed
+ *   (null when none matched), and whether the panel really closed.
  */
 export interface ActionRecord {
   ts: string;
   step: string;
   round: number;
   decision?: { kind: ActionKind; target: string; screen: ScreenKind; effect: Effect; personalChoice: boolean; handling: Handling; sensitivity: Sensitivity; reason: string };
-  action: { taken: "click" | "double_click" | "type" | "key" | "handed_to_person" | "none"; route: "direct" | "droid" | "person" | "none"; label?: string; command?: string };
-  outcome: "executed" | "failed" | "person_did_it" | "person_skipped" | "done" | "waited" | "refused_unsafe" | "cancelled" | "model_error";
+  action: { taken: "click" | "double_click" | "type" | "key" | "handed_to_person" | "close_panel" | "none"; route: "direct" | "droid" | "person" | "none"; label?: string; command?: string };
+  outcome: "executed" | "failed" | "person_did_it" | "person_skipped" | "done" | "waited" | "refused_unsafe" | "cancelled" | "model_error" | "sheet_closed" | "sheet_close_failed";
+  sheetClose?: { mode: "keep" | "discard"; pressed: string | null; closed: boolean; error?: string };
   exitCode?: number;
   delay: { decisionMs?: number; executionMs?: number; sinceCaptureMs?: number };
   cancelled: boolean;
@@ -348,15 +351,34 @@ export interface AutopilotResult {
   needsAccessibility?: boolean;
   /** Plain lines of what CalHack did and what the person did. */
   trail: string[];
+  /** The person did a part of this step themselves. */
+  personHelped?: boolean;
+}
+
+/**
+ * Works on one incomplete step until the screen shows it's done, then closes any panel that opened while CalHack did it,
+ * so the next step sees the page and not a leftover panel. A panel that was already open, or one the person worked in, stays.
+ */
+export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<AutopilotResult> {
+  const ui = ctx.mac.screen ? ctx.mac.ui : undefined;
+  const start = ui ? await ui.list(o.app).catch(() => null) : null;
+  const r = await workOnStep(ctx, o);
+  if (ui && start && !("error" in start) && r.outcome === "done" && !r.personHelped) {
+    const { closeOpenedSheet } = await import("./uipilot.js");
+    const c = await closeOpenedSheet(ctx, ui, { app: start.app, hadSheet: !!start.sheet, step: o.instruction, record: o.record });
+    if (c) r.trail.push(c.closed ? `Closed the panel (${c.pressed})` : `I couldn't close the panel: ${c.error ?? "it's still open"}`);
+  }
+  return r;
 }
 
 /**
  * Works on one incomplete step until the screen shows it's done. Looks every few seconds. Parts that need the person
  * go to them (the loop then continues); anything it can't work out, or no progress, ends with "gave_up" so the caller can ask.
  */
-export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<AutopilotResult> {
+async function workOnStep(ctx: ToolContext, o: AutopilotOptions): Promise<AutopilotResult> {
   const screen = ctx.mac.screen;
   const trail: string[] = [];
+  let personHelped = false;
   if (!screen) return { outcome: "gave_up", trail };
   // Fast way first: read the window's items by name and act on them directly (milliseconds per click, no screenshot).
   // Screenshots only when the app doesn't list its items or the list doesn't have what's needed.
@@ -365,8 +387,9 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
     const t0 = Date.now();
     const r = await uiPilot(ctx, ctx.mac.ui, { instruction: o.instruction, app: o.app, routes: true });
     if (process.env.CALHACK_DEBUG) console.log(`[uipilot] ${r.outcome} in ${Date.now() - t0} ms, ${r.decisions} decisions: ${r.trail.join("; ")}`);
-    if (r.outcome !== "fallback") return { outcome: r.outcome, trail: r.trail };
+    if (r.outcome !== "fallback") return { outcome: r.outcome, trail: r.trail, personHelped: r.personHelped };
     trail.push(...r.trail);
+    personHelped = r.personHelped;
     ctx.ui.detail("This app doesn't list its buttons, so I'm looking at the screen instead.", true);
   }
   const decide = o.decide ?? decideNext;
@@ -476,7 +499,7 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       const ref = addProof(ctx, "run", `screen look: ${o.instruction}`, 0, a.reason || "the screen shows it's done");
       emit({ action: { taken: "none", route: "none" }, outcome: "done", delay: { decisionMs, sinceCaptureMs: now() - capturedAt } });
       trail.push(`The screen shows it's done [${ref}]`);
-      return { outcome: "done", trail };
+      return { outcome: "done", trail, personHelped };
     }
     if (a.kind === "wait") {
       ctx.ui.status(a.reason || "Waiting for it to load…");
@@ -502,6 +525,7 @@ export async function autopilot(ctx: ToolContext, o: AutopilotOptions): Promise<
       emit({ action: { taken: "handed_to_person", route: "person", label: a.target || a.reason }, outcome: g === "skip" ? "person_skipped" : "person_did_it", delay: { decisionMs, executionMs: now() - handedAt, sinceCaptureMs: now() - capturedAt } });
       trail.push(`You did this part: ${a.target || a.reason}`);
       if (g === "skip") return { outcome: "skipped", trail };
+      personHelped = true;
       previous = `You did: ${a.target || a.reason}`;
       acted++;
       needsSettle = !screen.glance;

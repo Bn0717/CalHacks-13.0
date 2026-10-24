@@ -13,7 +13,8 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { MODEL } from "../ai/client.js";
 import { askJson } from "../ai/json.js";
-import type { UiItem, UiWindow } from "../mac/ui.js";
+import type { CloseButton, UiItem, UiWindow } from "../mac/ui.js";
+import type { ActionRecord } from "./autopilot.js";
 import type { ToolContext } from "./tools.js";
 
 export interface UiDeps {
@@ -24,6 +25,8 @@ export interface UiDeps {
   type(app: string, item: UiItem, text: string): Promise<{ ok: boolean; error?: string }>;
   /** The act as a shell command, so a sensitive one can run through Droid. */
   command(app: string, item: UiItem, how: string): string;
+  /** Presses Done, OK or Cancel on the panel in front, and checks it closed. Optional: missing = panels stay as they are. */
+  closeSheet?(app: string, button: CloseButton): Promise<{ ok: boolean; pressed: string | null; closed: boolean; error?: string }>;
 }
 
 export interface UiStep {
@@ -57,12 +60,68 @@ export function describeWindow(w: UiWindow): string {
     const extra = [it.selected ? "selected" : "", it.disabled ? "disabled" : "", it.value !== undefined ? `value ${it.value}` : "", it.secure ? "only the person types here" : ""].filter(Boolean).join(", ");
     return `#${i + 1} ${ROLE[it.role] ?? it.role.replace(/^AX/, "").toLowerCase()} "${it.name.replace(/"/g, "'")}"${extra ? ` (${extra})` : ""}`;
   });
-  return `App: ${w.app}${w.window ? `, window "${w.window}"` : ""}\n${lines.join("\n")}`;
+  const panel = w.sheet ? "\nA panel is open in front of the page: only the panel's items are listed." : "";
+  return `App: ${w.app}${w.window ? `, window "${w.window}"` : ""}${panel}\n${lines.join("\n")}`;
 }
 
 /** A short fingerprint of the window, to tell whether an action changed anything. */
 export function windowSignature(w: UiWindow): string {
   return w.items.map((i) => `${i.role}:${i.name}:${i.selected ? 1 : 0}:${i.value ?? ""}`).join("|");
+}
+
+// ---------- Closing panels ----------
+// A panel (sheet) CalHack opens is closed again when it's done, so the page behind it is visible to the next step.
+// System Settings leaves the panel's default and cancel buttons unset, so the button is picked by its exact name.
+
+/**
+ * Which button closes a panel with these buttons, or null when none of them may be pressed.
+ * keep = Done, else OK (keep what was changed). discard = Cancel, else Done when the panel has no OK
+ * (a Done-only panel applied its changes as they were made, so Done neither saves nor loses anything).
+ */
+export function pickCloseButton(names: string[], mode: "keep" | "discard"): CloseButton | null {
+  const has = (n: CloseButton) => names.includes(n);
+  if (mode === "keep") return has("Done") ? "Done" : has("OK") ? "OK" : null;
+  return has("Cancel") ? "Cancel" : has("Done") && !has("OK") ? "Done" : null;
+}
+
+export interface SheetClose {
+  mode: "keep" | "discard";
+  pressed: string | null;
+  closed: boolean;
+  error?: string;
+}
+
+/**
+ * Closes the panel in front of `app` if one opened while CalHack worked: never one that was already open (`hadSheet`),
+ * and nothing once Stop was pressed. Returns null when there was nothing to close.
+ */
+export async function closeOpenedSheet(
+  ctx: ToolContext,
+  ui: UiDeps,
+  o: { app: string; hadSheet: boolean; step: string; mode?: "keep" | "discard"; record?: (r: ActionRecord) => void },
+): Promise<SheetClose | null> {
+  if (o.hadSheet || !ui.closeSheet || ctx.signal?.aborted || ctx.stopped?.()) return null;
+  const w = await ui.list(o.app).catch(() => null);
+  if (!w || "error" in w || !w.sheet) return null;
+  const mode = o.mode ?? "keep";
+  const button = pickCloseButton(w.items.filter((i) => i.role === "AXButton").map((i) => i.name), mode);
+  const t0 = Date.now();
+  const r = button
+    ? await ui.closeSheet(o.app, button).catch((e: Error) => ({ ok: false, pressed: button, closed: false, error: e.message }))
+    : { ok: false, pressed: null, closed: false, error: "The panel has no Done, OK or Cancel button." };
+  const c: SheetClose = { mode, pressed: r.pressed, closed: r.ok && r.closed, ...(r.error ? { error: r.error } : {}) };
+  ctx.ui.detail(c.closed ? `Closed the panel with ${c.pressed}` : `Couldn't close the panel: ${c.error ?? "it's still open"}`, true);
+  o.record?.({
+    ts: new Date().toISOString(),
+    step: o.step,
+    round: 0,
+    action: { taken: "close_panel", route: "direct", label: button ? `Pressing ${button} to close the panel` : "No closing button" },
+    outcome: c.closed ? "sheet_closed" : "sheet_close_failed",
+    sheetClose: c,
+    delay: { executionMs: Date.now() - t0 },
+    cancelled: false,
+  });
+  return c;
 }
 
 const SYSTEM = `You are CalHack's hands on a Mac. Someone needs one step finished. Instead of a screenshot you get the front window's items as a numbered list (buttons, rows, text, switches, with "selected" and values). Plan the next actions that move toward finishing the step.
@@ -188,6 +247,8 @@ export interface UiPilotResult {
   trail: string[];
   /** How many times Claude was asked. */
   decisions: number;
+  /** The person did a part of this step themselves (so a panel that's open may be theirs to finish). */
+  personHelped: boolean;
 }
 
 /** Works on one step through the window's items. "fallback" = this app or step needs the screenshot way. */
@@ -204,7 +265,7 @@ export async function uiPilot(ctx: ToolContext, ui: UiDeps, o: UiPilotOptions): 
   let personDid = false;
   const done: Route = [];
   const stopped = () => !!signal?.aborted;
-  const result = (outcome: UiPilotResult["outcome"]): UiPilotResult => ({ outcome, trail, decisions });
+  const result = (outcome: UiPilotResult["outcome"]): UiPilotResult => ({ outcome, trail, decisions, personHelped: personDid });
 
   const first = await ui.list(o.app);
   if ("error" in first) {
