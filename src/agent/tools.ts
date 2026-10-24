@@ -239,11 +239,13 @@ const checkProblem: AgentTool = {
     if (!guide) return "Unknown area.";
     const d = await diagnose(guide, ctx.mac.checkRunner, (_id, r) => ctx.ui.status(`${r.label}: ${r.status === "ok" ? "OK" : r.status === "problem" ? r.detail : "not sure"}`));
     ctx.diagnoses.set(guide.id, d);
-    const refs = d.evidence.map((e) => addEvidence(ctx, e));
-    const lines = d.results.map((r) => `- ${r.label}: ${r.status}${r.detail ? ` (${r.detail})` : ""}`);
+    // Each check line carries the number of the command it read, so proofs point at the right check.
+    const refByCommand = new Map(d.evidence.map((e) => [e.command, addEvidence(ctx, e)]));
+    const lines = d.results.map((r) => `- ${r.command && refByCommand.has(r.command) ? `[${refByCommand.get(r.command)}] ` : ""}${r.label}: ${r.status}${r.detail ? ` (${r.detail})` : ""}`);
+    const refs = [...refByCommand.values()];
     const fixes = buildFixes(d).map((f) => `- ${f.label}${f.kind === "manual" ? " (the person must click this; use guide_person)" : ""}`);
     return [
-      `Checks [${refs.join(", ")}]:`,
+      `Checks (${refs.length} commands ran; a check passed if its status is ok):`,
       ...lines,
       d.problem ? `Problem: ${d.problem}` : "Nothing wrong found by these checks.",
       fixes.length ? `Built-in fixes that apply (fix_problem runs them):\n${fixes.join("\n")}` : "No built-in fix applies.",
@@ -522,9 +524,9 @@ const fixProblem: AgentTool = {
     if (wait) await new Promise((r) => setTimeout(r, Math.min(wait, 15_000)));
     ctx.ui.status("Checking it worked…");
     const v = await verifyFix(guide, ctx.mac.checkRunner, before);
-    const refs = v.after.results.filter((r) => r.command).map((r) => addEvidence(ctx, { kind: "after", command: r.command!, code: r.status === "problem" ? 1 : 0, output: r.detail }));
+    const after = v.after.results.filter((r) => r.command).map((r) => `[${addEvidence(ctx, { kind: "after", command: r.command!, code: r.status === "problem" ? 1 : 0, output: `${r.label}: ${r.detail}` })}] ${r.label}: ${r.status}`);
     ctx.beforeAfter.push(...v.rows);
-    return [`Fixes: ${done.join("; ")}`, `Checked again [${refs.join(", ")}]: ${v.fixed ? "FIXED" : `still wrong: ${v.stillWrong}`}`, `Before → after: ${v.rows.map((r) => `${r.label}: ${r.before} → ${r.after}`).join("; ")}`].join("\n");
+    return [`Fixes: ${done.join("; ")}`, `Checked again: ${v.fixed ? "FIXED" : `still wrong: ${v.stillWrong}`}\n${after.join("\n")}`, `Before → after: ${v.rows.map((r) => `${r.label}: ${r.before} → ${r.after}`).join("; ")}`].join("\n");
   },
 };
 
@@ -698,12 +700,16 @@ export const FINISH_TOOL = "finish";
 const finish: AgentTool = {
   name: FINISH_TOOL,
   kind: "talk",
-  description: "Call this once at the end. verdict: 'done' (the goal is met and a check proves it), 'answered' (they asked a question and you answered it), 'not_done' (it failed; say what failed), 'cant_do' (CalHack isn't allowed or able). proof_refs: the evidence numbers (E1, E2…) of checks that PASSED and prove the result.",
+  description: "Call this once at the end. verdict: 'done' (the goal is met and a check proves it), 'answered' (they asked a question and you answered it), 'not_done' (it failed; say what failed), 'cant_do' (CalHack isn't allowed or able). proofs: the evidence numbers (E1, E2…) of checks that PASSED and prove the result, each with what it shows.",
   input_schema: obj({
     verdict: { type: "string", enum: ["done", "answered", "not_done", "cant_do"] },
     headline: str("One plain sentence for the person, max 16 words, e.g. 'Done. Zoom is in the Trash.'"),
     details: { type: "array", items: { type: "string" }, description: "Up to 4 short plain lines: what you did, or the answer" },
-    proof_refs: { type: "array", items: { type: "string" }, description: "Evidence numbers that prove it, e.g. ['E4']" },
+    proofs: {
+      type: "array",
+      description: "Each check that PASSED and proves part of the result: its evidence number and what it shows, in plain words",
+      items: { type: "object", properties: { ref: { type: "string", description: "e.g. E4" }, shows: { type: "string", description: "Plain words, max 10, e.g. 'Calculator is running'" } }, required: ["ref", "shows"], additionalProperties: false },
+    },
   }),
   label: () => "Wrapping up…",
   async run() {

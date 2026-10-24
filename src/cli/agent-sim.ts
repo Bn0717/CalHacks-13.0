@@ -194,7 +194,7 @@ async function main(): Promise<void> {
         `   expected: ${sc.note}`,
         `   tools: ${used.join(" → ") || "none"}`,
         res ? `   result: [${res.verdict}] ${res.headline}${res.details.length ? ` | ${res.details.join(" | ")}` : ""}` : "",
-        res?.proofs.length ? `   proof: ${res.proofs.map((p) => `${p.ref} ${p.evidence.command}`).join("; ")}` : "",
+        res?.proofs.length ? `   proof: ${res.proofs.map((p) => `${p.ref} "${p.shows}" (${p.evidence.command})`).join("; ")}` : "",
         changes.length ? `   would change: ${changes.join("; ")}` : "",
         ...log.map((l) => `   ${l}`),
         problems.length ? `   PROBLEMS: ${problems.join("; ")}` : "",

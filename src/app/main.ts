@@ -534,7 +534,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     finishStep();
     lastExchange = { request: request || "(pressed the help key)", headline: result.headline, details: result.details };
     const verdict = result.verdict === "done" ? "done" : result.verdict === "answered" ? "answered" : result.verdict === "cant_do" ? "cant-do" : "not-done";
-    const proofs = result.proofs.map((p) => ({ claim: capitalize(p.evidence.output.split("\n")[0].slice(0, 90) || "Check passed"), checks: [p.evidence.command] }));
+    const proofs = result.proofs.map((p) => ({ claim: capitalize(p.shows || p.evidence.output.split("\n")[0].slice(0, 90) || "Check passed"), checks: [p.evidence.command] }));
     showBar({
       phase: "done",
       receipt: { verdict, headline: result.headline, lines: result.details, beforeAfter: result.beforeAfter, proofs, problems: [], reviewedBy: "agent" },

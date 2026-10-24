@@ -23,8 +23,8 @@ export interface AgentResult {
   verdict: "done" | "answered" | "not_done" | "cant_do";
   headline: string;
   details: string[];
-  /** Checks that passed and prove the result. */
-  proofs: { ref: string; evidence: Evidence }[];
+  /** Checks that passed and prove the result, with what each shows in plain words. */
+  proofs: { ref: string; shows: string; evidence: Evidence }[];
   evidence: Evidence[];
   beforeAfter: { label: string; before: string; after: string }[];
   toolCalls: { name: string; input: unknown; result: string; ms: number }[];
@@ -49,7 +49,7 @@ Rules:
 - Removing files: always say exactly what (move_files_to_trash shows it and asks). Never touch system or Library folders.
 - run_command is a last resort for changes no other tool covers. Never use it to delete, to get around a refusal, or for anything you weren't asked to do.
 - If a tool refuses something, accept it and tell the person why in plain words.
-- If the request is ambiguous in a way that matters (two apps match, unclear which file), use ask_person with short choices. Don't ask permission for what they already asked for.
+- If the request is ambiguous in a way that matters (two apps match, unclear which file, or just "it's broken"), use ask_person with short choices. Never end with a question in finish: a question always goes through ask_person, so the person gets buttons to tap. Don't ask permission for what they already asked for.
 - If something fails, try one sensible alternative, then stop and say exactly what failed. If a built-in fix (fix_problem) didn't work, don't improvise shell commands for the same thing; explain what's still wrong and what the person can try (like turning the device off and on).
 - If the request is vague ("it's broken") and you find a problem by looking around, ask_person whether that's what they mean before fixing it.
 - A frozen app: quit_app (polite) first; if it's still open, quit_app with force=true; then open_app to start it fresh.
@@ -178,12 +178,12 @@ export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opt
   }
 
   const f = (finishInput ?? {}) as Record<string, unknown>;
-  const refs = Array.isArray(f.proof_refs) ? f.proof_refs.filter((x): x is string => typeof x === "string") : [];
+  const claimed = Array.isArray(f.proofs) ? (f.proofs as unknown[]).filter((x): x is { ref: string; shows?: string } => !!x && typeof (x as { ref?: unknown }).ref === "string") : [];
   // A proof must point at a check that really ran and passed.
-  const proofs = refs
-    .map((r) => r.trim().toUpperCase())
-    .map((ref) => ({ ref, evidence: ctx.evidence[Number(ref.replace(/^E/, "")) - 1] }))
-    .filter((p): p is { ref: string; evidence: Evidence } => !!p.evidence && p.evidence.code === 0);
+  const proofs = claimed
+    .map((p) => ({ ref: p.ref.trim().toUpperCase(), shows: typeof p.shows === "string" ? p.shows.trim() : "" }))
+    .map((p) => ({ ...p, evidence: ctx.evidence[Number(p.ref.replace(/^E/, "")) - 1] }))
+    .filter((p): p is { ref: string; shows: string; evidence: Evidence } => !!p.evidence && p.evidence.code === 0);
   let verdict = (["done", "answered", "not_done", "cant_do"].includes(String(f.verdict)) ? f.verdict : "not_done") as AgentResult["verdict"];
   let headline = typeof f.headline === "string" && f.headline.trim() ? f.headline.trim() : opts.stopped?.() ? "Stopped. Nothing else was changed." : "I couldn't finish this one.";
   if (!finishInput && !opts.stopped?.()) verdict = "not_done";
