@@ -98,6 +98,8 @@ export interface ToolContext {
   beforeAfter: { label: string; before: string; after: string }[];
   /** Aborted the moment the person presses Stop: requests in flight are cancelled and loops end at once. */
   signal?: AbortSignal;
+  /** The steps the person said yes to on the plan screen (propose_plan). */
+  approvedPlan?: string[];
 }
 
 export interface AgentTool {
@@ -764,6 +766,85 @@ const askPerson: AgentTool = {
   },
 };
 
+const proposePlan: AgentTool = {
+  name: "propose_plan",
+  kind: "talk",
+  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only the person can, e.g. a password), or 'skip' (CalHack won't, with why).",
+  input_schema: obj({
+    goal: str("The overall goal in plain words, max 10, e.g. 'Get you ready for the video call'"),
+    steps: {
+      type: "array",
+      description: "Each step from the screen, in order, in plain words",
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Plain words, max 12, e.g. 'Make the text bigger'" },
+          by: { type: "string", enum: ["me", "you", "skip"] },
+          why: { type: ["string", "null"], description: "For 'you' or 'skip': why, max 12 words. Otherwise null" },
+        },
+        required: ["text", "by", "why"],
+      },
+    },
+  }),
+  label: () => "Making a plan…",
+  async run(input, ctx) {
+    const raw = Array.isArray(input.steps) ? input.steps : [];
+    const steps = raw
+      .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+      .map((x) => ({ text: s(x, "text").slice(0, 120), by: ["me", "you", "skip"].includes(s(x, "by")) ? s(x, "by") : "you", why: s(x, "why").slice(0, 120) }))
+      .filter((x) => x.text)
+      .slice(0, 12);
+    if (!steps.length) return "No steps given. Ask the person what they want with ask_person.";
+    const details = steps.map((x, i) => `${i + 1}. ${x.text}${x.by === "you" ? ` (you'll do this part${x.why ? `: ${x.why}` : ""})` : x.by === "skip" ? ` (I'll skip this${x.why ? `: ${x.why}` : ""})` : ""}`);
+    const goal = s(input, "goal") || "Do the steps on your screen";
+    ctx.ui.say(`I can do this for you. Here's my plan.`);
+    const yes = await ctx.ui.confirm({ title: `${goal}?`, message: "I'll do these one after another. You can press Stop any time.", details, yes: "Yes, do it all", no: "No thanks" });
+    if (!yes) return "The person said no. Do nothing; finish with verdict 'not_done' and a kind headline.";
+    ctx.approvedPlan = steps.filter((x) => x.by !== "skip").map((x) => x.text);
+    return "The person said yes to the whole plan. Do every 'me' step now, in order, without asking again (a tool that asks for its own OK still will). Use guide_person for 'you' steps. Then check and finish.";
+  },
+};
+
+/** A phone number or email address FaceTime can call, or null. */
+export function callTarget(raw: string): string | null {
+  const t = raw.trim();
+  if (/^[^\s@<>"'`;|&$()]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(t)) return t;
+  if (!/^[+\d\s().-]+$/.test(t)) return null;
+  const digits = t.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return null;
+  // "+(425) 628 4156" is a US number written with a stray +: keep the + only for full international numbers.
+  return t.startsWith("+") && digits.length >= 11 ? `+${digits}` : digits;
+}
+
+const startCall: AgentTool = {
+  name: "start_call",
+  kind: "act",
+  description: "Start a FaceTime call to a phone number or email address. Only for a call the person said yes to in propose_plan (the number must be in that plan), or one they asked for themselves.",
+  input_schema: obj({ to: str("The phone number or email address, exactly as shown"), video: { type: "boolean", description: "true for video, false for audio only" } }),
+  label: () => "Starting the FaceTime call…",
+  async run(input, ctx) {
+    const to = callTarget(s(input, "to"));
+    if (!to) return "Refused: that isn't a phone number or email address FaceTime can call.";
+    const key = to.replace(/\D/g, "").slice(-10) || to.toLowerCase();
+    const approved = (ctx.approvedPlan ?? []).some((line) => (/@/.test(to) ? line.toLowerCase().includes(key) : line.replace(/\D/g, "").includes(key)));
+    if (!approved) return "Refused: the person hasn't seen this number. Put the call (with the number) in propose_plan first, so they can say yes to it.";
+    const url = `${input.video === false ? "facetime-audio" : "facetime"}://${to}`;
+    const command = `open ${shq(url)}`;
+    const r = await ctx.mac.run(command);
+    addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `Couldn't start FaceTime: ${tail(r.output, 2)}`;
+    let up = false;
+    for (let i = 0; i < 5 && !up; i++) {
+      if (i) await new Promise((x) => setTimeout(x, 600));
+      up = (await ctx.mac.sandboxed("pgrep -x FaceTime")).code === 0;
+    }
+    const ref = addEvidence(ctx, { kind: "after", command: "pgrep -x FaceTime", code: up ? 0 : 1, output: up ? "FaceTime is open" : "FaceTime did not start" });
+    return up
+      ? `[${ref}] FaceTime is open and calling ${to}. macOS may show a "Call" button first: if so, use guide_person with click_target "Call".`
+      : `[${ref}] I asked FaceTime to call, but it didn't open.`;
+  },
+};
+
 const explainIrreversible: AgentTool = {
   name: "explain_irreversible",
   kind: "talk",
@@ -824,7 +905,7 @@ const finish: AgentTool = {
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
   quitApp, openApp, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, fixProblem, installApp, trashFiles, runCommand,
-  guidePerson, askPerson, explainIrreversible, finish,
+  startCall, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 
 /** The real list of files in a folder (not following links, skipping hidden files), up to a limit. */
