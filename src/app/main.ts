@@ -1,4 +1,4 @@
-// CalHack desktop app: press the shortcut (⌃⌥D by default) on any how-to, tap "Do it", and it does the steps,
+// CalHack desktop app: press the shortcut (⌃⌥⌘D by default) on any how-to, tap "Do it", and it does the steps,
 // only stopping for steps the safety rules flag. At the end it shows proof that it worked.
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, systemPreferences, Tray } from "electron";
 import { existsSync } from "node:fs";
@@ -6,12 +6,15 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeEnvironment, probeEnvironment, type Environment } from "../core/probe.js";
-import { planSteps, type Plan } from "../core/plan.js";
-import { check, runPlannedStep } from "../core/runner.js";
-import { runSandboxed } from "../core/exec.js";
+import { applyAiConcerns, planSteps, type Plan } from "../core/plan.js";
+import { check, runPlannedStep, type Executor } from "../core/runner.js";
+import { runNormally, runSandboxed } from "../core/exec.js";
+import { runSequence } from "../core/sequence.js";
+import { collectEvidence, type Receipt } from "../core/receipt.js";
+import { reviewRun } from "../ai/review.js";
+import { droidProblem, runWithDroid } from "../droid/executor.js";
 import { assessCommand } from "../core/risk.js";
-import type { InstructionSource, PlannedStep, StepResult, StepStatus } from "../core/types.js";
-import { stricter } from "../core/types.js";
+import type { Evidence, InstructionSource, PlannedStep, StepResult } from "../core/types.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
 import { locateOnScreen, type ScreenLocation } from "../ai/locate.js";
@@ -24,7 +27,7 @@ process.env.CALHACK_ROOT ??= ROOT;
 loadEnv(ROOT);
 
 // The shortcut can be changed with CALHACK_HOTKEY in .env (Electron format, e.g. "Control+Alt+Command+D").
-const HOTKEY = process.env.CALHACK_HOTKEY?.trim() || "Control+Alt+D";
+const HOTKEY = process.env.CALHACK_HOTKEY?.trim() || "Control+Alt+Command+D";
 const KEY_SYMBOLS: Record<string, string> = { control: "⌃", ctrl: "⌃", alt: "⌥", option: "⌥", shift: "⇧", command: "⌘", cmd: "⌘", commandorcontrol: "⌘", cmdorctrl: "⌘" };
 /** "Control+Alt+D" → "⌃⌥D" */
 const KEY_LABEL = HOTKEY.split("+").map((k) => KEY_SYMBOLS[k.toLowerCase()] ?? k.toUpperCase()).join("");
@@ -45,10 +48,14 @@ interface Session {
   results: Map<string, StepResult>;
   /** Fixed actions tried in the current run (see core/recipes.ts). */
   recipesTried: Map<string, { stepId: string; ok: boolean }>;
+  /** Click steps the person lets a fixed action do (on by default; they can turn it off before running). */
+  useRecipe: Set<string>;
   /** Why we couldn't do a click step for them, by step id. */
   notes: Map<string, string>;
-  /** Shown when a run ends: proof that it worked, or why it didn't. */
-  proof: { ok: boolean; lines: string[] } | null;
+  /** Shown when a run ends: proof that it worked, or exactly what failed. */
+  receipt: Receipt | null;
+  /** True while the separate Claude reviewer checks the evidence. */
+  reviewing: boolean;
 }
 let session: Session | null = null;
 let busy = false;
@@ -194,8 +201,6 @@ function screenAllowed(): boolean {
 
 // ---------- Plan → panel ----------
 
-const FINAL: StepStatus[] = ["already-done", "done", "done-unverified", "failed", "blocked", "skipped", "declined", "not-for-this-computer"];
-
 function stepView(p: PlannedStep, s: Session) {
   const r = s.results.get(p.step.id);
   return {
@@ -216,6 +221,11 @@ function stepView(p: PlannedStep, s: Session) {
     needsReview: p.needsReview,
     checkCommand: p.checkUsable ? p.step.checkCommand : null,
     useUpdated: s.useUpdated.has(p.step.id),
+    useRecipe: s.useRecipe.has(p.step.id),
+    alternative: p.step.alternativeGroup ? { group: p.step.alternativeGroup, option: p.step.alternativeOption ?? null } : null,
+    ranBy: r?.ranBy ?? null,
+    log: r?.log ?? null,
+    evidence: (r?.evidence ?? []).map((e) => ({ kind: e.kind, command: e.command, code: e.code })),
     flags: p.flags,
     notNeeded: p.assessment.outdated?.suggestion === "",
     status: r?.status ?? null,
@@ -229,13 +239,15 @@ function sendPlan(): void {
   const s = session;
   send("state", {
     phase: "plan",
-    proof: s.proof,
+    receipt: s.receipt,
+    reviewing: s.reviewing,
+    droid: droidProblem() ? { ready: false, problem: droidProblem() } : { ready: true, problem: null },
     goal: s.parse.goal,
     sourceLabel: describeSource(s.source),
     location: s.source.location ?? null,
     fromCache: s.parse.fromCache,
     appliesToThisComputer: s.parse.appliesToThisComputer,
-    pageWarnings: [...s.plan.pageWarnings.map((w) => ({ level: w.level, reason: w.reason })), ...s.parse.pageConcerns.map((c) => ({ level: "ask", reason: c }))],
+    pageWarnings: [...s.plan.pageWarnings.map((w) => ({ level: w.level, reason: w.reason })), ...s.parse.pageConcerns.filter((c) => c.steps.length === 0).map((c) => ({ level: "ask", reason: c.text }))],
     steps: s.plan.steps.map((p) => stepView(p, s)),
     running,
   });
@@ -293,15 +305,7 @@ async function onHotkey(): Promise<void> {
       allowCache: true,
     });
     const plan = planSteps(parse.steps, source);
-    // Page-wide worries from the AI can only make steps stricter, and flag every step that runs something.
-    const pageFlag = parse.pageConcerns.length ? "See the warning at the top" : !parse.appliesToThisComputer ? "May not be for this Mac" : null;
-    if (pageFlag) {
-      for (const p of plan.steps) {
-        if (p.step.kind !== "command" && p.step.kind !== "download") continue;
-        p.level = stricter(p.level, "ask");
-        if (!p.flags.includes(pageFlag)) p.flags.push(pageFlag);
-      }
-    }
+    applyAiConcerns(plan, parse.pageConcerns, parse.appliesToThisComputer);
     // Start with "Use the updated command" on wherever our rules built a newer form.
     // The newer command is still checked again and still asks before it runs.
     const useUpdated = new Set(plan.steps.filter((p) => p.assessment.outdated?.suggestion).map((p) => p.step.id));
@@ -311,10 +315,12 @@ async function onHotkey(): Promise<void> {
     await Promise.all(
       plan.steps.map(async (p) => {
         if (p.assessment.wrongPlatform || p.step.kind === "info") return;
-        if ((await check(p).catch(() => null)) === true) results.set(p.step.id, { id: p.step.id, status: "already-done", message: "Already done on this Mac, so we skipped it." });
+        const c = await check(p, "before").catch(() => null);
+        if (c?.passed) results.set(p.step.id, { id: p.step.id, status: "already-done", message: "Already done on this Mac, so we skipped it.", evidence: [c.evidence] });
       }),
     );
-    session = { source, parse, plan, useUpdated, results, recipesTried: new Map(), notes: new Map(), proof: null };
+    const useRecipe = new Set(plan.steps.filter((p) => p.recipe).map((p) => p.step.id));
+    session = { source, parse, plan, useUpdated, useRecipe, results, recipesTried: new Map(), notes: new Map(), receipt: null, reviewing: false };
     sendPlan();
   } catch (error) {
     send("state", { phase: "error", message: friendlyError(error) });
@@ -325,52 +331,76 @@ async function onHotkey(): Promise<void> {
 
 // ---------- Running ----------
 
+/**
+ * Droid runs the approved commands that change something. If Droid isn't set up (no key, or the droid
+ * program isn't installed) or can't start, CalHack runs the command itself, and the log says so.
+ */
+const execute: Executor = async (command, timeoutMs) => {
+  const problem = droidProblem();
+  if (!problem) {
+    try {
+      return await runWithDroid(command, timeoutMs);
+    } catch (error) {
+      const r = await runNormally(command, timeoutMs);
+      return { ...r, ranBy: "calhack", log: [`Droid couldn't start (${(error as Error).message}), so CalHack ran it.`] };
+    }
+  }
+  return { ...(await runNormally(command, timeoutMs)), ranBy: "calhack", log: [`Droid is off (${problem}), so CalHack ran it.`] };
+};
+
 async function runAll(): Promise<void> {
   if (!session || running) return;
   const s = session;
   running = true;
   stopRequested = false;
-  s.proof = null;
+  s.receipt = null;
   s.recipesTried.clear();
   s.notes.clear();
+  // "Try again" reruns what failed; everything that worked is kept.
+  for (const [id, r] of s.results) if (["failed", "declined", "skipped"].includes(r.status)) s.results.delete(id);
   sendPlan();
   try {
-    for (const p of s.plan.steps) {
-      if (stopRequested) break;
-      const done = s.results.get(p.step.id);
-      if (done && FINAL.includes(done.status) && done.status !== "failed" && done.status !== "declined") continue;
-      const result = await runPlannedStep(
-        p,
-        {
-          approve: (planned, detail) =>
-            new Promise((resolve) => {
-              // The person already OK'd the list. Only flagged steps ask again.
-              if (planned.flags.length === 0 && !planned.needsReview) return resolve(true);
-              approvals.set(planned.step.id, resolve);
-              send("approve-request", { id: planned.step.id, detail, needsReview: planned.needsReview });
-            }),
-          waitForUser: (planned, note) =>
-            new Promise((resolve) => {
-              if (note) s.notes.set(planned.step.id, note);
-              manualWaits.set(planned.step.id, resolve);
-              send("manual-request", { id: planned.step.id });
-              const link = safeSettingsUrl(planned.step.settingsUrl);
-              if (link) void shell.openExternal(link);
-              if (planned.step.clickTarget) setTimeout(() => void showMe(planned.step.id), link ? 1500 : 0);
-            }),
-          progress: (planned, message) => send("step-progress", { id: planned.step.id, message }),
-        },
-        { useUpdatedCommand: s.useUpdated.has(p.step.id), recipesTried: s.recipesTried },
-      );
-      s.results.set(p.step.id, result);
-      hidePointer();
+    const hooks = {
+      approve: (planned: PlannedStep, detail: string) =>
+        new Promise<boolean>((resolve) => {
+          // The person already OK'd the plan. Only flagged steps ask again.
+          if (planned.flags.length === 0 && !planned.needsReview) return resolve(true);
+          approvals.set(planned.step.id, resolve);
+          send("approve-request", { id: planned.step.id, detail, needsReview: planned.needsReview });
+        }),
+      waitForUser: (planned: PlannedStep, note?: string) =>
+        new Promise<"done" | "skip">((resolve) => {
+          if (note) s.notes.set(planned.step.id, note);
+          manualWaits.set(planned.step.id, resolve);
+          send("manual-request", { id: planned.step.id });
+          const link = safeSettingsUrl(planned.step.settingsUrl);
+          if (link) void shell.openExternal(link);
+          if (planned.step.clickTarget) setTimeout(() => void showMe(planned.step.id), link ? 1500 : 0);
+        }),
+      progress: (planned: PlannedStep, message: string) => send("step-progress", { id: planned.step.id, message }),
+    };
+    await runSequence(s.plan.steps, s.results, {
+      runOne: (p) =>
+        runPlannedStep(p, hooks, {
+          useUpdatedCommand: s.useUpdated.has(p.step.id),
+          useRecipe: s.useRecipe.has(p.step.id),
+          recipesTried: s.recipesTried,
+          execute,
+        }),
+      onResult: () => {
+        hidePointer();
+        sendPlan();
+      },
+      stopped: () => stopRequested,
+    });
+    if (!stopRequested) {
+      s.reviewing = true;
       sendPlan();
-      // Stop at the first problem so nothing builds on a broken step.
-      if (["failed", "blocked", "declined"].includes(result.status)) break;
+      s.receipt = await makeReceipt(s);
     }
-    if (!stopRequested) s.proof = await finalProof(s);
   } finally {
     running = false;
+    s.reviewing = false;
     approvals.clear();
     manualWaits.clear();
     sendPlan();
@@ -378,33 +408,20 @@ async function runAll(): Promise<void> {
   }
 }
 
-const STOPPED: StepStatus[] = ["failed", "blocked", "declined", "waiting-for-user"];
-
 /**
- * One or two plain lines that prove the goal is done, e.g. "✅ wget is installed and works".
- * The final check comes from the AI, so it only runs if our rules say it's read-only, and only in the locked box.
+ * The receipt: the final goal check (from the plan, only if our rules say it's read-only, run in the
+ * locked box), then a separate Claude call that must point at which check proves what.
  */
-async function finalProof(s: Session): Promise<Session["proof"]> {
-  const steps = s.plan.steps.filter((p) => p.step.kind !== "info");
-  const bad = steps.find((p) => STOPPED.includes(s.results.get(p.step.id)?.status as StepStatus));
-  if (bad || steps.some((p) => !s.results.get(p.step.id))) return null; // The step list already says where it stopped.
-
-  // What our own fixed actions found, e.g. "Printer “HP” is added and shows as Ready."
-  const lines = steps
-    .filter((p) => p.recipe && s.results.get(p.step.id)?.status === "done")
-    .map((p) => s.results.get(p.step.id)!.message)
-    .filter((m) => !m.startsWith("Done together"));
-
+async function makeReceipt(s: Session): Promise<Receipt> {
+  let final: Evidence | null = null;
   const finish = s.parse.finish;
   const a = finish ? assessCommand(finish.command) : null;
   if (finish && a?.level === "safe" && a.readOnly) {
     const r = await runSandboxed(finish.command).catch(() => null);
-    if (r?.code === 0) return { ok: true, lines: [finish.message.replace(/^./, (c) => c.toUpperCase()), ...lines] };
-    return { ok: false, lines: ["The steps ran, but my final check says it isn't done yet.", ...lines] };
+    if (r) final = { kind: "final", command: finish.command, code: r.code, output: r.output.trim().split("\n").slice(-6).join("\n") };
   }
-  if (lines.length) return { ok: true, lines };
-  const allChecked = steps.every((p) => ["done", "already-done", "skipped", "not-for-this-computer"].includes(s.results.get(p.step.id)!.status));
-  return { ok: true, lines: [allChecked ? "All done, and I checked each step worked." : "All done."] };
+  const evidence = collectEvidence(s.plan.steps, s.results, final);
+  return reviewRun({ goal: s.parse.goal, goalMessage: finish?.message, steps: s.plan.steps, results: s.results, evidence });
 }
 
 /**
@@ -537,6 +554,12 @@ ipcMain.on("toggle-updated", (_e, { id, value }: { id: string; value: boolean })
   if (!session || running) return;
   if (value) session.useUpdated.add(id);
   else session.useUpdated.delete(id);
+  sendPlan();
+});
+ipcMain.on("toggle-recipe", (_e, { id, value }: { id: string; value: boolean }) => {
+  if (!session || running) return;
+  if (value) session.useRecipe.add(id);
+  else session.useRecipe.delete(id);
   sendPlan();
 });
 ipcMain.on("close-panel", () => {

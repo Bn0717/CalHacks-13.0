@@ -67,6 +67,15 @@ describe("adding a printer", () => {
   });
 });
 
+describe("opening an app", () => {
+  it("finds Zoom under its real file name and checks it's running", async () => {
+    const { deps, ran } = fakeDeps();
+    const r = await runRecipe({ id: "open-app", label: "", app: "Zoom" }, deps);
+    expect(r).toMatchObject({ ok: true, message: "Zoom is open and running." });
+    expect(ran[0]).toBe("open '/Applications/zoom.us.app'");
+  });
+});
+
 describe("running click steps", () => {
   const steps: Step[] = [
     { id: "1", title: "Open Printers & Scanners", explanation: "", kind: "manual" },

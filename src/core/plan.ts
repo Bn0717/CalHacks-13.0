@@ -61,6 +61,23 @@ const SHORT: Record<string, string> = {
 
 const NOTHING_TO_RUN: Assessment = { level: "safe", findings: [], readOnly: true };
 
+/**
+ * The AI's worries can only make steps stricter. A worry about certain steps flags those steps;
+ * a worry about the whole page (or a guide for another computer) flags every step that runs something.
+ */
+export function applyAiConcerns(plan: Plan, concerns: { text: string; steps: string[] }[], appliesToThisComputer: boolean): void {
+  const whole = concerns.filter((c) => c.steps.length === 0 || c.steps.every((id) => !plan.steps.some((p) => p.step.id === id)));
+  for (const p of plan.steps) {
+    if (p.step.kind !== "command" && p.step.kind !== "download") continue;
+    const mine = concerns.filter((c) => c.steps.includes(p.step.id)).map((c) => c.text);
+    const flags = [...mine, ...(whole.length ? ["See the warning at the top"] : []), ...(!appliesToThisComputer ? ["May not be for this Mac"] : [])];
+    if (!flags.length) continue;
+    p.level = stricter(p.level, "ask");
+    for (const f of flags) if (!p.flags.includes(f)) p.flags.push(f);
+    for (const m of mine) if (!p.reasons.includes(m)) p.reasons.push(m);
+  }
+}
+
 export function planSteps(steps: Step[], source: InstructionSource): Plan {
   const pageHost = hostOf(source.location);
   const pageWarnings = scanForScamSigns(source.text);

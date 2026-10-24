@@ -1,0 +1,6 @@
+# Real how-to pages for `npm run eval -- demo/eval-pages.txt`. Add 10 to 20 (forum posts, IT guides, vendor help).
+# Lines starting with # are skipped.
+http://localhost:4321/install-zoom.html
+http://localhost:4321/install-wget.html
+http://localhost:4321/old-rectangle-guide.html
+http://localhost:4321/verify-human.html
