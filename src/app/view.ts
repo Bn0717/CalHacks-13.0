@@ -34,6 +34,21 @@ export function stepLines(steps: PlannedStep[], results: Map<string, StepResult>
     });
 }
 
+/** The most serious reason, e.g. "Downloads and runs code from the internet" over "Needs your Mac password". */
+export function worstFlag(flags: string[]): string {
+  const order = [/scam|hidden|erase|passwords|security|antivirus|shady|not in the instructions/i, /runs code|code you can't see|internet|insecure|isn't secure|don't know|unofficial|mirror/i];
+  for (const re of order) {
+    const f = flags.find((x) => re.test(x));
+    if (f) return lowerFirst(f);
+  }
+  return lowerFirst(flags[0] ?? "it looks risky");
+}
+
+/** "Downloads code" → "downloads code", but keeps "Mac" and other names as they are. */
+function lowerFirst(text: string): string {
+  return /^[A-Z][a-z]/.test(text) && !/^(Mac|Apple|Zoom|Windows|Linux)\b/.test(text) ? text[0].toLowerCase() + text.slice(1) : text;
+}
+
 export interface NoteInput {
   steps: PlannedStep[];
   useUpdated: Set<string>;
@@ -49,13 +64,13 @@ export function planNotes(n: NoteInput): Note[] {
   for (const p of n.steps) {
     const i = n.steps.indexOf(p) + 1;
     if (p.level === "blocked" && (p.step.kind === "command" || p.step.kind === "download")) {
-      notes.push({ tone: "blocked", text: `Step ${i} isn't safe (${(p.flags[0] ?? "risky").toLowerCase()}), so I'll skip it${p.step.alternativeGroup ? " and use the page's other option" : ""}.` });
+      notes.push({ tone: "blocked", text: `Step ${i} isn't safe: ${worstFlag(p.flags)}. I'll skip it${p.step.alternativeGroup ? " and use the page's other option" : ""}.` });
     } else if (p.assessment.outdated?.suggestion && n.useUpdated.has(p.step.id)) {
       notes.push({ tone: "info", text: `Step ${i} is out of date on the page, so I'll use the current way.` });
     } else if (p.recipe && n.useRecipe.has(p.step.id) && p.step.kind === "manual") {
       notes.push({ tone: "info", text: `Step ${i}: I'll do this for you instead of you clicking.` });
     } else if (p.flags.length && p.level !== "blocked") {
-      notes.push({ tone: "warn", text: `Step ${i} needs your OK first: ${p.flags[0].toLowerCase()}.` });
+      notes.push({ tone: "warn", text: `Step ${i} needs your OK first: ${lowerFirst(worstFlag(p.flags))}.` });
     }
   }
   return notes;

@@ -116,12 +116,22 @@ export function setBarRect(rect: { x: number; y: number; width: number; height: 
   const old = barCard;
   barCard = { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height };
   if (process.env.CALHACK_DEBUG) console.log(`[rect] window ${JSON.stringify(b)} card ${JSON.stringify(rect)} seat ${JSON.stringify(barSeat())} home=${buddyAtHome}`);
-  // Keep the buddy on its seat when the card changes height.
-  if (buddyAtHome && buddyVisible && (!old || Math.abs(old.y - barCard.y) > 6 || Math.abs(old.x - barCard.x) > 6)) {
+  void old;
+  // Keep the buddy on its seat when the card changes height: wait until the card stops moving, then hop once.
+  if (seatTimer) clearTimeout(seatTimer);
+  seatTimer = setTimeout(() => {
+    seatTimer = null;
+    if (!buddyAtHome || !buddyVisible) return;
     const s = barSeat();
+    if (lastSeat && Math.abs(lastSeat.x - s.x) < 3 && Math.abs(lastSeat.y - s.y) < 3) return;
+    lastSeat = s;
     toBuddy({ type: "hop", x: s.x, y: s.y, pose: buddyHomePose });
-  }
+  }, 320);
 }
+
+let seatTimer: NodeJS.Timeout | null = null;
+/** Where the buddy last landed on the bar. */
+let lastSeat: { x: number; y: number } | null = null;
 
 /** The buddy's seat on top of the bar card (where its feet go), in screen points. */
 export function barSeat(): { x: number; y: number } {
@@ -196,6 +206,7 @@ export function buddyHome(pose: BuddyPose = "idle"): void {
   buddyAtHome = true;
   buddyHomePose = pose;
   const s = barSeat();
+  lastSeat = s;
   toBuddy(buddyVisible ? { type: "hop", x: s.x, y: s.y, pose } : { type: "show", x: s.x, y: s.y, pose });
 }
 

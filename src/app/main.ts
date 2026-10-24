@@ -16,6 +16,7 @@ import { runNormally, runSandboxed } from "../core/exec.js";
 import { runSequence } from "../core/sequence.js";
 import { collectEvidence, type Receipt } from "../core/receipt.js";
 import { assessCommand } from "../core/risk.js";
+import { scanForScamSigns } from "../core/source.js";
 import { runRecipe } from "../core/recipes.js";
 import { installFromOfficial, knownInstaller } from "../core/install.js";
 import { checkOfficial } from "../core/official.js";
@@ -182,9 +183,9 @@ function showPlan(j: Job): void {
   }
   showBar({
     phase: "plan",
-    goal: j.goal,
-    problem: j.problem,
-    steps: jobSteps(j),
+    goal: scam ? "This page looks like a scam" : j.goal,
+    problem: scam ? (j.plan.pageWarnings.find((w) => w.level === "blocked")?.reason ?? "Real websites never ask you to paste commands.") : j.problem,
+    steps: scam ? [] : jobSteps(j),
     notes: scam ? [{ tone: "blocked", text: "This page looks like a scam. I won't run anything from it, and please don't paste anything from it." }, ...notes] : notes,
     okLabel: scam ? "" : j.mode === "fix" ? "OK, fix it" : j.mode === "install" ? "Yes, install" : "OK, do it",
     cancelLabel: scam ? "Close" : "Not now",
@@ -254,6 +255,12 @@ async function onHotkey(): Promise<void> {
     const source = await gatherInstructions({ app: appName, recentClipboard: recentClipboard() });
     lastLook = { shot, screenText: source.text.slice(0, 6000) };
 
+    // Our own scam check comes first: a fake "verify you're human" page gets the warning, whatever the AI thinks.
+    if (source.text.trim() && scanForScamSigns(source.text).some((w) => w.level === "blocked")) {
+      await instructionsFlow(source, shot);
+      return;
+    }
+
     const env = await getEnvironment();
     const t = await triage({
       screenText: lastLook.screenText,
@@ -262,7 +269,9 @@ async function onHotkey(): Promise<void> {
       environment: describeEnvironment(env),
     }).catch((): Triage => (source.text.trim() ? { kind: "instructions" } : { kind: "clarify", question: "Hi! What's going on?", suggestions: SUGGESTIONS, say: "Hi! What's going on?" }));
 
-    if (t.kind === "instructions" && (source.text.trim() || shot)) await instructionsFlow(source, shot);
+    // A page full of steps is followed as written, not swapped for a web search (the person said nothing else).
+    const pageWithSteps = source.kind !== "screenshot" && source.text.trim().length > 200 && /\b(step|install|click|open|run|terminal|download|settings)\b/i.test(source.text);
+    if ((t.kind === "instructions" && (source.text.trim() || shot)) || (t.kind === "search" && pageWithSteps)) await instructionsFlow(source, shot);
     else await route(t);
   } catch (error) {
     showError(friendlyError(error));

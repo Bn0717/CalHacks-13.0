@@ -353,14 +353,15 @@
       }
       if (s.source) parts.push(el("div", { class: "source" }, icon("page", "sm"), s.source));
       return {
-        eyebrow: s.problem ? "Here's what I found" : "Here's my plan",
+        eyebrow: s.okLabel === "" ? "Careful" : s.problem ? "Here's what I found" : "Here's my plan",
         title: [s.goal],
         body: parts,
         now: null, // the buttons say it
+        // An empty okLabel means there's nothing safe to do (e.g. a scam page): only the close button.
         buttons: [
-          button(s.okLabel || "OK, do it", () => send("bar-ok"), "primary grow"),
-          button(s.cancelLabel || "Not now", () => send("bar-cancel")),
-        ],
+          s.okLabel === "" ? null : button(s.okLabel || "OK, do it", () => send("bar-ok"), "primary grow"),
+          button(s.cancelLabel || "Not now", () => send("bar-cancel"), s.okLabel === "" ? "grow" : ""),
+        ].filter(Boolean),
       };
     },
 
