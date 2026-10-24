@@ -29,7 +29,7 @@ import type { Evidence, GoalVerification, InstructionSource, PlannedStep, Step, 
 import { reviewRun } from "../ai/review.js";
 import { runAgent } from "../agent/agent.js";
 import { realMac } from "../agent/mac.js";
-import { autopilot } from "../agent/autopilot.js";
+import { autopilot, waitForSettle } from "../agent/autopilot.js";
 import { offlineGuide } from "../agent/offline.js";
 import { TOOLS as AGENT_TOOLS, type AgentUI, type ToolContext } from "../agent/tools.js";
 import { triage, type Triage } from "../ai/triage.js";
@@ -237,6 +237,22 @@ async function captureScreen(): Promise<Shot | null> {
     const img = scale < 1 ? src.thumbnail.resize({ width: Math.round(width * scale), quality: "good" }) : src.thumbnail;
     const size = img.getSize();
     return { data: img.toJPEG(75).toString("base64"), mediaType: "image/jpeg", width: size.width, height: size.height, toScreen: width / size.width };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A tiny copy of the screen (160 px wide, raw pixels), only to see whether it changed while autopilot waits.
+ * Kept in memory for one comparison; never saved and never sent anywhere.
+ */
+async function glanceScreen(): Promise<Uint8Array | null> {
+  const display = screen.getPrimaryDisplay();
+  const { width, height } = display.bounds;
+  try {
+    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 160, height: Math.round((160 * height) / width) } });
+    const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
+    return src && !src.thumbnail.isEmpty() ? new Uint8Array(src.thumbnail.toBitmap()) : null;
   } catch {
     return null;
   }
@@ -614,7 +630,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
       : lastExchange && request ? `Earlier in this conversation they asked "${lastExchange.request}" and you replied: ${lastExchange.headline} ${lastExchange.details.join(" ")}\n\nNow they say: ${request}` : request;
     // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
-    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen } : undefined });
+    const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen, glance: glanceScreen } : undefined });
     const result = await runAgent(
       { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
       ui,
@@ -953,11 +969,14 @@ function runHooks(j: Job): RunHooks {
       if (!screenAllowed()) return { handled: false, evidence, note: "I can't see your screen, so it's yours." };
       const s = planned.step;
       const instruction = [s.title, s.explanation, s.clickTarget ? `Click “${s.clickTarget}”.` : ""].filter(Boolean).join(" ");
-      const mac = realMac({ execute, trash: (p) => shell.trashItem(p), screen: { capture: captureScreen } });
+      const mac = realMac({ execute, trash: (p) => shell.trashItem(p), screen: { capture: captureScreen, glance: glanceScreen } });
       const link = safeSettingsUrl(s.settingsUrl);
       if (link) {
+        const before = await glanceScreen();
         await mac.run(`open '${link}'`);
-        await new Promise((r) => setTimeout(r, 1500));
+        // Wait for the page to appear and settle, not a fixed 1.5 s.
+        const w = await waitForSettle({ capture: captureScreen, glance: glanceScreen }, { before, reactMs: 2000, maxMs: 3000, signal: stopController.signal });
+        if (w.reason === "no-glance") await new Promise((r) => setTimeout(r, 1500));
       }
       const ui = {
         status: (line: string) => showWorking(j, planned, line),

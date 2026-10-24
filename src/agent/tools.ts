@@ -187,9 +187,13 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
   const url = g.settingsUrl && SETTINGS_URL.test(g.settingsUrl) ? g.settingsUrl : undefined;
   if (!ctx.mac.screen) return { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
   if (url) {
+    const before = await ctx.mac.screen.glance?.().catch(() => null);
     const r = await ctx.mac.run(`open ${shq(url)}`);
     addEvidence(ctx, { kind: "run", command: `open ${shq(url)}`, code: r.code, output: tail(r.output, 2) });
-    await new Promise((x) => setTimeout(x, 1500));
+    // Wait for System Settings to appear and settle, not a fixed 1.5 s.
+    const { waitForSettle } = await import("./autopilot.js");
+    const w = await waitForSettle(ctx.mac.screen, { before, reactMs: 2000, maxMs: 3000, signal: ctx.signal });
+    if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
   const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget });
@@ -546,7 +550,8 @@ const setVolume: AgentTool = {
     if (!parts.length) return "Nothing to change.";
     const before = await ctx.mac.sandboxed("osascript -e 'get volume settings'");
     for (const c of parts) {
-      const r = await ctx.mac.execute(c);
+      // Routine and easily undone, so it runs directly (fast); Droid handles the risky changes.
+      const r = await ctx.mac.run(c);
       addEvidence(ctx, { kind: "run", command: c, code: r.code, output: tail(r.output, 2) });
       if (r.code !== 0) return `That didn't work: ${tail(r.output, 2)}`;
     }
@@ -554,6 +559,111 @@ const setVolume: AgentTool = {
     const ref = addEvidence(ctx, { kind: "after", command: "osascript -e 'get volume settings'", code: after.code, output: tail(after.output, 2) });
     ctx.beforeAfter.push({ label: "Sound", before: summarizeVolume(before.output), after: summarizeVolume(after.output) });
     return `[${ref}] Now: ${tail(after.output, 2)}`;
+  },
+};
+
+/**
+ * Settings CalHack changes with a fixed, tested command (macOS 26), each with a read-back check that proves it took.
+ * The AI only picks the setting and the value; it never writes these commands. Things macOS doesn't allow by command
+ * (wallpaper, pointer size, text size, Do Not Disturb, brightness) go through the screen instead.
+ */
+const APPEARANCE = `tell application "System Events" to tell appearance preferences to`;
+export const SETTINGS: Record<string, { label: string; values: string[]; set: (v: string) => string; read: string; is: (out: string, v: string) => boolean; show: (out: string) => string }> = {
+  dark_mode: {
+    label: "Dark mode",
+    values: ["on", "off"],
+    set: (v) => `osascript -e '${APPEARANCE} set dark mode to ${v === "on"}'`,
+    read: `osascript -e '${APPEARANCE} get dark mode'`,
+    is: (out, v) => out.trim() === String(v === "on"),
+    show: (out) => (out.trim() === "true" ? "On" : out.trim() === "false" ? "Off" : "Unknown"),
+  },
+  dock_autohide: {
+    label: "Hide the Dock automatically",
+    values: ["on", "off"],
+    set: (v) => `defaults write com.apple.dock autohide -bool ${v === "on"} && killall Dock`,
+    read: "defaults read com.apple.dock autohide",
+    is: (out, v) => out.trim() === (v === "on" ? "1" : "0"),
+    show: (out) => (out.trim() === "1" ? "On" : "Off"),
+  },
+  dock_magnification: {
+    label: "Dock icons grow when you point at them",
+    values: ["on", "off"],
+    set: (v) => `defaults write com.apple.dock magnification -bool ${v === "on"} && killall Dock`,
+    read: "defaults read com.apple.dock magnification",
+    is: (out, v) => out.trim() === (v === "on" ? "1" : "0"),
+    show: (out) => (out.trim() === "1" ? "On" : "Off"),
+  },
+  dock_size: {
+    label: "Dock size",
+    values: ["small", "medium", "large"],
+    set: (v) => `defaults write com.apple.dock tilesize -int ${({ small: 36, medium: 56, large: 96 } as Record<string, number>)[v]} && killall Dock`,
+    read: "defaults read com.apple.dock tilesize",
+    is: (out, v) => out.trim() === String(({ small: 36, medium: 56, large: 96 } as Record<string, number>)[v]),
+    show: (out) => ({ "36": "Small", "56": "Medium", "96": "Large" } as Record<string, string>)[out.trim()] ?? (out.trim() ? `Size ${out.trim()}` : "Standard"),
+  },
+  wifi: {
+    // Only "on": turning Wi-Fi off would cut CalHack off from Claude in the middle of helping.
+    label: "Wi-Fi",
+    values: ["on"],
+    set: () => "networksetup -setairportpower \"$(networksetup -listallhardwareports | awk '/Wi-Fi/{getline; print $2; exit}')\" on",
+    read: "networksetup -getairportpower \"$(networksetup -listallhardwareports | awk '/Wi-Fi/{getline; print $2; exit}')\"",
+    is: (out) => /:\s*On\b/.test(out),
+    show: (out) => (/:\s*On\b/.test(out) ? "On" : /:\s*Off\b/.test(out) ? "Off" : "Unknown"),
+  },
+};
+
+const changeSetting: AgentTool = {
+  name: "change_setting",
+  kind: "act",
+  description: `Change a Mac setting instantly with a tested command, and read it back to prove it took. Settings: ${Object.entries(SETTINGS).map(([k, v]) => `${k} (${v.values.join("/")})`).join(", ")}. Always try this before opening System Settings. Wallpaper, pointer size, text size, Do Not Disturb and brightness can't be changed by command: use open_settings + guide_person for those.`,
+  input_schema: obj({ setting: { type: "string", enum: Object.keys(SETTINGS) }, value: str("One of the values listed for that setting") }),
+  label: (i) => `Changing ${(SETTINGS[s(i, "setting")]?.label ?? "a setting").toLowerCase()}…`,
+  async run(input, ctx) {
+    const key = s(input, "setting");
+    const def = SETTINGS[key];
+    const value = s(input, "value").toLowerCase();
+    if (!def) return `Refused: I don't have a tested command for "${key}". Use open_settings + guide_person instead.`;
+    if (!def.values.includes(value)) return `Refused: ${def.label} can only be set to ${def.values.join(" or ")} by command.${key === "wifi" ? " (Turning Wi-Fi off would cut me off from helping.)" : ""}`;
+    const before = await ctx.mac.run(def.read);
+    if (def.is(before.output, value)) {
+      const ref = addEvidence(ctx, { kind: "after", command: def.read, code: 0, output: tail(before.output, 2) });
+      return `[${ref}] ${def.label} was already ${value}. Nothing to change.`;
+    }
+    const command = def.set(value);
+    const r = await ctx.mac.run(command);
+    addEvidence(ctx, { kind: "run", command, code: r.code, output: tail(r.output, 2) });
+    if (r.code !== 0) return `That didn't work: ${tail(r.output, 2)}`;
+    // Read it back: the command saying OK isn't proof (macOS ignores some changes silently).
+    let after = await ctx.mac.run(def.read);
+    for (let i = 0; i < 4 && !def.is(after.output, value); i++) {
+      await new Promise((x) => setTimeout(x, 250));
+      after = await ctx.mac.run(def.read);
+    }
+    const ok = def.is(after.output, value);
+    const ref = addEvidence(ctx, { kind: "after", command: def.read, code: ok ? 0 : 1, output: tail(after.output, 2) });
+    ctx.beforeAfter.push({ label: def.label, before: def.show(before.output), after: def.show(after.output) });
+    return ok
+      ? `[${ref}] ${def.label} is now ${value} (checked).`
+      : `[${ref}] I ran the command, but reading it back says it didn't change. macOS may not allow it this way: try open_settings + guide_person.`;
+  },
+};
+
+const checkScreen: AgentTool = {
+  name: "check_screen",
+  kind: "look",
+  description: "Final check: take one look at the screen and confirm a visible result, e.g. 'the screen is in dark mode' or 'the Wallpaper page shows the blue wallpaper'. Use it after a change you can see, especially when there is no read-back check. Returns an evidence number when the screen shows it.",
+  input_schema: obj({ question: str("What the screen should show, in plain words") }),
+  label: () => "Checking the screen…",
+  async run(input, ctx) {
+    const question = s(input, "question").slice(0, 200);
+    if (!question) return "Say what the screen should show.";
+    if (!ctx.mac.screen) return "I can't see the screen (Screen Recording isn't allowed), so rely on the other checks.";
+    const shot = await ctx.mac.screen.capture();
+    if (!shot) return "I couldn't take a look at the screen.";
+    const { screenShows } = await import("./autopilot.js");
+    const a = await screenShows(question, shot, ctx.signal);
+    const ref = addEvidence(ctx, { kind: "after", command: `screen check: ${question}`, code: a.shows ? 0 : 1, output: a.seen || (a.shows ? "shown" : "not shown") });
+    return `[${ref}] ${a.shows ? "Yes" : "No"}: ${a.seen}`;
   },
 };
 
@@ -903,8 +1013,8 @@ const finish: AgentTool = {
 };
 
 export const TOOLS: AgentTool[] = [
-  listApps, runningApps, soundStatus, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
-  quitApp, openApp, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, fixProblem, installApp, trashFiles, runCommand,
+  listApps, runningApps, soundStatus, checkScreen, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
+  quitApp, openApp, changeSetting, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, fixProblem, installApp, trashFiles, runCommand,
   startCall, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 
