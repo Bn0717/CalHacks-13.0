@@ -83,8 +83,25 @@
     return svg;
   }
 
+  // Buttons keep their element between updates (see render), so a press is never lost to a re-draw.
+  // Stop buttons act on the press itself, not on the release, so they work at once even mid-update.
   function button(label, onClick, cls = "", extra = {}) {
-    return el("button", { type: "button", class: ("btn " + cls).trim(), onclick: onClick, ...extra }, label);
+    const b = el("button", { type: "button", class: ("btn " + cls).trim(), ...extra }, label);
+    b.dataset.key = label + "|" + cls;
+    b._act = onClick;
+    let pressed = false;
+    if (/\bstop\b/.test(cls)) {
+      b.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0 || b.disabled) return;
+        pressed = true;
+        b._act();
+      });
+    }
+    b.addEventListener("click", () => {
+      if (pressed) { pressed = false; return; } // already handled on the press
+      if (!b.disabled) b._act();
+    });
+    return b;
   }
 
   const send = (channel, data) => {
@@ -258,6 +275,7 @@
     if (e.key === "Escape") {
       if (micMode !== "idle") { micCancel(); return; }
       if (["looking", "ask", "checking", "plan", "done", "error"].includes(state.phase)) send("bar-cancel");
+      else if (["working", "needs-you"].includes(state.phase)) send("bar-stop");
       return;
     }
     // In "ask", just start typing: the first letter goes into the box.
@@ -413,7 +431,8 @@
           ]
         : [
             button("Done", () => send("bar-manual", { stepId: s.stepId, answer: "done" }), "primary grow"),
-            button("Skip", () => send("bar-manual", { stepId: s.stepId, answer: "skip" })),
+            // Stops the whole task, leaving everything on screen as it is. "Continue" picks it up again.
+            button("Stop here", () => send("bar-stop"), "stop"),
           ];
       return {
         eyebrow: s.goal,
@@ -520,8 +539,9 @@
 
       const btns = [];
       const good = r.verdict === "done" || r.verdict === "answered";
-      btns.push(button("Close", () => send("bar-cancel"), good || !s.canRetry ? "primary" : ""));
-      if (s.canRetry) btns.push(button("Try again", () => send("bar-retry"), good ? "" : "primary"));
+      btns.push(button("Close", () => send("bar-cancel"), (good || !s.canRetry) && !s.canContinue ? "primary" : ""));
+      if (s.canContinue) btns.push(button("Continue", () => send("bar-retry"), "primary"));
+      else if (s.canRetry) btns.push(button("Try again", () => send("bar-retry"), good ? "" : "primary"));
       if (s.canSendSummary) {
         if (run.copied) {
           btns.push(el("span", { class: "copied", role: "status" }, icon("check", "sm"), "Copied! Paste it in a message."));
@@ -652,7 +672,14 @@
     now.classList.toggle("is-live", !!view.live);
     now.classList.toggle("only-toggle", !line);
 
-    actions.replaceChildren(...(view.buttons || []).filter(Boolean));
+    // Same buttons as before (same labels): keep the elements and only swap what they do, so a press that's
+    // half done (down, not yet up) isn't lost when an update arrives every few hundred milliseconds.
+    const next = (view.buttons || []).filter(Boolean);
+    const cur = [...actions.children];
+    const keyOf = (n) => (n.dataset && n.dataset.key) || null;
+    const same = cur.length === next.length && next.every((n, i) => keyOf(n) && keyOf(n) === keyOf(cur[i]));
+    if (same) next.forEach((n, i) => { cur[i]._act = n._act; cur[i].disabled = n.disabled; });
+    else actions.replaceChildren(...next);
     // The ask box: in the body on the "ask" screen, at the bottom on every other screen (except confirmations).
     if (!followRow.isConnected) actions.after(followRow);
     const followHere = !["ask", "confirm", "explain", "hidden"].includes(phase);

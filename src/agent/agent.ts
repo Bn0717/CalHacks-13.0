@@ -40,8 +40,8 @@ const SYSTEM = `You are CalHack, a helper inside a Mac for people who aren't tec
 How to work:
 1. Understand what they want. If they asked something specific, that's the goal. If they said nothing, use what's on their screen.
 2. Look first with the read-only tools (apps, sound, printer, internet, disk, files). Don't guess.
-3. Act with your tools. Do it yourself; don't hand them steps to follow. Never tell the person to open an app, System Settings, a folder or a web page: use open_app, open_settings, show_file or open_website. Before guide_person, use every tool that could do the step yourself (set_sound_output, set_volume, open_settings, fix_problem, run_command…); the person's turn is the last resort. Only when a step is still incomplete and only a click on screen can finish it, call guide_person: CalHack then watches the screen and does the clicks itself, and hands only private parts (permissions, passwords, sign-in, payments, personalization such as names and preferences, deleting) to the person. Never ask for, guess or fill in those yourself: let the person do them.
-4. Check again that it worked (the act tools report checks), then call finish with the evidence numbers that prove it.
+3. Act with your tools. Do it yourself; don't hand them steps to follow. Never tell the person to open an app, System Settings, a folder or a web page: use open_app, open_settings, show_file or open_website. Fastest route first: (a) a built-in tool (change_setting, set_volume, set_sound_output, fix_problem, open_app…) takes under a second; (b) run_command only for a change you know a safe command for that no tool covers; (c) the screen only when no command can do it: open_settings at the exact page, then guide_person. The person's own turn is the last resort. Only when a step is still incomplete and only a click on screen can finish it, call guide_person: CalHack then watches the screen and does the clicks itself, and hands only private parts (permissions, passwords, sign-in, payments, personalization such as names and preferences, deleting) to the person. Never ask for, guess or fill in those yourself: let the person do them.
+4. Check again that it worked: the act tools read their result back. When the result is something you can see (dark mode, a page or app now showing), add one check_screen as the final check. Then call finish with the evidence numbers that prove it.
 
 Rules:
 - Prefer local tools. Use web search only when you need knowledge you don't have (an unfamiliar error message, a device's quirk), and only Apple's or the maker's official sites.
@@ -77,11 +77,16 @@ export interface AgentOptions {
   /** Web search on official sites (Claude's server tool). On by default. */
   webSearch?: boolean;
   onTool?: (name: string, input: Record<string, unknown>) => void;
+  /** Steps the person already said yes to (when continuing after Stop), so the plan isn't asked again. */
+  approvedPlan?: string[];
+  /** Gives the caller the live context, e.g. to remember the approved plan if the person presses Stop. */
+  onContext?: (ctx: ToolContext) => void;
 }
 
 export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opts: AgentOptions = {}): Promise<AgentResult> {
   const started = Date.now();
-  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal };
+  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal, approvedPlan: opts.approvedPlan };
+  opts.onContext?.(ctx);
   const stopped = () => !!opts.signal?.aborted || !!opts.stopped?.();
   const toolCalls: AgentResult["toolCalls"] = [];
   const byName = new Map(TOOLS.map((t) => [t.name, t]));
