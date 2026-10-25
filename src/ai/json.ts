@@ -10,6 +10,8 @@ export async function askJson<T = Record<string, unknown>>(o: {
   schema: Record<string, unknown>;
   maxTokens?: number;
   signal?: AbortSignal;
+  maxRetries?: number;
+  onResponse?: (response: { model: string; usage: { input_tokens: number; output_tokens: number } }) => void;
 }): Promise<T> {
   const response = await getClient().messages.create(
     {
@@ -19,8 +21,9 @@ export async function askJson<T = Record<string, unknown>>(o: {
       messages: [{ role: "user", content: o.content }],
       output_config: { format: { type: "json_schema", schema: o.schema } },
     } as Anthropic.MessageCreateParamsNonStreaming,
-    { signal: o.signal },
+    { signal: o.signal, ...(o.maxRetries === undefined ? {} : { maxRetries: o.maxRetries }) },
   );
+  o.onResponse?.(response);
   if (response.stop_reason === "refusal") throw new Error("Claude declined to answer.");
   // The model thinks before answering, and the thinking counts toward max_tokens: a cut-off answer is never valid JSON.
   if (response.stop_reason === "max_tokens") throw new Error(`The answer was cut off at ${o.maxTokens ?? 800} tokens.`);

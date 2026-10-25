@@ -8,6 +8,11 @@ import type { UiItem } from "../src/mac/ui.js";
 // Remembered routes and logs go to a throwaway folder. Set before the modules load: they read the folder when imported.
 const home = mkdtempSync(join(tmpdir(), "calhack-test-"));
 vi.stubEnv("HOME", home);
+// homedir() uses USERPROFILE on Windows; isolate these route/log fixtures on every OS.
+vi.mock("node:os", async (original) => ({ ...await original<typeof import("node:os")>(), homedir: () => home }));
+// These tests inject screenshot decisions and must never call a live UI model.
+vi.mock("../src/agent/ui-decision.js", async (original) => ({ ...await original<typeof import("../src/agent/ui-decision.js")>(),
+  routeDecision: async () => ({ status: "not_here", steps: [], point_at: null, handling: "person", sensitivity: "sensitive", target: "", reason: "Use the injected screenshot decision." }) }));
 const { autopilot, fileRecord } = await import("../src/agent/autopilot.js");
 const { closeOpenedSheet, describeWindow, pickCloseButton } = await import("../src/agent/uipilot.js");
 type Action = import("../src/agent/autopilot.js").Action;
@@ -114,7 +119,7 @@ describe("closing the panels CalHack opened, after a step", () => {
     expect(t.pressed).toEqual([]);
   });
 
-  it("closes after a remembered route through the window reader too (no AI)", async () => {
+  it("closes after a remembered route and a fresh completion check", async () => {
     const page = [button("Details…"), button("Advanced…")];
     mkdirSync(join(home, ".cache", "calhack"), { recursive: true });
     writeFileSync(join(home, ".cache", "calhack", "routes.json"), JSON.stringify({ "System Settings|open the wi fi details": [{ role: "AXButton", name: "Details…", do: "press" }] }));
@@ -122,6 +127,7 @@ describe("closing the panels CalHack opened, after a step", () => {
     const r = await t.run([], "Open the Wi-Fi details");
     expect(r.outcome).toBe("done");
     expect(r.trail[0]).toBe("Clicked Details…");
+    expect(r.trail.some((line) => line.startsWith("The screen shows it's done"))).toBe(true);
     expect(t.pressed).toEqual(["OK"]);
   });
 
