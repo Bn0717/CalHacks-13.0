@@ -1,4 +1,4 @@
-// CalHack desktop app. Press ⌥⌘ and CalHack looks at your screen, then:
+// CalHack desktop app. Press ⌥⌘D and CalHack looks at your screen, then:
 //  - follows the how-to you're reading (forum post, support page, PDF), or
 //  - fixes the problem you have ("my printer won't print"): read-only checks → OK → fix → same checks again, or
 //  - asks "Hi! What's going on?", and finds the official source (Apple support, the app maker's site) when it has no guide.
@@ -41,7 +41,6 @@ import { findOfficialSource, type OfficialSource } from "../droid/research.js";
 import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
 import { describeSource, gatherInstructions } from "./gather.js";
-import { listenModifierHotkey, modifiersOnly, type ModifierHotkey } from "../mac/hotkey.js";
 import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
@@ -53,9 +52,8 @@ const ROOT = join(here, "..", "..");
 process.env.CALHACK_ROOT ??= ROOT;
 loadEnv(ROOT);
 
-// The shortcut: ⌥⌘ pressed together and let go. Change it with CALHACK_HOTKEY in .env, either modifier keys only
-// ("Command+Alt") or Electron's format with a key ("Control+Alt+Command+D").
-const HOTKEY = process.env.CALHACK_HOTKEY?.trim() || "Command+Alt";
+// The shortcut can be changed with CALHACK_HOTKEY in .env (Electron format, e.g. "Control+Alt+Command+D").
+const HOTKEY = process.env.CALHACK_HOTKEY?.trim() || "Alt+Command+D";
 const KEY_SYMBOLS: Record<string, string> = { control: "⌃", ctrl: "⌃", alt: "⌥", option: "⌥", shift: "⇧", command: "⌘", cmd: "⌘", commandorcontrol: "⌘", cmdorctrl: "⌘" };
 // Shown in the Mac's usual order: ⌃⌥⇧⌘ then the key.
 const KEY_ORDER = "⌃⌥⇧⌘";
@@ -63,7 +61,6 @@ const KEY_LABEL = HOTKEY.split("+")
   .map((k) => KEY_SYMBOLS[k.trim().toLowerCase()] ?? k.trim().toUpperCase())
   .sort((a, b) => (KEY_ORDER.indexOf(a) + 1 || 9) - (KEY_ORDER.indexOf(b) + 1 || 9))
   .join("");
-let modifierHotkey: ModifierHotkey | null = null;
 const UI = (name: string) => join(here, "ui", name);
 const UI_URL = pathToFileURL(join(here, "ui")).href + "/";
 const PRELOAD = join(here, "preload.cjs");
@@ -1430,18 +1427,7 @@ if (!app.requestSingleInstanceLock()) {
     tray.setTitle("🛡️ CalHack");
     tray.setToolTip(`CalHack: press ${KEY_LABEL} when you're stuck`);
     buildTrayMenu();
-    if (modifiersOnly(HOTKEY)) {
-      modifierHotkey = listenModifierHotkey(HOTKEY, {
-        fire: () => void onHotkey(),
-        ready: () => console.log(`CalHack shortcut: ${KEY_LABEL} (press together, then let go)`),
-        error: (why) =>
-          console.error(
-            why === "no-permission"
-              ? `Couldn't listen for ${KEY_LABEL}: turn CalHack on in System Settings → Privacy & Security → Accessibility, then restart it.`
-              : `Couldn't listen for ${KEY_LABEL}: ${why}`,
-          ),
-      });
-    } else if (globalShortcut.register(HOTKEY, () => void onHotkey())) {
+    if (globalShortcut.register(HOTKEY, () => void onHotkey())) {
       console.log(`CalHack shortcut: ${KEY_LABEL}`);
     } else {
       console.error(`Couldn't register ${KEY_LABEL}. Another app is using it. Set CALHACK_HOTKEY in .env to pick another.`);
@@ -1480,7 +1466,7 @@ if (!app.requestSingleInstanceLock()) {
       }, 2500);
     }
   });
-  app.on("will-quit", () => { globalShortcut.unregisterAll(); modifierHotkey?.stop(); stopVoiceOut(); });
+  app.on("will-quit", () => { globalShortcut.unregisterAll(); stopVoiceOut(); });
   app.on("window-all-closed", () => {
     // Stay in the menu bar.
   });

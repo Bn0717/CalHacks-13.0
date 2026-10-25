@@ -299,7 +299,7 @@ function render() {
       el("div", { class: "center" },
         el("h2", {}, "Stuck on some steps?"),
         s.note ? el("p", {}, s.note) : null,
-        el("p", {}, "Open the how-to and press ", ...[...(s.hotkey || "⌥⌘")].flatMap((k, i) => (i ? [" ", el("kbd", {}, k)] : [el("kbd", {}, k)])), "."),
+        el("p", {}, "Open the how-to and press ", ...[...(s.hotkey || "⌥⌘D")].flatMap((k, i) => (i ? [" ", el("kbd", {}, k)] : [el("kbd", {}, k)])), "."),
         el("p", { class: "muted" }, "I'll read it, check it's safe, do it for you, and show you it worked."),
         s.hasKey === false ? el("p", { class: "status bad" }, "No Claude API key yet: add it to the .env file.") : null,
         s.screenAllowed === false ? el("div", {}, el("p", { class: "muted" }, "Screen Recording is off, so I can only read web pages, documents and copied text."), el("button", { onclick: () => api.send("open-privacy") }, "Turn on Screen Recording")) : null,
@@ -310,7 +310,7 @@ function render() {
   } else if (s.phase === "permission") {
     parts = [el("div", { class: "center" }, el("p", {}, s.message), el("button", { onclick: () => api.send("open-privacy") }, "Open Privacy settings"), el("p", { class: "muted" }, "After turning it on, quit and reopen CalHack."))];
   } else if (s.phase === "error") {
-    parts = [el("div", { class: "center" }, el("p", { class: "status bad" }, "⚠️ " + s.message), el("p", { class: "muted" }, "Press " + (s.hotkey || "⌥⌘") + " to try again."))];
+    parts = [el("div", { class: "center" }, el("p", { class: "status bad" }, "⚠️ " + s.message), el("p", { class: "muted" }, "Press " + (s.hotkey || "⌥⌘D") + " to try again."))];
   } else if (s.phase === "plan") {
     parts = renderPlan();
   }

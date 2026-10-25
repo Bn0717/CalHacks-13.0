@@ -1,6 +1,6 @@
 # CalHack 🛡️
 
-**When something on your Mac isn't working, press ⌥⌘ (or just say what's wrong). CalHack fixes it for you, safely, and shows you proof it worked.**
+**When something on your Mac isn't working, press ⌥⌘D (or just say what's wrong). CalHack fixes it for you, safely, and shows you proof it worked.**
 
 Made for people who aren't technical, like a parent who'd otherwise call their kids. No prompts to write, no steps to follow, no new app to learn.
 
@@ -37,7 +37,7 @@ In step-by-step mode, **Done requires a passing final goal check**. A command ex
 
 Droid is the executor: **it runs the approved steps on your Mac.** Claude plans before and reviews after; Droid never grades its own work.
 
-- **Trigger:** your ⌥⌘ press and **Do it** tap. For each step that changes something, CalHack starts a Droid session (`src/droid/executor.ts`) and hands it that one command.
+- **Trigger:** your ⌥⌘D press and **Do it** tap. For each step that changes something, CalHack starts a Droid session (`src/droid/executor.ts`) and hands it that one command.
 - **What Droid can touch:** `autonomyLevel: Off`, so Droid must ask before every action, and our `permissionHandler` answers. The gate (`gate()` in `src/droid/executor.ts`, tested in `tests/sequence.test.ts`) allows only the exact command our rules approved, exactly once. Any other command, file edit, retry or "fixed" version is refused and logged. Every Droid tool except the shell (web fetch, search, file reading, scripts, sub-agents) is turned off for the session. Droid's own settings let some "harmless" commands skip asking, so CalHack also watches every command Droid really starts: anything not approved stops the session and fails the step. Read-only checks run in our macOS sandbox, not through Droid. Admin (`sudo`) steps run through CalHack so macOS shows its own password box. When an approved step like `brew install --cask zoom` needs the Mac password partway through, `sudo` shows a CalHack password box (`bin/calhack-askpass`, via `SUDO_ASKPASS`) that hands the password straight to macOS; CalHack's code never reads or stores it.
 - **Opening things:** the agent opens apps, System Settings pages and official web pages itself (`open_app`, `open_settings`, `open_website`) instead of asking the person to. These are routine, so they run directly (no Droid); a separate read-only check (e.g. `pgrep`) proves it started. Terminal-like apps are never opened.
 - **Commands first, screen last:** CalHack takes the fastest route. A built-in tool or a tested command (`change_setting`: dark mode, Dock, Wi-Fi on; plus volume and sound output) changes a setting in about 0.1 s and reads it back to prove it took. Pointer size, text size and Do Not Disturb have no command, so CalHack does them itself through a fixed route in the app (the exact slider or Control Center switch, by name), reads them back, and closes what it opened. Only wallpaper is left to the person, because it's their choice. A final `check_screen` looks once to confirm what you can see. "Make my Dock hide automatically" takes about 3 s from start to proof.
@@ -80,7 +80,7 @@ The first time, macOS asks for permissions. Say **Allow**:
 
 | Permission | Why | Where |
 |---|---|---|
-| Screen Recording | To see your screen (screenshots only when you press ⌥⌘) | System Settings → Privacy & Security → Screen & System Audio Recording |
+| Screen Recording | To see your screen (screenshots only when you press ⌥⌘D) | System Settings → Privacy & Security → Screen & System Audio Recording |
 | Automation (Safari / Chrome) | To get the address of the page you're on | Asked automatically |
 | Accessibility | To find the PDF or document you have open | System Settings → Privacy & Security → Accessibility |
 
@@ -88,15 +88,15 @@ While developing, these permissions go to the app you started it from (Terminal 
 
 ## Demo (about 3 minutes)
 
-**Fix a problem (the main story):** run `scripts/demo-break-printer.sh` (adds a fake "Office Printer", pauses it, and queues 3 stuck jobs), press ⌥⌘ and say "my printer won't print". CalHack checks, fixes it (Droid runs the fixes), checks again, and shows **Before: Paused, 3 stuck jobs → After: Ready**. `scripts/demo-reset.sh` removes the fake printer. Other good ones: "the sound is coming out of my AirPods, I want it on the computer", "I can't find my resume", "delete all my files" (watch it refuse and teach).
+**Fix a problem (the main story):** run `scripts/demo-break-printer.sh` (adds a fake "Office Printer", pauses it, and queues 3 stuck jobs), press ⌥⌘D and say "my printer won't print". CalHack checks, fixes it (Droid runs the fixes), checks again, and shows **Before: Paused, 3 stuck jobs → After: Ready**. `scripts/demo-reset.sh` removes the fake printer. Other good ones: "the sound is coming out of my AirPods, I want it on the computer", "I can't find my resume", "delete all my files" (watch it refuse and teach).
 
 **Follow a page** — open http://localhost:4321 in **Safari or Chrome**:
 
-0. **"Install Zoom (forum post)"** (the hero demo): press ⌥⌘, then **Do it**. Option 1, a "faster mirror" that downloads a package over http and installs it as admin, is ⛔ blocked. CalHack moves to option 2, the official `brew install --cask zoom`, which Droid runs. It then opens Zoom and ends with "✅ Done. Zoom is installed and open", with the proof for each part.
-1. **"How to install wget"**: press ⌥⌘, then **Do it**. "Install Homebrew" is ✅ already done, the rest runs by itself, and it ends with proof that wget works.
+0. **"Install Zoom (forum post)"** (the hero demo): press ⌥⌘D, then **Do it**. Option 1, a "faster mirror" that downloads a package over http and installs it as admin, is ⛔ blocked. CalHack moves to option 2, the official `brew install --cask zoom`, which Droid runs. It then opens Zoom and ends with "✅ Done. Zoom is installed and open", with the proof for each part.
+1. **"How to install wget"**: press ⌥⌘D, then **Do it**. "Install Homebrew" is ✅ already done, the rest runs by itself, and it ends with proof that wget works.
 2. **"Install Rectangle (2018)"**: the old `brew tap caskroom/cask` step is skipped, and `brew cask install` is swapped for `brew install --cask` (the "Use the updated command" switch starts on; untick it to see the old command fail).
 3. **"Add a printer"** (open the PDF in Preview): CalHack finds the printer on your network, adds it, and checks it shows as Ready. If there's no printer nearby (or several), it says so and points at **Add Printer…** instead.
-4. **"Verify you are human"**: tick the box (it copies a command, like the real scam) → **"⛔ Stop! Don't paste that."** pops up. Pressing ⌥⌘ on this page also marks the whole page as a scam.
+4. **"Verify you are human"**: tick the box (it copies a command, like the real scam) → **"⛔ Stop! Don't paste that."** pops up. Pressing ⌥⌘D on this page also marks the whole page as a scam.
 
 **Before the demo:** run each page once with internet. Claude's answers get saved in `demo/cache/`, so the demo still works if the venue wifi dies.
 
@@ -140,6 +140,6 @@ npm run agent:sim     # 28 requests a non-technical person would make, through t
 | `demo/pages/` | The four demo pages |
 | `tests/` | Tests |
 
-Shortcut: ⌥⌘ by default. Press Option and Command together, then let go. Holding them while you press another key or click (⌥⌘Esc, ⌥⌘D) does nothing, so those shortcuts still work. It uses a small keyboard listener (`src/mac/hotkey.swift`), because Electron can't register a shortcut made only of modifier keys. That listener needs CalHack turned on under Accessibility. To use a different shortcut, set `CALHACK_HOTKEY` in `.env`, either modifier keys only (`Control+Option`) or with a key (`Control+Alt+Command+D`).
+Shortcut: ⌥⌘D by default. CalHack takes it over from macOS, where it normally shows and hides the Dock. If another app already uses it, set `CALHACK_HOTKEY=Control+Alt+Command+D` (or any other) in `.env`.
 
-Model: Claude Opus 5.5 by default (`CALHACK_MODEL` in `.env` to change). One ⌥⌘ press costs about $0.10.
+Model: Claude Opus 5.5 by default (`CALHACK_MODEL` in `.env` to change). One ⌥⌘D press costs about $0.10.
