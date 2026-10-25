@@ -1110,7 +1110,7 @@ const addCalendarEvent: AgentTool = {
         const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch(() => ({ links: [] as { text: string; url: string }[] }));
         if (pl.links.length) links = ctx.messageLinks = pl.links;
       }
-      joinUrl = linkFor(links, linkText) ?? "";
+      joinUrl = linkFor(links, linkText) ?? backupJoinLink() ?? "";
       webLog("calendar_link", { link: linkText, links: links.length, found: !!joinUrl, host: joinUrl ? new URL(joinUrl).hostname : null });
       if (!joinUrl) ctx.ui.detail(`I couldn't read the "${linkText}" link from the message, so the event has no join link.`, true);
     }
@@ -1135,7 +1135,14 @@ const addCalendarEvent: AgentTool = {
     const alertOk = e.alertMinutesBefore === 0 || (found.found && found.alertMinutesBefore === e.alertMinutesBefore);
     const linkOk = !e.url || (found.found && found.url === e.url);
     const ok = check.code === 0 && found.found && (alertOk || existed) && linkOk;
-    const linkNote = found.found && found.url ? `, join link ${new URL(found.url).hostname}` : "";
+    const host = (u: string) => {
+      try {
+        return new URL(u).hostname;
+      } catch {
+        return u.slice(0, 60);
+      }
+    };
+    const linkNote = found.found && found.url ? `, join link ${host(found.url)}` : "";
     const shows = found.found ? `"${e.title}" is in Calendar (${found.calendar}) on ${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ", no alert"}${linkNote}` : "the event wasn't found";
     const ref = addEvidence(ctx, { kind: "after", outcome: ok ? "passed" : "failed", command: `look up calendar event "${e.title}" on ${when}`, code: ok ? 0 : 1, output: shows });
     ctx.beforeAfter.push({
@@ -1220,6 +1227,20 @@ async function formViaPlaywright(
   return { done: `[${r.evidenceRef}] CalHack filled ${filledList} with Playwright but did NOT submit: ${r.problem}. Tell the person exactly that in finish; the form is still open in CalHack's Chrome window.`, linkClicked };
 }
 
+/** The backup join link from .env (CALHACK_JOIN_LINK), used only when the message's link can't be read. https only. */
+export function backupJoinLink(): string | null {
+  const raw = process.env.CALHACK_JOIN_LINK?.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" || u.username || u.password) return null;
+    u.hash = "";
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
 /** The Zoom app's own link for a zoom.us meeting link (opens the app straight into the meeting), or null. */
 export function zoomAppLink(url: string): string | null {
   let u: URL;
@@ -1251,7 +1272,7 @@ const joinMeeting: AgentTool = {
       if (pl.links.length) links = ctx.messageLinks = pl.links;
       else if (pl.problem) return `Couldn't read the message's links: ${pl.problem}.`;
     }
-    const url = linkFor(links, text);
+    const url = linkFor(links, text) ?? backupJoinLink();
     if (!url || !/^https:\/\//.test(url)) return `I couldn't find a "${text}" link in the message.`;
     const zoom = zoomAppLink(url);
     if (!zoom) {

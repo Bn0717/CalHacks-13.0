@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TOOLS, zoomAppLink, type AgentUI, type MacDeps, type ToolContext } from "../src/agent/tools.js";
+import { backupJoinLink, TOOLS, zoomAppLink, type AgentUI, type MacDeps, type ToolContext } from "../src/agent/tools.js";
 
 const tool = (name: string) => TOOLS.find((t) => t.name === name)!;
 const ok = (output = "") => ({ code: 0, output, timedOut: false });
@@ -129,5 +129,44 @@ describe("the calendar event carries the email's join link", () => {
     const out = await tool("add_calendar_event").run(input, t.ctx);
     expect(out).toMatch(/check failed.*join link isn't on it/);
     expect(t.ctx.evidence.at(-1)).toMatchObject({ code: 1 });
+  });
+});
+
+describe("the backup join link from .env", () => {
+  const link = "https://us04web.zoom.us/s/71196332015?pwd=ViGMFIGnNJofwaV7Pdpdy9f4bNS7pB.1#success";
+  it("is used only as a clean https link, without the #success page part", () => {
+    process.env.CALHACK_JOIN_LINK = link;
+    expect(backupJoinLink()).toBe("https://us04web.zoom.us/s/71196332015?pwd=ViGMFIGnNJofwaV7Pdpdy9f4bNS7pB.1");
+    process.env.CALHACK_JOIN_LINK = "http://zoom.us/j/1";
+    expect(backupJoinLink()).toBeNull();
+    delete process.env.CALHACK_JOIN_LINK;
+    expect(backupJoinLink()).toBeNull();
+  });
+
+  it("opens in the Zoom app", () => {
+    expect(zoomAppLink("https://us04web.zoom.us/s/71196332015?pwd=ViGMFIGnNJofwaV7Pdpdy9f4bNS7pB.1")).toBe("zoommtg://zoom.us/join?action=join&confno=71196332015&pwd=ViGMFIGnNJofwaV7Pdpdy9f4bNS7pB.1");
+  });
+
+  it("goes on the calendar event when the email's link can't be read, and the email's link wins when it can", async () => {
+    process.env.CALHACK_JOIN_LINK = link;
+    try {
+      const ran: string[] = [];
+      const make = (links: { text: string; url: string }[]) => {
+        const mac = {
+          now: () => new Date(2099, 9, 24).getTime(),
+          pageLinks: async () => ({ links }),
+          run: async (c: string) => (ran.push(c), { code: 0, output: c.includes("set found to (every event of cal") ? "added|Home" : "found|Home|-15|x", timedOut: false }),
+        } as unknown as MacDeps;
+        return { mac, ui: { status() {}, say() {}, detail() {} } as unknown as AgentUI, evidence: [], diagnoses: new Map(), beforeAfter: [] } as ToolContext;
+      };
+      const input = { title: "Video visit", start: "2099-10-26T10:00", duration_minutes: null, alert_minutes_before: 15, notes: null, url: null, join_link_text: "Join your visit" };
+      await tool("add_calendar_event").run(input, make([]));
+      expect(ran[0]).toContain("'https://us04web.zoom.us/s/71196332015?pwd=ViGMFIGnNJofwaV7Pdpdy9f4bNS7pB.1'");
+      ran.length = 0;
+      await tool("add_calendar_event").run(input, make([{ text: "Join your visit", url: "https://zoom.us/j/81234567890" }]));
+      expect(ran[0]).toContain("'https://zoom.us/j/81234567890'");
+    } finally {
+      delete process.env.CALHACK_JOIN_LINK;
+    }
   });
 });
