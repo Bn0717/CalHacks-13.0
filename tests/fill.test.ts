@@ -219,8 +219,10 @@ describe("calendar events", () => {
   });
 
   it("reads the lookup result", () => {
-    expect(parseFound("found|Home|-15\n")).toEqual({ found: true, calendar: "Home", alertMinutesBefore: 15 });
-    expect(parseFound("found|Work|")).toEqual({ found: true, calendar: "Work", alertMinutesBefore: null });
+    expect(parseFound("found|Home|-15\n")).toEqual({ found: true, calendar: "Home", alertMinutesBefore: 15, url: "" });
+    expect(parseFound("found|Work|")).toEqual({ found: true, calendar: "Work", alertMinutesBefore: null, url: "" });
+    expect(parseFound("found|Home|-15|https://us05web.zoom.us/j/81234567890?pwd=x")).toEqual({ found: true, calendar: "Home", alertMinutesBefore: 15, url: "https://us05web.zoom.us/j/81234567890?pwd=x" });
+    expect(parseFound("found|Home||")).toEqual({ found: true, calendar: "Home", alertMinutesBefore: null, url: "" });
     expect(parseFound("missing")).toEqual({ found: false });
   });
 });

@@ -19,6 +19,8 @@ import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 import { closeOpenedSheet } from "./uipilot.js";
 import { safeFacts, type Fact } from "./fill.js";
+import { keepWarning, refusal, scamSigns, type ScamVerdict } from "./scam.js";
+import { loadEnv } from "../ai/client.js";
 import { fillWebForm, webLog, type WebFormDeps } from "./webform.js";
 import { signedInPage } from "../core/trusted.js";
 import { cardIsThePerson } from "../mac/contacts.js";
@@ -116,7 +118,9 @@ export interface ToolContext {
   /** Before → after rows for the receipt. */
   beforeAfter: { label: string; before: string; after: string }[];
   /** A tool sets this when the run must end now without another call to Claude (e.g. Wi-Fi was just switched off). */
-  autoFinish?: { headline: string; details: string[]; proofRefs: { ref: string; shows: string }[] };
+  autoFinish?: { headline: string; details: string[]; proofRefs: { ref: string; shows: string }[]; verdict?: "done" | "cant_do" };
+  /** The message is a scam: every action is refused for the rest of the run, whatever anyone asks. */
+  scam?: ScamVerdict;
   /** True once the person pressed Stop or Cancel. Long loops check it before every action. */
   stopped?: () => boolean;
   /** Aborted the moment the person presses Stop: requests in flight are cancelled and loops end at once. */
@@ -127,6 +131,8 @@ export interface ToolContext {
   sourceApp?: string;
   /** The person saw CalHack's warning that the message may not be genuine, and chose to go ahead. */
   personTrusts?: boolean;
+  /** The links in the person's message (text and address), remembered once read, for later steps like joining a call. */
+  messageLinks?: { text: string; url: string }[];
   /** Sites where the person said yes to filling in a form despite a warning about the page. */
   formOkSites?: Set<string>;
 }
@@ -970,17 +976,34 @@ const fixProblem: AgentTool = {
 const installApp: AgentTool = {
   name: "install_app",
   kind: "act",
-  description: "Install an app from its maker's official website only (never mirrors or download sites). CalHack checks the file is signed by the maker, installs it (macOS asks for the password), and checks it's there. Asks the person first.",
+  description: "Make sure an app is installed: checks first, and if it's missing installs it from its maker's official website only (never mirrors or download sites), checks the file is signed by the maker, installs it (macOS asks for the password), and checks it's there. Use this for any 'download/install X' step; opening a download page is not installing.",
   input_schema: obj({ app_name: str("The app's name, e.g. Zoom") }),
-  label: (i) => `Installing ${s(i, "app_name")}…`,
+  label: (i) => `Checking ${s(i, "app_name")}…`,
   async run(input, ctx) {
     const name = s(input, "app_name");
-    const ok = await ctx.ui.confirm({ title: `Install ${name}?`, message: `I'll download ${name} from its maker's official website, check it's genuine, and install it. Your Mac will ask for your password.`, yes: "Yes, install", no: "Not now" });
+    // Already installed: say so (with its version) instead of downloading it again.
+    const have = oneApp(ctx, name);
+    if ("path" in have) {
+      const v = await ctx.mac.sandboxed(`/usr/bin/mdls -raw -name kMDItemVersion ${shq(have.path)}`).catch(() => null);
+      const version = v && v.code === 0 && !/null/.test(v.output) ? v.output.trim() : "";
+      const ref = addEvidence(ctx, { kind: "after", outcome: "passed", command: `check ${name} is installed`, code: 0, output: `${appLabel(have.path)} is installed at ${have.path}${version ? `, version ${version}` : ""}` });
+      ctx.beforeAfter.push({ label: name, before: "Installed", after: `Installed${version ? ` (${version})` : ""}` });
+      return `[${ref}] ${name} is already installed${version ? ` (version ${version})` : ""}, so nothing was downloaded.${/zoom/i.test(name) ? " Zoom updates itself when it opens." : ""}`;
+    }
+    // The person already said yes to a plan with this step: don't ask again.
+    const ok = ctx.approvedPlan?.length ? true : await ctx.ui.confirm({ title: `Install ${name}?`, message: `I'll download ${name} from its maker's official website, check it's genuine, and install it. Your Mac will ask for your password.`, yes: "Yes, install", no: "Not now" });
     if (!ok) return "The person said no. Don't install.";
+    ctx.ui.status(`Installing ${name}…`);
     const r = await ctx.mac.installOfficial(name);
     const refs = r.evidence.map((e) => addEvidence(ctx, e));
-    if (r.ok) ctx.beforeAfter.push({ label: name, before: "Not installed", after: "Installed" });
-    return `[${refs.join(", ")}] ${r.message}`;
+    // Installed means the app is really there now, not just that the installer ran.
+    const now = r.ok ? oneApp(ctx, name) : null;
+    if (now && "path" in now) {
+      refs.push(addEvidence(ctx, { kind: "after", outcome: "passed", command: `check ${name} is installed`, code: 0, output: `${appLabel(now.path)} is installed at ${now.path}` }));
+      ctx.beforeAfter.push({ label: name, before: "Not installed", after: "Installed" });
+      return `[${refs.join(", ")}] ${name} is installed now.`;
+    }
+    return `[${refs.join(", ")}] ${r.ok ? `The installer finished, but I can't find ${name} in Applications.` : r.message}`;
   },
 };
 
@@ -1070,41 +1093,69 @@ const runCommand: AgentTool = {
 const addCalendarEvent: AgentTool = {
   name: "add_calendar_event",
   kind: "act",
-  description: "Add an event to the person's Apple Calendar, with an alert before it, then read it back to prove it's there. Use for appointments, calls and visits from the screen or the person's words. Won't add the same event twice. Use the date exactly as written; work out the year from today's date.",
+  description: "Add an event to the person's Apple Calendar, with an alert before it, then read it back to prove it's there. Use for appointments, calls and visits from the screen or the person's words. If the message has a link to join the call or visit, pass its words as join_link_text: CalHack reads the link's address from the message and puts it on the event. An event that's already there gets whatever it's missing (the join link, the alert) instead of a copy. Use the date exactly as written; work out the year from today's date.",
   input_schema: obj({
     title: str("Short title, e.g. 'Video visit with Dr. Priya Patel'"),
     start: str("Local start time on this Mac as YYYY-MM-DDTHH:MM, e.g. 2026-10-26T10:00"),
     duration_minutes: numOrNull("Length in minutes; null for 30"),
     alert_minutes_before: numOrNull("Minutes before the start for the alert, e.g. 15; null for no alert"),
     notes: strOrNull("Useful details for the event (appointment number, phone), or null"),
-    url: strOrNull("An https link to join or check in, if one is known, or null"),
+    url: strOrNull("An https link to join, if you know its full address, or null"),
+    join_link_text: strOrNull("The words of the message's link to join the call or visit, e.g. 'Join your visit' (CalHack reads its address), or null"),
   }),
   label: () => "Adding it to your calendar…",
   async run(input, ctx) {
+    // The join link's address comes from the message itself: the AI sees the link's words, not where it goes.
+    let joinUrl = s(input, "url");
+    const linkText = s(input, "join_link_text");
+    if (linkText && !joinUrl) {
+      let links = ctx.messageLinks ?? [];
+      if (!linkFor(links, linkText) && ctx.mac.pageLinks) {
+        const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch(() => ({ links: [] as { text: string; url: string }[] }));
+        if (pl.links.length) links = ctx.messageLinks = pl.links;
+      }
+      joinUrl = linkFor(links, linkText) ?? backupJoinLink() ?? "";
+      webLog("calendar_link", { link: linkText, links: links.length, found: !!joinUrl, host: joinUrl ? new URL(joinUrl).hostname : null });
+      if (!joinUrl) ctx.ui.detail(`I couldn't read the "${linkText}" link from the message, so the event has no join link.`, true);
+    }
     const e = parseEvent(
-      { title: s(input, "title"), start: s(input, "start"), durationMinutes: n(input, "duration_minutes"), alertMinutesBefore: n(input, "alert_minutes_before"), notes: s(input, "notes"), url: s(input, "url") },
+      { title: s(input, "title"), start: s(input, "start"), durationMinutes: n(input, "duration_minutes"), alertMinutesBefore: n(input, "alert_minutes_before"), notes: s(input, "notes"), url: joinUrl },
       ctx.mac.now(),
     );
     if ("problem" in e) return `Not added: ${e.problem}`;
     const when = whenLabel(e);
     const add = await ctx.mac.run(addEventCommand(e));
     const outcome = add.output.trim().split("\n").pop() ?? "";
-    if (add.code !== 0 || !/^(added|exists)\|/.test(outcome)) {
+    if (add.code !== 0 || !/^(added|updated|exists)\|/.test(outcome)) {
       const why = /-1743|not allowed|not authorized/i.test(add.output) ? "macOS hasn't allowed CalHack to use Calendar yet (System Settings > Privacy & Security > Automation)" : tail(add.output, 2);
       addEvidence(ctx, { kind: "run", command: `add calendar event "${e.title}" on ${when}`, code: add.code || 1, output: why });
       return `Couldn't add it to Calendar: ${why}`;
     }
     const existed = outcome.startsWith("exists|");
-    // Read it back: the event must really be there, with the alert we asked for.
+    const updated = outcome.startsWith("updated|");
+    // Read it back: the event must really be there, with the alert and join link we asked for.
     const check = await ctx.mac.run(findEventCommand(e));
     const found = parseFound(check.output);
     const alertOk = e.alertMinutesBefore === 0 || (found.found && found.alertMinutesBefore === e.alertMinutesBefore);
-    const ok = check.code === 0 && found.found && (alertOk || existed);
-    const shows = found.found ? `"${e.title}" is in Calendar (${found.calendar}) on ${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ", no alert"}` : "the event wasn't found";
+    const linkOk = !e.url || (found.found && found.url === e.url);
+    const ok = check.code === 0 && found.found && (alertOk || existed) && linkOk;
+    const host = (u: string) => {
+      try {
+        return new URL(u).hostname;
+      } catch {
+        return u.slice(0, 60);
+      }
+    };
+    const linkNote = found.found && found.url ? `, join link ${host(found.url)}` : "";
+    const shows = found.found ? `"${e.title}" is in Calendar (${found.calendar}) on ${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ", no alert"}${linkNote}` : "the event wasn't found";
     const ref = addEvidence(ctx, { kind: "after", outcome: ok ? "passed" : "failed", command: `look up calendar event "${e.title}" on ${when}`, code: ok ? 0 : 1, output: shows });
-    ctx.beforeAfter.push({ label: "Calendar", before: existed ? "Already there" : "Not in calendar", after: found.found ? `${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ""}` : "Not found" });
-    if (!ok) return `[${ref}] I tried to add it, but the check failed: ${shows}.`;
-    return `[${ref}] ${existed ? "It was already in the calendar" : "Added"}: ${shows}.${existed && !alertOk ? " (The existing event's alert is different; I didn't change it.)" : ""}`;
+    ctx.beforeAfter.push({
+      label: "Calendar",
+      before: existed || updated ? "Already there" : "Not in calendar",
+      after: found.found ? `${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ""}${found.url ? ", with join link" : ""}` : "Not found",
+    });
+    if (!ok) return `[${ref}] I tried to add it, but the check failed: ${shows}${e.url && !linkOk ? " (the join link isn't on it)" : ""}.`;
+    return `[${ref}] ${updated ? "It was already in the calendar; I added what was missing" : existed ? "It was already in the calendar" : "Added"}: ${shows}.${existed && !alertOk ? " (The existing event's alert is different; I didn't change it.)" : ""}`;
   },
 };
 
@@ -1129,6 +1180,7 @@ async function formViaPlaywright(
   if (o.inMessage && o.clickTarget && ctx.mac.pageLinks) {
     const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch((e: Error) => ({ links: [], problem: e.message }));
     direct = linkFor(pl.links, o.clickTarget);
+    if (pl.links.length) ctx.messageLinks = pl.links;
     webLog("message_links", { links: pl.links.length, found: !!direct, host: direct ? new URL(direct).hostname : null, problem: pl.problem });
     if (!direct && pl.problem) ctx.ui.detail(`I couldn't read the email's links (${pl.problem}), so I'll click the link instead.`, true);
   }
@@ -1178,6 +1230,82 @@ async function formViaPlaywright(
   ctx.ui.say(`I filled in the form, but didn't send it: ${r.problem}.`);
   return { done: `[${r.evidenceRef}] CalHack filled ${filledList} with Playwright but did NOT submit: ${r.problem}. Tell the person exactly that in finish; the form is still open in CalHack's Chrome window.`, linkClicked };
 }
+
+/** The backup join link from .env (CALHACK_JOIN_LINK), used only when the message's link can't be read. https only. */
+export function backupJoinLink(): string | null {
+  loadEnv();
+  const raw = process.env.CALHACK_JOIN_LINK?.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" || u.username || u.password) return null;
+    u.hash = "";
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+/** The Zoom app's own link for a zoom.us meeting link (opens the app straight into the meeting), or null. */
+export function zoomAppLink(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || !/(^|\.)zoom\.(us|com)$/.test(u.hostname)) return null;
+  const id = /^\/(?:j|w|s)\/(\d{9,12})\/?$/.exec(u.pathname)?.[1];
+  if (!id) return null;
+  const pwd = u.searchParams.get("pwd");
+  if (pwd !== null && !/^[A-Za-z0-9._-]{1,128}$/.test(pwd)) return null;
+  return `zoommtg://zoom.us/join?action=join&confno=${id}${pwd ? `&pwd=${pwd}` : ""}`;
+}
+
+const joinMeeting: AgentTool = {
+  name: "join_meeting",
+  kind: "act",
+  description: "Join a video call or visit from the link in the person's message (e.g. 'Join your visit'). CalHack reads the link's address from the message, makes sure Zoom is installed for a Zoom link (installing it from zoom.us if needed), opens the meeting straight in the Zoom app, and checks a meeting or waiting-room window opened. Other links open in the browser.",
+  input_schema: obj({ link_text: str("The link's words in the message, e.g. 'Join your visit'") }),
+  label: () => "Joining your call…",
+  async run(input, ctx) {
+    const text = s(input, "link_text");
+    let links = ctx.messageLinks ?? [];
+    if (!linkFor(links, text) && ctx.mac.pageLinks) {
+      if (ctx.sourceApp && !NEVER_OPEN.has(ctx.sourceApp.toLowerCase())) await ctx.mac.run(`open -a ${shq(ctx.sourceApp)}`).catch(() => null);
+      const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch((e: Error) => ({ links: [], problem: e.message }));
+      if (pl.links.length) links = ctx.messageLinks = pl.links;
+      else if (pl.problem) return `Couldn't read the message's links: ${pl.problem}.`;
+    }
+    const url = linkFor(links, text) ?? backupJoinLink();
+    if (!url || !/^https:\/\//.test(url)) return `I couldn't find a "${text}" link in the message.`;
+    const zoom = zoomAppLink(url);
+    if (!zoom) {
+      const r = await ctx.mac.run(`open ${shq(url)}`);
+      const ref = addEvidence(ctx, { kind: "run", command: `open the "${text}" link (${new URL(url).hostname})`, code: r.code, output: r.code === 0 ? "opened in the browser" : tail(r.output, 2) });
+      return r.code === 0 ? `[${ref}] Opened "${text}" (${new URL(url).hostname}) in the browser. It isn't a Zoom link, so check the page with check_screen.` : `Couldn't open it: ${tail(r.output, 2)}`;
+    }
+    // A Zoom meeting needs the Zoom app: install it first if it's missing.
+    if (!("path" in oneApp(ctx, "Zoom"))) {
+      const inst = await installApp.run({ app_name: "Zoom" }, ctx);
+      if (!("path" in oneApp(ctx, "Zoom"))) return `Zoom isn't installed, so I couldn't join. ${inst}`;
+    }
+    const r = await ctx.mac.run(`open ${shq(zoom)}`);
+    if (r.code !== 0) return `Couldn't open the meeting in Zoom: ${tail(r.output, 2)}`;
+    // Joined means Zoom shows a meeting (or the waiting room), not just that the app opened.
+    let windows = "";
+    for (let t = 0; t < 20 && !ctx.signal?.aborted; t++) {
+      await new Promise((x) => setTimeout(x, 750));
+      const w = await ctx.mac.run(`osascript -e 'tell application "System Events" to if exists process "zoom.us" then get name of every window of process "zoom.us"'`).catch(() => null);
+      windows = w && w.code === 0 ? w.output.trim() : "";
+      if (/meeting|waiting|webinar|host will let you in|join audio/i.test(windows)) break;
+    }
+    const joined = /meeting|waiting|webinar|host will let you in|join audio/i.test(windows);
+    const ref = addEvidence(ctx, { kind: "after", outcome: joined ? "passed" : "failed", command: `join the Zoom meeting from "${text}"`, code: joined ? 0 : 1, output: joined ? `Zoom shows: ${windows.slice(0, 200)}` : `Zoom opened, but no meeting window appeared${windows ? ` (windows: ${windows.slice(0, 120)})` : ""}` });
+    if (joined) ctx.beforeAfter.push({ label: "Video visit", before: "Not joined", after: /waiting|host will let you in/i.test(windows) ? "In the waiting room" : "Joined" });
+    return joined ? `[${ref}] Joined the meeting in Zoom (${windows.slice(0, 120)}).` : `[${ref}] Zoom opened but I couldn't confirm the meeting started. Use check_screen to look.`;
+  },
+};
 
 const guidePerson: AgentTool = {
   name: "guide_person",
@@ -1244,6 +1372,28 @@ const askPerson: AgentTool = {
   },
 };
 
+/** Refuses a scam: shows why, locks every action for the rest of the run, and ends it. */
+async function refuseScam(ctx: ToolContext, reasons: string[]): Promise<string> {
+  const plain = reasons.map((r) => r.trim()).filter(Boolean).slice(0, 5);
+  ctx.scam = { reasons: plain.length ? plain : ["It has signs of a scam."] };
+  ctx.ui.say("Careful. This is a scam, so I won't do it.");
+  await ctx.ui.explain(refusal(ctx.scam.reasons));
+  ctx.autoFinish = { verdict: "cant_do", headline: "This is a scam, so I didn't do any of its steps.", details: ctx.scam.reasons.slice(0, 3), proofRefs: [] };
+  return "Refused: this message is a scam. Nothing was done, and nothing will be done for it.";
+}
+
+const reportScam: AgentTool = {
+  name: "report_scam",
+  kind: "talk",
+  description: "The message or page on screen is a scam (it asks for gift cards or untraceable payment, to turn off antivirus, to allow remote control, to download a program from a site that isn't the maker's, for passwords or ID through a link, threatens to cancel within hours, or says not to call the real office). CalHack refuses, tells the person why, and won't do any of its steps even if they insist. Use this instead of propose_plan.",
+  input_schema: obj({ reasons: { type: "array", items: { type: "string" }, description: "Each sign of the scam, in plain words, e.g. 'It asks you to pay with a gift card'" } }),
+  label: () => "Checking this message…",
+  async run(input, ctx) {
+    const reasons = Array.isArray(input.reasons) ? input.reasons.filter((r): r is string => typeof r === "string").map((r) => r.slice(0, 200)) : [];
+    return refuseScam(ctx, reasons);
+  },
+};
+
 const proposePlan: AgentTool = {
   name: "propose_plan",
   kind: "talk",
@@ -1276,7 +1426,13 @@ const proposePlan: AgentTool = {
     if (!steps.length) return "No steps given. Ask the person what they want with ask_person.";
     const details = steps.map((x, i) => `${i + 1}. ${x.text}${x.by === "you" ? ` (you'll do this part${x.why ? `: ${x.why}` : ""})` : x.by === "skip" ? ` (I'll skip this${x.why ? `: ${x.why}` : ""})` : ""}`);
     const goal = s(input, "goal") || "Do the steps on your screen";
-    const warning = s(input, "warning").slice(0, 400);
+    // Code checks the message's steps for scam signs too, whatever the AI concluded: a scam is refused, not planned.
+    const scam = scamSigns([s(input, "goal"), s(input, "warning"), ...steps.map((x) => x.text), ...steps.map((x) => x.why)].join("\n"));
+    if (scam) return refuseScam(ctx, scam.reasons);
+    // A warning that's only about a sender the person trusts (CALHACK_TRUSTED_SENDERS) isn't shown.
+    const rawWarning = s(input, "warning").slice(0, 400);
+    const warning = keepWarning(rawWarning) ? rawWarning : "";
+    if (rawWarning && !warning) ctx.ui.detail("The sender is one you trust, so I'm not warning about it.", true);
     if (warning) {
       ctx.ui.say("Careful. This message might not be real. You decide whether I go ahead.");
       const yes = await ctx.ui.confirm({
@@ -1400,7 +1556,7 @@ const finish: AgentTool = {
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkScreen, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
   quitApp, openApp, changeSetting, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
-  startCall, addCalendarEvent, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
+  startCall, addCalendarEvent, joinMeeting, reportScam, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 
 /** The real list of files in a folder (not following links, skipping hidden files), up to a limit. */

@@ -87,9 +87,38 @@ const ADD_SCRIPT = [
   "end if",
   "end repeat",
   'if cal is missing value then error "There is no calendar to add to."',
-  "if (count of (every event of cal whose summary is t and start date is s)) > 0 then return \"exists|\" & (name of cal)",
+  // Already there (e.g. from an earlier run): fill in what's missing (the join link, the alert) instead of skipping it.
+  "set found to (every event of cal whose summary is t and start date is s)",
+  "if (count of found) > 0 then",
+  "set ev to item 1 of found",
+  "set changed to false",
+  'if linkText is not "" then',
+  'set cur to ""',
+  "try",
+  "set cur to (url of ev) as text",
+  "end try",
+  "if cur is not linkText then",
+  "set url of ev to linkText",
+  "set changed to true",
+  "end if",
+  'set place to ""',
+  "try",
+  "set place to (location of ev) as text",
+  "end try",
+  'if place is "" or place is "missing value" then set location of ev to linkText',
+  "end if",
+  "if alertMin > 0 and (count of display alarms of ev) is 0 then",
+  "tell ev to make new display alarm at end of display alarms with properties {trigger interval:(0 - alertMin)}",
+  "set changed to true",
+  "end if",
+  'if changed then return "updated|" & (name of cal)',
+  'return "exists|" & (name of cal)',
+  "end if",
   "set ev to make new event at end of events of cal with properties {summary:t, start date:s, end date:e, description:notesText}",
-  'if linkText is not "" then set url of ev to linkText',
+  'if linkText is not "" then',
+  "set url of ev to linkText",
+  "set location of ev to linkText",
+  "end if",
   "if alertMin > 0 then",
   "tell ev to make new display alarm at end of display alarms with properties {trigger interval:(0 - alertMin)}",
   "end if",
@@ -110,7 +139,12 @@ const FIND_SCRIPT = [
   "try",
   "set a to (trigger interval of display alarm 1 of (item 1 of found)) as text",
   "end try",
-  'return "found|" & (name of c) & "|" & a',
+  'set u to ""',
+  "try",
+  "set u to (url of (item 1 of found)) as text",
+  "end try",
+  'if u is "missing value" then set u to ""',
+  'return "found|" & (name of c) & "|" & a & "|" & u',
   "end if",
   "end repeat",
   "end tell",
@@ -122,22 +156,22 @@ function dateArgs(e: CalendarEvent): string[] {
   return [e.title, String(e.year), String(e.month), String(e.day), String(e.hour), String(e.minute)];
 }
 
-/** The command that adds the event (or says it's already there). Prints "added|<calendar>" or "exists|<calendar>". */
+/** The command that adds the event, or fills in what an existing one is missing. Prints "added|", "updated|" or "exists|" + calendar. */
 export function addEventCommand(e: CalendarEvent): string {
   const args = [...dateArgs(e), String(e.durationMinutes), String(e.alertMinutesBefore), e.notes, e.url];
   return `osascript -e ${shq(ADD_SCRIPT)} ${args.map(shq).join(" ")}`;
 }
 
-/** The command that looks the event up. Prints "found|<calendar>|<alert trigger in minutes, negative>" or "missing". */
+/** The command that looks the event up. Prints "found|<calendar>|<alert trigger in minutes, negative>|<link>" or "missing". */
 export function findEventCommand(e: CalendarEvent): string {
   return `osascript -e ${shq(FIND_SCRIPT)} ${dateArgs(e).map(shq).join(" ")}`;
 }
 
-export function parseFound(output: string): { found: false } | { found: true; calendar: string; alertMinutesBefore: number | null } {
+export function parseFound(output: string): { found: false } | { found: true; calendar: string; alertMinutesBefore: number | null; url: string } {
   const line = output.trim().split("\n").pop() ?? "";
-  const m = /^found\|(.*)\|(-?\d+)?$/.exec(line);
+  const m = /^found\|([^|]*)\|(-?\d+)?(?:\|(.*))?$/.exec(line);
   if (!m) return { found: false };
-  return { found: true, calendar: m[1], alertMinutesBefore: m[2] ? Math.abs(Number(m[2])) : null };
+  return { found: true, calendar: m[1], alertMinutesBefore: m[2] ? Math.abs(Number(m[2])) : null, url: (m[3] ?? "").trim() };
 }
 
 /** "Mon, Oct 26 at 10:00 AM" in the Mac's own language settings. */

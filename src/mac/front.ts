@@ -37,6 +37,9 @@ export async function browserUrl(app: string): Promise<string | null> {
 const LINKS_JS =
   "JSON.stringify([...document.querySelectorAll('a[href]')].filter(a => a.offsetParent !== null).map(a => [(a.innerText || a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120), a.href]).filter(x => x[0] && /^https?:/.test(x[1])).slice(0, 300))";
 
+/** Webmail addresses: the tab with the person's email is looked for by these. */
+const MAIL_HOSTS = ["mail.google.com", "outlook.live.com", "outlook.office.com", "outlook.office365.com", "mail.yahoo.com", "icloud.com/mail", "mail.aol.com", "mail.proton.me"];
+
 export interface PageLinks {
   links: { text: string; url: string }[];
   /** Why the links couldn't be read (e.g. the browser's "Allow JavaScript from Apple Events" is off). */
@@ -51,10 +54,45 @@ export interface PageLinks {
 export async function pageLinks(app: string): Promise<PageLinks> {
   const name = app === "Chrome" ? "Google Chrome" : app;
   const js = JSON.stringify(LINKS_JS);
+  // The email's tab, wherever it is (another window, or not the front tab, e.g. after a form opened elsewhere);
+  // the front tab only when no webmail tab is open.
+  const mail = MAIL_HOSTS.map((h) => `(URL of t) contains "${h}"`).join(" or ");
   let script: string;
-  if (app === "Safari" || app === "Safari Technology Preview") script = `tell application "${name}" to do JavaScript ${js} in front document`;
-  else if (CHROMIUM_BROWSERS.has(app)) script = `tell application "${name}" to execute active tab of front window javascript ${js}`;
-  else return { links: [], problem: `${app} can't share its links` };
+  if (app === "Safari" || app === "Safari Technology Preview") {
+    script = [
+      `tell application "${name}"`,
+      "set target to missing value",
+      "repeat with w in windows",
+      "repeat with t in tabs of w",
+      `if ${mail} then`,
+      "set target to t",
+      "exit repeat",
+      "end if",
+      "end repeat",
+      "if target is not missing value then exit repeat",
+      "end repeat",
+      "if target is missing value then set target to current tab of front window",
+      `return do JavaScript ${js} in target`,
+      "end tell",
+    ].join("\n");
+  } else if (CHROMIUM_BROWSERS.has(app)) {
+    script = [
+      `tell application "${name}"`,
+      "set target to missing value",
+      "repeat with w in windows",
+      "repeat with t in tabs of w",
+      `if ${mail} then`,
+      "set target to t",
+      "exit repeat",
+      "end if",
+      "end repeat",
+      "if target is not missing value then exit repeat",
+      "end repeat",
+      "if target is missing value then set target to active tab of front window",
+      `return execute target javascript ${js}`,
+      "end tell",
+    ].join("\n");
+  } else return { links: [], problem: `${app} can't share its links` };
   return new Promise((resolve) => {
     execFile("/usr/bin/osascript", ["-e", script], { timeout: 6000 }, (err, stdout, stderr) => {
       if (err) {
