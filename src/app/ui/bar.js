@@ -864,6 +864,7 @@
     caption.classList.toggle("is-speaking", on);
     if (speech.speaking === on) return;
     speech.speaking = on;
+    window.calhack?.send("bar-speaking", { on }); // the buddy moves its mouth while the voice talks
   }
 
   function showCaption(text) {

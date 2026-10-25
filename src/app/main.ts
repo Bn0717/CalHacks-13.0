@@ -46,7 +46,7 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
+import { buddyTalking, currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -1351,6 +1351,7 @@ ipcMain.on("bar-send-summary", () => {
   say("Copied. Paste it in a message to someone who can help.", "now");
 });
 ipcMain.on("bar-drag", (_e, data: { on?: boolean }) => (data?.on === true ? startBarDrag() : stopBarDrag()));
+ipcMain.on("bar-speaking", (_e, data: { on?: boolean }) => buddyTalking(data?.on === true));
 ipcMain.on("bar-move-reset", () => resetBarPosition());
 ipcMain.on("bar-rect", (_e, rect: { x: number; y: number; width: number; height: number }) => {
   if (rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) setBarRect(rect);

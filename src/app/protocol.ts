@@ -110,6 +110,7 @@ export type BarToApp =
   | { channel: "bar-mic-start" } // hold-to-talk pressed
   | { channel: "bar-mic-audio"; data: { wav: ArrayBuffer } } // hold-to-talk released: 16 kHz mono 16-bit WAV
   | { channel: "bar-mic-cancel" }
+  | { channel: "bar-speaking"; data: { on: boolean } } // the voice started or stopped (the buddy's mouth moves)
   | { channel: "bar-rect"; data: { x: number; y: number; width: number; height: number } }; // where the card is, so clicks around it pass through
 
 
@@ -121,3 +122,21 @@ export type BarToApp =
  * x, y are screen points on the main display, (0,0) at its top-left.
  */
 export type PointerCommand = { show: true; x: number; y: number; label: string } | { show: false };
+
+// ---------------- App → buddy layer: channel "buddy" ----------------
+
+/**
+ * The red mascot. It sits on the bar's card, takes a pose for each moment, and hops over to point at the thing the
+ * person should click. The layer covers the main display, lets every click pass through, and is kept out of screenshots.
+ * x, y are screen points on the main display, (0,0) at its top-left. CALHACK_BUDDY=0 turns it off (the plain ring is used).
+ */
+export type BuddyPose = "idle" | "wave" | "scan" | "think" | "type" | "carry" | "stop" | "point" | "celebrate" | "sad" | "talk";
+
+export type BuddyCommand =
+  | { type: "show"; x: number; y: number; pose?: BuddyPose } // appear (pop in) at a point
+  | { type: "hide" }
+  | { type: "hop"; x: number; y: number; pose?: BuddyPose; label?: string } // jump in an arc to a point, then take the pose
+  | { type: "pose"; pose: BuddyPose }
+  | { type: "point"; x: number; y: number; label: string } // hop next to a spot and point at it, with a ring and a label
+  | { type: "scan"; rect: { x: number; y: number; width: number; height: number } } // look around an area
+  | { type: "talking"; on: boolean };
