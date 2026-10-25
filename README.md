@@ -27,6 +27,8 @@ Made for people who aren't technical, like a parent who'd otherwise call their k
 
 **Talk to it any time.** Hold the **Hold to talk** button (speech is turned into text on your Mac with whisper.cpp), or type. The box is on every screen, so you can ask a follow-up in the middle of a task. Everything it says is also shown as a caption.
 
+**A red buddy shows what's happening.** A little red mascot sits on the helper bar: it looks around while CalHack reads the screen, types while it works, celebrates when it's done, and holds up a stop sign for scams. When a part needs you, it hops over and points at the exact thing to click. It never blocks clicks and is kept out of CalHack's screenshots. Preview it in a browser with `src/app/ui/buddy-preview.html`; `CALHACK_BUDDY=0` turns it off and shows a plain ring instead.
+
 **How-to pages still get the careful step-by-step mode:** Claude reads the steps exactly as written → our code rates every step → you tap **Do it** → Droid runs the approved steps → each step is checked → a separate Claude call writes the receipt. Unsafe steps are skipped, outdated commands are updated, and a fake "verify you're human" page gets a scam warning. A **copy guard** also stops dangerous commands you copy from anywhere.
 
 In step-by-step mode, **Done requires a passing final goal check**. A command exiting successfully is execution history, not proof. Missing or inconclusive final verification produces **Couldn't verify**, and intermediate actions keep their **Ran, not verified** label. Uncertain alternatives hold the page's other options; **Try again** refreshes outcome checks before considering further changes, and does not repeat completed actions just to obtain proof.

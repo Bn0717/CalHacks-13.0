@@ -1,9 +1,11 @@
-// The window the person sees: the helper bar (bottom-center at first; the person can drag it anywhere). Shapes of the messages are in protocol.ts.
+// The windows the person sees: the helper bar (bottom-center at first; the person can drag it anywhere) and the buddy, a red
+// mascot that sits on the bar and hops over to point at things. Shapes of the messages are in protocol.ts.
 import { BrowserWindow, screen } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ClickHolds, keepCardOnScreen, shouldIgnoreMouse } from "./clickthrough.js";
-import type { BarState, PointerCommand, SayMessage } from "./protocol.js";
+import { poseForBar, seatOnCard } from "./buddy-pose.js";
+import type { BarState, BuddyCommand, BuddyPose, PointerCommand, SayMessage } from "./protocol.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const UI = (name: string) => join(here, "ui", name);
@@ -104,6 +106,7 @@ export function showBar(state: BarState): void {
     }
     else if (!w.isVisible()) w.showInactive();
   });
+  buddyForBar(state);
 }
 
 export function currentBar(): BarState {
@@ -134,6 +137,7 @@ export function setBarRect(rect: { x: number; y: number; width: number; height: 
   if (process.env.CALHACK_DEBUG) console.log(`[rect] window ${JSON.stringify(bar.getBounds())} card ${JSON.stringify(rect)}`);
   // The card grows upward: if it was dragged near the top, slide the window down so the whole card stays visible.
   if (!drag) placeBar(bar.getPosition()[0], bar.getPosition()[1]);
+  reseatBuddySoon();
 }
 
 /** Bottom-center of the main screen, where the bar starts. */
@@ -174,6 +178,7 @@ export function stopBarDrag(): void {
   clearInterval(drag.timer);
   clearTimeout(drag.safety);
   drag = null;
+  reseatBuddySoon();
 }
 
 /** Back to bottom-center (double-click on the bar's top). */
@@ -181,6 +186,7 @@ export function resetBarPosition(): void {
   stopBarDrag();
   const p = defaultBarPosition();
   bar?.setPosition(p.x, p.y);
+  reseatBuddySoon();
 }
 
 // ---------- Pointer layer ----------
@@ -201,6 +207,12 @@ function ensurePointer(): BrowserWindow {
 export function pointAt(x: number, y: number, label: string): void {
   const b = screen.getPrimaryDisplay().bounds;
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > b.width || y > b.height) return;
+  if (BUDDY_ON) {
+    // The buddy hops over and points, with its own ring and label.
+    buddy.pointing = true;
+    toBuddy({ type: "point", x, y, label: label.slice(0, 80) });
+    return;
+  }
   const w = ensurePointer();
   whenLoaded(w, () => {
     w.webContents.send("pointer", { show: true, x, y, label: label.slice(0, 80) } satisfies PointerCommand);
@@ -209,7 +221,121 @@ export function pointAt(x: number, y: number, label: string): void {
 }
 
 export function hidePointer(): void {
+  if (buddy.pointing) {
+    buddy.pointing = false;
+    // Back to its seat on the bar (or away, if the bar is hidden).
+    buddyForBar(lastBarState, true);
+  }
   if (!pointer || pointer.isDestroyed() || !pointer.isVisible()) return;
   pointer.webContents.send("pointer", { show: false } satisfies PointerCommand);
   pointer.hide();
+}
+
+// ---------- Buddy layer ----------
+// The red mascot (ui/buddy*.js). A see-through layer over the main display, like the pointer layer: it never takes clicks
+// or focus, and it's kept out of screenshots. It sits on the bar's card and takes a pose for each moment (poseForBar);
+// pointAt sends it over to point at the thing to click, and hidePointer brings it back.
+
+const BUDDY_ON = process.env.CALHACK_BUDDY !== "0";
+
+const buddy = {
+  win: null as BrowserWindow | null,
+  /** Shown (or on its way in). */
+  visible: false,
+  /** Off pointing at something, so bar changes don't pull it back to its seat. */
+  pointing: false,
+  /** Where it last sat, and in which pose, so repeated bar updates don't make it hop again. */
+  seat: null as { x: number; y: number } | null,
+  pose: null as BuddyPose | null,
+  reseatTimer: null as NodeJS.Timeout | null,
+  hideTimer: null as NodeJS.Timeout | null,
+};
+
+function ensureBuddy(): BrowserWindow {
+  if (buddy.win && !buddy.win.isDestroyed()) return buddy.win;
+  const b = screen.getPrimaryDisplay().bounds;
+  const w = makeWindow({ x: b.x, y: b.y, width: b.width, height: b.height, focusable: false, enableLargerThanScreen: true });
+  // Above the bar, so it can stand on the card. Clicks still reach the bar underneath.
+  w.setAlwaysOnTop(true, "screen-saver");
+  w.setIgnoreMouseEvents(true);
+  w.loadFile(UI("buddy.html"));
+  w.on("closed", () => {
+    buddy.win = null;
+    buddy.visible = false;
+    buddy.seat = null;
+  });
+  buddy.win = w;
+  return w;
+}
+
+function toBuddy(cmd: BuddyCommand): void {
+  if (!BUDDY_ON) return;
+  if (cmd.type === "hide" && !buddy.visible) return;
+  const w = ensureBuddy();
+  if (cmd.type === "hide") buddy.visible = false;
+  else if (cmd.type !== "talking" && cmd.type !== "pose") buddy.visible = true;
+  const wantVisible = buddy.visible;
+  whenLoaded(w, () => {
+    if (w.isDestroyed()) return;
+    w.webContents.send("buddy", cmd);
+    if (buddy.hideTimer) clearTimeout(buddy.hideTimer);
+    buddy.hideTimer = null;
+    if (!wantVisible) {
+      // Let it pop out before the window goes.
+      buddy.hideTimer = setTimeout(() => {
+        if (!buddy.visible && !w.isDestroyed()) w.hide();
+      }, 600);
+    } else if (!w.isVisible()) w.showInactive();
+  });
+}
+
+function buddySeat(): { x: number; y: number } | null {
+  return seatOnCard(barCardOnScreen(), screen.getPrimaryDisplay().bounds);
+}
+
+/** Puts the buddy on its seat in the pose for this bar moment. force: hop even if nothing seems to have changed. */
+function buddyForBar(state: BarState, force = false): void {
+  if (!BUDDY_ON) return;
+  const pose = poseForBar(state);
+  if (pose === null) {
+    buddy.pointing = false;
+    buddy.seat = null;
+    buddy.pose = null;
+    toBuddy({ type: "hide" });
+    return;
+  }
+  if (buddy.pointing) return;
+  const seat = buddySeat();
+  if (!seat) {
+    // The card isn't measured yet (it reports itself right after it draws), or the bar is on another screen.
+    buddy.pose = pose;
+    if (barCardOnScreen()) {
+      buddy.seat = null;
+      toBuddy({ type: "hide" });
+    }
+    return;
+  }
+  const moved = !buddy.seat || Math.abs(buddy.seat.x - seat.x) > 2 || Math.abs(buddy.seat.y - seat.y) > 2;
+  if (!force && buddy.visible && !moved && buddy.pose === pose) return;
+  const wasVisible = buddy.visible;
+  buddy.seat = seat;
+  buddy.pose = pose;
+  if (!wasVisible) toBuddy({ type: "show", ...seat, pose });
+  else if (moved || force) toBuddy({ type: "hop", ...seat, pose });
+  else toBuddy({ type: "pose", pose });
+}
+
+/** The card changed size or place: once it settles, hop the buddy back onto it. */
+function reseatBuddySoon(): void {
+  if (!BUDDY_ON) return;
+  if (buddy.reseatTimer) clearTimeout(buddy.reseatTimer);
+  buddy.reseatTimer = setTimeout(() => {
+    buddy.reseatTimer = null;
+    if (!drag) buddyForBar(lastBarState);
+  }, 320);
+}
+
+/** The bar's voice started or stopped: the buddy's mouth moves while it talks. */
+export function buddyTalking(on: boolean): void {
+  if (buddy.visible) toBuddy({ type: "talking", on });
 }

@@ -7,9 +7,9 @@ const TO_APP = new Set([
   // Helper bar (see protocol.ts).
   "bar-ok", "bar-cancel", "bar-stop", "bar-retry", "bar-answer", "bar-approve", "bar-manual",
   "bar-send-summary", "bar-mic-start", "bar-mic-audio", "bar-mic-cancel", "bar-rect",
-  "bar-confirm", "bar-explain-ok", "bar-drag", "bar-move-reset",
+  "bar-confirm", "bar-explain-ok", "bar-drag", "bar-move-reset", "bar-speaking",
 ]);
-const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "warning", "bar", "say", "pointer"]);
+const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "warning", "bar", "say", "pointer", "buddy"]);
 
 contextBridge.exposeInMainWorld("calhack", {
   synthesize(text) {
