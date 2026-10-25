@@ -20,6 +20,21 @@
       <label for="appt">Appointment number</label>
       <input id="appt" name="appointment" placeholder="e.g. BV-12345" required>
 
+      <fieldset class="choice">
+        <legend>Visit type</legend>
+        <label><input type="radio" name="visit_type" value="clinic" required> In person at the clinic</label>
+        <label><input type="radio" name="visit_type" value="video"> Video visit</label>
+        <label><input type="radio" name="visit_type" value="phone"> Phone call</label>
+      </fieldset>
+
+      <label for="language">Language for your visit</label>
+      <select id="language" name="language">
+        <option value="">Choose…</option>
+        <option>English</option>
+        <option>Spanish</option>
+        <option>Mandarin</option>
+      </select>
+
       <label for="visit">Visit date</label>
       <input id="visit" name="visit" type="date" required>
 
@@ -38,12 +53,12 @@
       <label class="tick"><input type="checkbox" id="consent" required> I agree to a video visit</label>
 
       <button type="submit">Check in</button>
-      <p class="error" id="error" hidden>Please fill in your name and appointment number, and tick the box.</p>
+      <p class="error" id="error" hidden>Please fill in your name and appointment number, choose a visit type, and tick the box.</p>
     </form>
 
     <div class="done" id="done" hidden>
       <h2>✅ You're checked in</h2>
-      <p>See you on Monday, October 26 at 10:00 AM. Join from the link in your email.</p>
+      <p>Visit type: <b id="done-type"></b>. See you on Monday, October 26 at 10:00 AM. Join from the link in your email.</p>
     </div>
   </main>
   <script src="checkin.js"></script>

@@ -5,7 +5,7 @@ const create = vi.fn();
 vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create } }), MODEL: () => "test-model" }));
 
 import { safeFacts } from "../src/agent/fill.js";
-import { fillable, fillWebForm, valueFor, type FormField, type WebFormDeps } from "../src/agent/webform.js";
+import { choosable, fillable, fillWebForm, optionStated, valueFor, type FormField, type WebFormDeps } from "../src/agent/webform.js";
 import { TOOLS, type AgentUI, type MacDeps, type ToolContext } from "../src/agent/tools.js";
 
 const facts = safeFacts([
@@ -23,11 +23,15 @@ const FORM = [
   field(5, "Card number", { autocomplete: "cc-number" }),
   field(6, "I agree", { type: "checkbox" }),
   field(7, "Clinic", { tag: "select", type: "" }),
+  field(8, "Visit type", { tag: "radio", type: "radio", options: ["In person at the clinic", "Video visit", "Phone call"] }),
+  field(9, "Language for your visit", { tag: "select", type: "", options: ["Choose…", "English", "Spanish"] }),
+  field(10, "I agree to", { tag: "radio", type: "radio", options: ["Yes", "No"] }),
 ];
-const answer = (matches: { field: number; detail: string }[]) => create.mockResolvedValueOnce({ content: [{ type: "text", text: JSON.stringify({ matches }) }] });
+const answer = (matches: { field: number; detail: string; option?: number | null; quote?: string | null }[]) => create.mockResolvedValueOnce({ content: [{ type: "text", text: JSON.stringify({ matches }) }] });
 
 function fakeBrowser(opts: { readBack?: (i: number, v: string) => string; fail?: boolean } = {}) {
   const typed: string[] = [];
+  const chosen: string[] = [];
   let closed = false;
   const deps: WebFormDeps = {
     open: async () => {
@@ -35,12 +39,13 @@ function fakeBrowser(opts: { readBack?: (i: number, v: string) => string; fail?:
       return {
         fields: async () => FORM,
         fill: async (i, v) => (typed.push(`${FORM[i].label}=${v}`), opts.readBack ? opts.readBack(i, v) : v),
+        choose: async (i, k) => (chosen.push(`${FORM[i].label}=${FORM[i].options![k]}`), FORM[i].options![k]),
         markSubmit: async () => "Check in",
         close: async () => void (closed = true),
       };
     },
   };
-  return { deps, typed, closed: () => closed };
+  return { deps, typed, chosen, closed: () => closed };
 }
 
 function fakeCtx(extra: Partial<ToolContext> = {}, mac: Partial<MacDeps> = {}) {
@@ -144,5 +149,57 @@ describe("guide_person with a form: click on screen, fill with Playwright", () =
     await guidePerson.run({ instruction: "Fill in the form", click_target: null, settings_url: null, in_message: false, fill_details: [{ label: "Name", value: "Linda" }] }, ctx);
     expect(b.typed).toEqual([]);
     expect(guided).toEqual(["Fill in the form"]);
+  });
+});
+
+describe("choosing an option the message states (e.g. the visit type)", () => {
+  const visitType = FORM[8];
+  const video = { label: "Visit type", value: "Video visit" };
+
+  it("only radio groups and menus, never consent questions", () => {
+    expect(FORM.filter(choosable).map((f) => f.label)).toEqual(["Visit type", "Language for your visit"]);
+  });
+
+  it("accepts an option only when the quote is in the detail and names that option and no other", () => {
+    expect(optionStated(visitType, 1, video, "Video visit")).toBe(true);
+    expect(optionStated(visitType, 1, { label: "Appointment", value: "your video visit with Dr. Patel" }, "video visit")).toBe(true);
+    // Wrong option for the same words.
+    expect(optionStated(visitType, 0, video, "Video visit")).toBe(false);
+    // A quote that isn't in the detail.
+    expect(optionStated(visitType, 1, { label: "Visit", value: "Monday at 10" }, "video")).toBe(false);
+    // A word every option could share proves nothing.
+    const generic = { ...visitType, options: ["Office visit", "Video visit"] };
+    expect(optionStated(generic, 1, { label: "x", value: "a visit" }, "visit")).toBe(false);
+    expect(optionStated(visitType, 7, video, "Video visit")).toBe(false);
+  });
+
+  it("picks the stated option, reads it back, and leaves unstated choices alone", async () => {
+    const b = fakeBrowser();
+    answer([
+      { field: 8, detail: "Visit type", option: 1, quote: "Video visit" },
+      // The AI guessing a language from nothing is refused: no detail says it.
+      { field: 9, detail: "Name", option: 1, quote: "Linda" },
+    ]);
+    const facts2 = safeFacts([{ label: "Name", value: "Linda" }, video]);
+    const { ctx } = fakeCtx();
+    const r = await fillWebForm(ctx, "https://bayview.example.com/checkin", facts2, b.deps);
+    expect(b.chosen).toEqual(["Visit type=Video visit"]);
+    expect(r?.filled).toEqual([{ field: "Visit type", detail: "Visit type", chose: "Video visit" }]);
+    expect(ctx.evidence[0].output).toContain("Visit type: Video visit");
+  });
+
+  it("never offers consent questions to the AI, and ignores an answer that targets one", async () => {
+    const b = fakeBrowser();
+    answer([{ field: 10, detail: "Visit type", option: 0, quote: "Video visit" }]);
+    await fillWebForm(fakeCtx().ctx, "https://bayview.example.com/checkin", safeFacts([video]), b.deps);
+    expect(b.chosen).toEqual([]);
+    expect(create.mock.calls[0][0].messages[0].content).not.toContain("I agree");
+  });
+
+  it("counts a choice only when the page shows that option selected afterwards", async () => {
+    const b = fakeBrowser();
+    const deps: WebFormDeps = { open: async () => ({ ...(await b.deps.open("x")), choose: async () => "" }) };
+    answer([{ field: 8, detail: "Visit type", option: 1, quote: "Video visit" }]);
+    expect(await fillWebForm(fakeCtx().ctx, "https://bayview.example.com/checkin", safeFacts([video]), deps)).toBeNull();
   });
 });
