@@ -1,4 +1,4 @@
-# CalHack 🛡️
+# Stride
 
 **Something on your Mac isn't working? Press ⌃⌥⌘D, or just say what's wrong. CalHack fixes it safely and shows you proof that it worked.**
 
