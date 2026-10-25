@@ -126,7 +126,7 @@ export type PointerCommand = { show: true; x: number; y: number; label: string }
 // ---------------- App → buddy layer: channel "buddy" ----------------
 
 /**
- * The red mascot. It sits on the bar's card, takes a pose for each moment, and hops over to point at the thing the
+ * Stride, the red buddy. It sits on the bar's card, takes a pose for each moment, and hops over to point at the thing the
  * person should click. The layer covers the main display, lets every click pass through, and is kept out of screenshots.
  * x, y are screen points on the main display, (0,0) at its top-left. CALHACK_BUDDY=0 turns it off (the plain ring is used).
  */

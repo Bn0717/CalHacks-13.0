@@ -1,4 +1,4 @@
-// Smooth red reference mascot. Original Clawd stays in buddy-sprite.js.
+// Stride, CalHack's red buddy. Original Clawd stays in buddy-sprite.js.
 // To restore Clawd, remove this script from buddy.html (or preview ?mascot=clawd).
 (function () {
   "use strict";

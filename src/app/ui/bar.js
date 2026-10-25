@@ -1019,5 +1019,25 @@
 
   api.on("say", (msg) => say(msg));
 
+  // The app is gliding the bar to an empty part of the screen: the card leans the way it's pulled, then settles.
+  api.on("bar-glide", (g) => {
+    if (!g || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const dx = Number(g.dx) || 0;
+    const dy = Number(g.dy) || 0;
+    const ms = Math.min(1200, Math.max(200, Number(g.ms) || 600));
+    const tilt = Math.max(-3, Math.min(3, dx / 120)); // degrees: the further it goes sideways, the more it leans
+    const lift = dy < 0 ? -6 : 6;
+    const base = "translateX(-50%)";
+    card.animate(
+      [
+        { transform: base },
+        { transform: `${base} translateY(${lift / 2}px) rotate(${tilt}deg) scale(0.97)`, offset: 0.25 },
+        { transform: `${base} rotate(${-tilt / 2.5}deg) scale(1.01)`, offset: 0.75 },
+        { transform: base },
+      ],
+      { duration: ms, easing: "ease-in-out" },
+    );
+  });
+
   render();
 })();

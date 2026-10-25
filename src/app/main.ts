@@ -46,7 +46,7 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { buddyTalking, currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
+import { buddyTalking, currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, setScreenGlance, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -255,6 +255,25 @@ async function glanceScreen(): Promise<Uint8Array | null> {
     const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 160, height: Math.round((160 * height) / width) } });
     const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
     return src && !src.thumbnail.isEmpty() ? new Uint8Array(src.thumbnail.toBitmap()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A small copy of the screen (320 px wide, raw pixels) so the bar can find an empty place to sit.
+ * Kept in memory for one look; never saved and never sent anywhere.
+ */
+async function glanceForBar(): Promise<{ bitmap: { data: Uint8Array; width: number; height: number }; toImage: number } | null> {
+  if (!screenAllowed()) return null;
+  const display = screen.getPrimaryDisplay();
+  const { width, height } = display.bounds;
+  try {
+    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 320, height: Math.round((320 * height) / width) } });
+    const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
+    if (!src || src.thumbnail.isEmpty()) return null;
+    const size = src.thumbnail.getSize();
+    return { bitmap: { data: new Uint8Array(src.thumbnail.toBitmap()), width: size.width, height: size.height }, toImage: size.width / width };
   } catch {
     return null;
   }
@@ -1456,6 +1475,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     watchClipboard();
     ensureBar();
+    setScreenGlance(glanceForBar);
     if (!hasApiKey()) console.error("No ANTHROPIC_API_KEY in .env yet.");
     if (!screenAllowed()) console.log("Screen Recording is off: CalHack can read web pages, documents and copied text, and you can type what's wrong.");
     console.log(`Ready. Press ${KEY_LABEL}.`);
