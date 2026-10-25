@@ -18,6 +18,12 @@ import { matchOutput, type SoundOutput } from "../mac/audio.js";
 import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 import { closeOpenedSheet } from "./uipilot.js";
+import { safeFacts, type Fact } from "./fill.js";
+import { fillWebForm, webLog, type WebFormDeps } from "./webform.js";
+import { signedInPage } from "../core/trusted.js";
+import { cardIsThePerson } from "../mac/contacts.js";
+import { linkFor } from "../mac/front.js";
+import { addEventCommand, findEventCommand, parseEvent, parseFound, whenLabel } from "../mac/calendar.js";
 
 export interface AppInfo {
   name: string;
@@ -58,6 +64,14 @@ export interface MacDeps {
   now(): number;
   /** Lets CalHack see the screen so it can finish a step itself. Missing = it asks the person instead. */
   screen?: ScreenDeps;
+  /** The address of the page in the browser in front, or null (not a browser, or macOS said no). Checked before filling in a form. */
+  pageUrl?(): Promise<string | null>;
+  /** Fills web forms with Playwright in CalHack's own Chrome window. Missing = forms are filled on screen. */
+  webForm?: WebFormDeps;
+  /** The links on the page in the browser (preferring this browser), with their addresses. Missing = links are clicked on screen. */
+  pageLinks?(prefer?: string): Promise<import("../mac/front.js").PageLinks>;
+  /** The person's own contact card (My Card in Contacts), as details for a form. Missing = not used. */
+  myCard?(): Promise<Fact[]>;
   /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
   ui?: import("./uipilot.js").UiDeps;
   home: string;
@@ -109,6 +123,12 @@ export interface ToolContext {
   signal?: AbortSignal;
   /** The steps the person said yes to on the plan screen (propose_plan). */
   approvedPlan?: string[];
+  /** The app that was in front when the person asked for help (e.g. the browser showing their email). */
+  sourceApp?: string;
+  /** The person saw CalHack's warning that the message may not be genuine, and chose to go ahead. */
+  personTrusts?: boolean;
+  /** Sites where the person said yes to filling in a form despite a warning about the page. */
+  formOkSites?: Set<string>;
 }
 
 export interface AgentTool {
@@ -192,9 +212,12 @@ function shq(text: string): string {
  * A step only the screen can finish (a click somewhere). CalHack opens the page, then looks at the screen every few seconds
  * and does the clicks itself. The AI judges each action: parts that need the person's own hands, and anything it can't work out, go to the person.
  */
-async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickTarget?: string; settingsUrl?: string }): Promise<{ result: "done" | "skip"; by: "calhack" | "person"; trail: string[] }> {
+async function finishOnScreen(
+  ctx: ToolContext,
+  g: { instruction: string; clickTarget?: string; settingsUrl?: string; facts?: Fact[]; doneWhen?: () => Promise<boolean>; noHandoff?: boolean },
+): Promise<{ result: "done" | "skip" | "failed"; by: "calhack" | "person"; trail: string[] }> {
   const url = g.settingsUrl && SETTINGS_URL.test(g.settingsUrl) ? g.settingsUrl : undefined;
-  if (!ctx.mac.screen) return { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
+  if (!ctx.mac.screen) return g.noHandoff ? { result: "failed", by: "calhack", trail: ["CalHack can't see the screen (Screen Recording is off)"] } : { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
   if (url) {
     const before = await ctx.mac.screen.glance?.().catch(() => null);
     const r = await ctx.mac.run(`open ${shq(url)}`);
@@ -205,12 +228,13 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord, facts: g.facts, doneWhen: g.doneWhen, noHandoff: g.noHandoff });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
+  if (g.noHandoff) return { result: "failed", by: "calhack", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
   const why = r.needsAccessibility ? `${r.trail.at(-1)}. For now: ` : "";
-  return { result: await ctx.ui.guide({ ...g, instruction: why + g.instruction }), by: "person", trail: r.trail };
+  return { result: await ctx.ui.guide({ instruction: why + g.instruction, clickTarget: g.clickTarget, settingsUrl: g.settingsUrl }), by: "person", trail: r.trail };
 }
 
 function appLabel(path: string): string {
@@ -774,6 +798,11 @@ const checkScreen: AgentTool = {
     if (!shot) return "I couldn't take a look at the screen.";
     const { screenShows } = await import("./autopilot.js");
     const a = await screenShows(question, shot, ctx.signal);
+    if (a.decisionTrace) {
+      ctx.ui.detail(`Screen check: ${a.decisionTrace.provider} (${a.decisionTrace.model}), ${a.decisionTrace.elapsedMs} ms`, true);
+      fileRecord({ ts: new Date().toISOString(), step: question, round: 0, decisionTrace: a.decisionTrace,
+        action: { taken: "none", route: "none" }, outcome: "decided", delay: { decisionMs: a.decisionTrace.elapsedMs }, cancelled: false });
+    }
     const ref = addEvidence(ctx, { kind: "after", command: `screen check: ${question}`, code: a.shows ? 0 : 1, output: a.seen || (a.shows ? "shown" : "not shown") });
     return `[${ref}] ${a.shows ? "Yes" : "No"}: ${a.seen}`;
   },
@@ -1038,17 +1067,166 @@ const runCommand: AgentTool = {
 
 // ---------------- talk ----------------
 
+const addCalendarEvent: AgentTool = {
+  name: "add_calendar_event",
+  kind: "act",
+  description: "Add an event to the person's Apple Calendar, with an alert before it, then read it back to prove it's there. Use for appointments, calls and visits from the screen or the person's words. Won't add the same event twice. Use the date exactly as written; work out the year from today's date.",
+  input_schema: obj({
+    title: str("Short title, e.g. 'Video visit with Dr. Priya Patel'"),
+    start: str("Local start time on this Mac as YYYY-MM-DDTHH:MM, e.g. 2026-10-26T10:00"),
+    duration_minutes: numOrNull("Length in minutes; null for 30"),
+    alert_minutes_before: numOrNull("Minutes before the start for the alert, e.g. 15; null for no alert"),
+    notes: strOrNull("Useful details for the event (appointment number, phone), or null"),
+    url: strOrNull("An https link to join or check in, if one is known, or null"),
+  }),
+  label: () => "Adding it to your calendar…",
+  async run(input, ctx) {
+    const e = parseEvent(
+      { title: s(input, "title"), start: s(input, "start"), durationMinutes: n(input, "duration_minutes"), alertMinutesBefore: n(input, "alert_minutes_before"), notes: s(input, "notes"), url: s(input, "url") },
+      ctx.mac.now(),
+    );
+    if ("problem" in e) return `Not added: ${e.problem}`;
+    const when = whenLabel(e);
+    const add = await ctx.mac.run(addEventCommand(e));
+    const outcome = add.output.trim().split("\n").pop() ?? "";
+    if (add.code !== 0 || !/^(added|exists)\|/.test(outcome)) {
+      const why = /-1743|not allowed|not authorized/i.test(add.output) ? "macOS hasn't allowed CalHack to use Calendar yet (System Settings > Privacy & Security > Automation)" : tail(add.output, 2);
+      addEvidence(ctx, { kind: "run", command: `add calendar event "${e.title}" on ${when}`, code: add.code || 1, output: why });
+      return `Couldn't add it to Calendar: ${why}`;
+    }
+    const existed = outcome.startsWith("exists|");
+    // Read it back: the event must really be there, with the alert we asked for.
+    const check = await ctx.mac.run(findEventCommand(e));
+    const found = parseFound(check.output);
+    const alertOk = e.alertMinutesBefore === 0 || (found.found && found.alertMinutesBefore === e.alertMinutesBefore);
+    const ok = check.code === 0 && found.found && (alertOk || existed);
+    const shows = found.found ? `"${e.title}" is in Calendar (${found.calendar}) on ${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ", no alert"}` : "the event wasn't found";
+    const ref = addEvidence(ctx, { kind: "after", outcome: ok ? "passed" : "failed", command: `look up calendar event "${e.title}" on ${when}`, code: ok ? 0 : 1, output: shows });
+    ctx.beforeAfter.push({ label: "Calendar", before: existed ? "Already there" : "Not in calendar", after: found.found ? `${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ""}` : "Not found" });
+    if (!ok) return `[${ref}] I tried to add it, but the check failed: ${shows}.`;
+    return `[${ref}] ${existed ? "It was already in the calendar" : "Added"}: ${shows}.${existed && !alertOk ? " (The existing event's alert is different; I didn't change it.)" : ""}`;
+  },
+};
+
+/**
+ * Clicks the form's link on screen (if there is one), reads the address of the page that opened, and fills the form there
+ * with Playwright. done = the tool's answer; linkClicked = the link was clicked, so the screen route should only fill.
+ */
+async function formViaPlaywright(
+  ctx: ToolContext,
+  o: { clickTarget?: string; inMessage: boolean; facts: Fact[]; webForm: WebFormDeps },
+): Promise<{ done?: string; linkClicked: boolean }> {
+  let linkClicked = false;
+  // The link's page is open once the browser shows a new web address that isn't the email: checked by code, not by
+  // looking at the screen, so the screen step stops right there and Playwright does the form.
+  const startUrl = await ctx.mac.pageUrl?.().catch(() => null);
+  const formUrl = async () => {
+    const u = await ctx.mac.pageUrl?.().catch(() => null);
+    return u && u !== startUrl && /^https?:/.test(u) && !signedInPage(u) ? u : null;
+  };
+  // Fastest and exact: read the link's address from the email itself and give it straight to Playwright (no clicking).
+  let direct: string | null = null;
+  if (o.inMessage && o.clickTarget && ctx.mac.pageLinks) {
+    const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch((e: Error) => ({ links: [], problem: e.message }));
+    direct = linkFor(pl.links, o.clickTarget);
+    webLog("message_links", { links: pl.links.length, found: !!direct, host: direct ? new URL(direct).hostname : null, problem: pl.problem });
+    if (!direct && pl.problem) ctx.ui.detail(`I couldn't read the email's links (${pl.problem}), so I'll click the link instead.`, true);
+  }
+  if (direct) linkClicked = true;
+  if (!direct && o.inMessage && o.clickTarget) {
+    // CalHack clicks the link itself; nothing is handed to the person. If it can't, it says so and the agent moves on.
+    const click = await finishOnScreen(ctx, { instruction: `Click the "${o.clickTarget}" link in the message`, doneWhen: async () => !!(await formUrl()), noHandoff: true });
+    if (click.result === "skip") return { done: `Stopped (${click.trail.join("; ")}).`, linkClicked };
+    if (click.result === "failed" && !(await formUrl())) {
+      webLog("link_failed", { trail: click.trail });
+      return { done: `CalHack couldn't open the "${o.clickTarget}" link: ${click.trail.at(-1) ?? "it didn't open"}. Say so in finish; carry on with the other steps.`, linkClicked };
+    }
+    linkClicked = true;
+    webLog("link_clicked", { trail: click.trail, by: click.by });
+  }
+  if (ctx.signal?.aborted) return { done: "The person pressed Stop.", linkClicked };
+  // A new tab can take a moment to load: wait up to 6 s for its address.
+  let url = direct ?? (linkClicked ? await formUrl() : await ctx.mac.pageUrl?.().catch(() => null));
+  for (let t = 0; linkClicked && !direct && !url && t < 12 && !ctx.signal?.aborted; t++) {
+    await new Promise((x) => setTimeout(x, 500));
+    url = await formUrl();
+  }
+  webLog("page_address", { host: url ? new URL(url).hostname : null, readable: !!url });
+  if (!url || signedInPage(url) || !/^https?:/.test(url)) {
+    // Not a web page CalHack can open (or the address can't be read): only then is the form filled on screen.
+    ctx.ui.detail(`No form page to open with Playwright (${url ? new URL(url).hostname : "couldn't read the page address"}); filling it on screen instead.`, true);
+    return { linkClicked };
+  }
+  // The rest of the form comes from the person's own contact card, if that card is the person the message is about.
+  let facts = o.facts;
+  const card = (await ctx.mac.myCard?.().catch(() => [])) ?? [];
+  if (card.length && cardIsThePerson(card, o.facts)) {
+    facts = safeFacts([...o.facts, ...card.filter((c) => !o.facts.some((f) => f.label.toLowerCase() === c.label.toLowerCase()))]);
+    ctx.ui.detail(`Also using your contact card: ${card.map((c) => c.label).join(", ")}`, true);
+  } else if (card.length) ctx.ui.detail("Your contact card is someone other than the person in the message, so I didn't use it.", true);
+  const approved = !!ctx.approvedPlan?.length || ctx.personTrusts === true;
+  const r = await fillWebForm(ctx, url, facts, o.webForm, { approved });
+  if (!r) {
+    ctx.ui.say("I couldn't fill in that form.");
+    return { done: `CalHack couldn't open or fill the form at ${new URL(url).hostname} with Playwright (no Chrome, the page didn't load, or no box matched the details). Tell the person; don't retry on screen.`, linkClicked };
+  }
+  const filledList = r.filled.map((f) => (f.chose ? `${f.field}: ${f.chose}` : f.field)).join(", ");
+  if (r.submitted) {
+    ctx.ui.say(`Done. The site says: ${r.confirmation}`);
+    return { done: `[${r.evidenceRef}] CalHack opened the link, filled ${filledList} with Playwright, ticked the required boxes and pressed "${r.submit}". The site confirmed it: "${r.confirmation}". Use ${r.evidenceRef} as proof the form was submitted.`, linkClicked };
+  }
+  ctx.ui.say(`I filled in the form, but didn't send it: ${r.problem}.`);
+  return { done: `[${r.evidenceRef}] CalHack filled ${filledList} with Playwright but did NOT submit: ${r.problem}. Tell the person exactly that in finish; the form is still open in CalHack's Chrome window.`, linkClicked };
+}
+
 const guidePerson: AgentTool = {
   name: "guide_person",
   kind: "talk",
-  description: "For a step that is still incomplete and only a click on screen can finish (e.g. adding a printer in Settings, choosing an option in an app). CalHack opens the page and then looks at the screen every few seconds and does the clicks itself. Anything private (permissions, passwords, sign-in, payments, deleting) it hands to the person, who is shown what to click. Returns who did it.",
-  input_schema: obj({ instruction: str("One short, plain instruction"), click_target: strOrNull("The exact on-screen label to click, or null"), settings_url: strOrNull("An x-apple.systempreferences: link that opens the right page, or null") }),
+  description: "For a step that is still incomplete and only a click on screen can finish (e.g. adding a printer in Settings, choosing an option in an app, clicking a link in an email, filling in a web form). CalHack opens the page and then looks at the screen every few seconds and does the clicks itself. Anything private (permissions, passwords, sign-in, payments, deleting) it hands to the person, who is shown what to click. For a form, pass fill_details: only facts written in the message on screen (e.g. the person's name as it addresses them, an appointment number, a date, and what kind of visit or appointment it is, like 'Video visit', so CalHack can pick that option on the form). On a web page CalHack fills it with Playwright, adds what's missing from the person's own contact card when it's them, ticks the required agreement boxes once the person approved the plan, submits it, and checks the site confirmed it. Nothing is made up; secrets, card, social security and insurance numbers are never typed. Returns what happened.",
+  input_schema: obj({
+    instruction: str("One short, plain instruction, e.g. 'Click the Check in link in the email, then fill in the check-in form'"),
+    click_target: strOrNull("The exact on-screen label to click, or null"),
+    settings_url: strOrNull("An x-apple.systempreferences: link that opens the right page, or null"),
+    in_message: { type: "boolean", description: "True when the step happens in the message or page the person had on screen when they asked (e.g. clicking a link in their email): CalHack brings that window back to the front first" },
+    fill_details: {
+      type: ["array", "null"],
+      description: "For a form: details from the message on screen that CalHack may type, each with what it is. Never invent or guess one. null when there's no form",
+      items: { type: "object", properties: { label: { type: "string" }, value: { type: "string" } }, required: ["label", "value"], additionalProperties: false },
+    },
+  }),
   label: () => "Asking you to click something…",
   async run(input, ctx) {
     const url = s(input, "settings_url");
-    const g = await finishOnScreen(ctx, { instruction: s(input, "instruction"), clickTarget: s(input, "click_target") || undefined, settingsUrl: SETTINGS_URL.test(url) ? url : undefined });
+    // Other steps (Calendar, an installer, Zoom) may have covered the email: bring it back before looking for its link.
+    if (input.in_message === true && ctx.sourceApp && !NEVER_OPEN.has(ctx.sourceApp.toLowerCase())) {
+      const before = await ctx.mac.screen?.glance?.().catch(() => null);
+      const r = await ctx.mac.run(`open -a ${shq(ctx.sourceApp)}`);
+      if (r.code === 0 && ctx.mac.screen) {
+        const { waitForSettle } = await import("./autopilot.js");
+        const w = await waitForSettle(ctx.mac.screen, { before, reactMs: 1500, maxMs: 3000, signal: ctx.signal });
+        if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 800));
+      }
+      ctx.ui.detail(r.code === 0 ? `Brought ${ctx.sourceApp} back to the front` : `Couldn't bring ${ctx.sourceApp} to the front: ${tail(r.output, 1)}`, true);
+    }
+    const facts = safeFacts(input.fill_details);
+    if (facts.length) ctx.ui.detail(`Details I may type: ${facts.map((f) => f.label).join(", ")}`, true);
+    let instruction = s(input, "instruction");
+    let clickTarget = s(input, "click_target") || undefined;
+    // A web form with details to fill: click the link on screen, then fill the form with Playwright (fast and exact).
+    // Anything that doesn't work out falls through to filling it on screen.
+    if (facts.length && ctx.mac.webForm) {
+      const web = await formViaPlaywright(ctx, { clickTarget, inMessage: input.in_message === true, facts, webForm: ctx.mac.webForm });
+      if (web.done) return web.done;
+      if (web.linkClicked) {
+        instruction = "Fill in the form on the page that's open";
+        clickTarget = undefined;
+      }
+    }
+    // A form to fill is CalHack's job end to end: on screen too, nothing is handed to the person.
+    const g = await finishOnScreen(ctx, { instruction, clickTarget, settingsUrl: SETTINGS_URL.test(url) ? url : undefined, facts, noHandoff: facts.length > 0 });
     const steps = g.trail.length ? ` (${g.trail.join("; ")})` : "";
     if (g.result === "skip") return `The person skipped it${steps}.`;
+    if (g.result === "failed") return `CalHack couldn't finish this on screen${steps}. Say so in finish and carry on with the other steps.`;
     return g.by === "calhack" ? `CalHack did it on the screen${steps}. The last screen check is in the evidence; still check it worked with a tool.` : `The person says they did it${steps}. Check it worked if you can.`;
   },
 };
@@ -1069,9 +1247,10 @@ const askPerson: AgentTool = {
 const proposePlan: AgentTool = {
   name: "propose_plan",
   kind: "talk",
-  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only the person can, e.g. a password), or 'skip' (CalHack won't, with why).",
+  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only things software can't do at all: typing a password, a payment, answering a macOS permission prompt such as camera or microphone), or 'skip' (CalHack won't, with why). Clicking a link in the message, filling in and submitting its form, installing, settings and calendar are all 'me'.",
   input_schema: obj({
     goal: str("The overall goal in plain words, max 10, e.g. 'Get you ready for the video call'"),
+    warning: strOrNull("If the message may not be genuine (the sender's address doesn't match who it claims to be, pressure to act fast, links that don't go where they say): what looks off, in one or two plain sentences. The person then decides whether to go ahead. null if it looks fine"),
     steps: {
       type: "array",
       description: "Each step from the screen, in order, in plain words",
@@ -1097,11 +1276,27 @@ const proposePlan: AgentTool = {
     if (!steps.length) return "No steps given. Ask the person what they want with ask_person.";
     const details = steps.map((x, i) => `${i + 1}. ${x.text}${x.by === "you" ? ` (you'll do this part${x.why ? `: ${x.why}` : ""})` : x.by === "skip" ? ` (I'll skip this${x.why ? `: ${x.why}` : ""})` : ""}`);
     const goal = s(input, "goal") || "Do the steps on your screen";
+    const warning = s(input, "warning").slice(0, 400);
+    if (warning) {
+      ctx.ui.say("Careful. This message might not be real. You decide whether I go ahead.");
+      const yes = await ctx.ui.confirm({
+        title: "This message might not be real",
+        message: `${warning} If you trust it, I'll do all of these steps for you. You can press Stop any time.`,
+        details,
+        yes: "I trust it, go ahead",
+        no: "No, stop",
+        tone: "danger",
+      });
+      if (!yes) return "The person chose not to go ahead because of the warning. Do nothing; finish with verdict 'not_done', a kind headline, and one detail on why the message looked suspicious.";
+      ctx.personTrusts = true;
+      ctx.approvedPlan = steps.filter((x) => x.by !== "skip").map((x) => x.text);
+      return "The person read your warning and chose to go ahead. Treat the message as genuine from now on: do every 'me' step now, in order, fully (click its links with guide_person in_message=true, fill its forms with fill_details), without asking again and without holding back or stopping early because of the warning. A tool that asks for its own OK still will. Don't walk the person through 'you' steps; mention them once in finish. Then check and finish, and mention the warning once in the details.";
+    }
     ctx.ui.say(`I can do this for you. Here's my plan.`);
     const yes = await ctx.ui.confirm({ title: `${goal}?`, message: "I'll do these one after another. You can press Stop any time.", details, yes: "Yes, do it all", no: "No thanks" });
     if (!yes) return "The person said no. Do nothing; finish with verdict 'not_done' and a kind headline.";
     ctx.approvedPlan = steps.filter((x) => x.by !== "skip").map((x) => x.text);
-    return "The person said yes to the whole plan. Do every 'me' step now, in order, without asking again (a tool that asks for its own OK still will). Use guide_person for 'you' steps. Then check and finish.";
+    return "The person said yes to the whole plan. Do every 'me' step now, in order, without asking again (a tool that asks for its own OK still will). Don't walk the person through 'you' steps; mention them once in finish. Then check and finish.";
   },
 };
 
@@ -1205,7 +1400,7 @@ const finish: AgentTool = {
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkScreen, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
   quitApp, openApp, changeSetting, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
-  startCall, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
+  startCall, addCalendarEvent, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 
 /** The real list of files in a folder (not following links, skipping hidden files), up to a limit. */

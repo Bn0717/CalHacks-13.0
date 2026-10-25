@@ -1,8 +1,8 @@
-// The window the person sees: the helper bar (bottom-center). Shapes of the messages are in protocol.ts.
+// The window the person sees: the helper bar (bottom-center at first; the person can drag it anywhere). Shapes of the messages are in protocol.ts.
 import { BrowserWindow, screen } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ClickHolds, shouldIgnoreMouse } from "./clickthrough.js";
+import { ClickHolds, keepCardOnScreen, shouldIgnoreMouse } from "./clickthrough.js";
 import type { BarState, PointerCommand, SayMessage } from "./protocol.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -14,8 +14,16 @@ const BAR_W = 620;
 const BAR_H = 560;
 
 let bar: BrowserWindow | null = null;
-/** Where the bar's card is, in screen points (sent by the bar page). */
-let barCard: { x: number; y: number; width: number; height: number } | null = null;
+/** Where the bar's card is inside the window (sent by the bar page). Its place on screen follows the window when it's dragged. */
+let barCardInWindow: { x: number; y: number; width: number; height: number } | null = null;
+/** The card's place on screen right now. */
+function barCardOnScreen(): { x: number; y: number; width: number; height: number } | null {
+  if (!bar || bar.isDestroyed() || !barCardInWindow) return null;
+  const b = bar.getBounds();
+  return { ...barCardInWindow, x: b.x + barCardInWindow.x, y: b.y + barCardInWindow.y };
+}
+/** Set while the person drags the bar by its top. */
+let drag: { timer: NodeJS.Timeout; safety: NodeJS.Timeout } | null = null;
 const clickHolds = new ClickHolds();
 
 /**
@@ -64,10 +72,9 @@ function whenLoaded(win: BrowserWindow, go: () => void): void {
 
 export function ensureBar(): BrowserWindow {
   if (bar && !bar.isDestroyed()) return bar;
-  const area = screen.getPrimaryDisplay().workArea;
   // acceptFirstMouse: the bar never takes focus (another app is in front), so without this the first click only
   // activates the window and Done, Skip and Close appear dead.
-  bar = makeWindow({ acceptFirstMouse: true, width: BAR_W, height: BAR_H, x: Math.round(area.x + (area.width - BAR_W) / 2), y: area.y + area.height - BAR_H - 8 });
+  bar = makeWindow({ acceptFirstMouse: true, width: BAR_W, height: BAR_H, ...defaultBarPosition() });
   bar.setAlwaysOnTop(true, "floating");
   bar.loadFile(UI("bar.html"));
   bar.on("closed", () => (bar = null));
@@ -76,8 +83,10 @@ export function ensureBar(): BrowserWindow {
   const timer = setInterval(() => {
     if (!bar || bar.isDestroyed()) return clearInterval(timer);
     if (!bar.isVisible()) return;
-    if (!barCard && clickHolds.count === 0) return;
-    bar.setIgnoreMouseEvents(shouldIgnoreMouse(screen.getCursorScreenPoint(), barCard, clickHolds.count), { forward: true });
+    if (drag) return; // mid-drag the bar keeps the mouse (set in startBarDrag)
+    const card = barCardOnScreen();
+    if (!card && clickHolds.count === 0) return;
+    bar.setIgnoreMouseEvents(shouldIgnoreMouse(screen.getCursorScreenPoint(), card, clickHolds.count), { forward: true });
   }, 80);
   return bar;
 }
@@ -121,9 +130,57 @@ export function say(text: string, mode: SayMessage["mode"] = "queue"): void {
 /** The bar page reports where its card is, in window coordinates (so clicks outside it pass through). */
 export function setBarRect(rect: { x: number; y: number; width: number; height: number }): void {
   if (!bar || bar.isDestroyed()) return;
-  const b = bar.getBounds();
-  barCard = { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height };
-  if (process.env.CALHACK_DEBUG) console.log(`[rect] window ${JSON.stringify(b)} card ${JSON.stringify(rect)}`);
+  barCardInWindow = { ...rect };
+  if (process.env.CALHACK_DEBUG) console.log(`[rect] window ${JSON.stringify(bar.getBounds())} card ${JSON.stringify(rect)}`);
+  // The card grows upward: if it was dragged near the top, slide the window down so the whole card stays visible.
+  if (!drag) placeBar(bar.getPosition()[0], bar.getPosition()[1]);
+}
+
+/** Bottom-center of the main screen, where the bar starts. */
+function defaultBarPosition(): { x: number; y: number } {
+  const area = screen.getPrimaryDisplay().workArea;
+  return { x: Math.round(area.x + (area.width - BAR_W) / 2), y: area.y + area.height - BAR_H - 8 };
+}
+
+/** Moves the bar's window, keeping the card fully on the screen it's over. */
+function placeBar(x: number, y: number): void {
+  if (!bar || bar.isDestroyed()) return;
+  const card = barCardInWindow;
+  if (!card) return bar.setPosition(Math.round(x), Math.round(y));
+  const area = screen.getDisplayNearestPoint({ x: Math.round(x + card.x + card.width / 2), y: Math.round(y + card.y + card.height / 2) }).workArea;
+  const p = keepCardOnScreen({ x, y }, card, area);
+  const [cx, cy] = bar.getPosition();
+  if (p.x !== cx || p.y !== cy) bar.setPosition(p.x, p.y);
+}
+
+/** The person pressed on the bar's top: the bar follows the mouse until they let go. */
+export function startBarDrag(): void {
+  if (!bar || bar.isDestroyed()) return;
+  stopBarDrag();
+  const from = screen.getCursorScreenPoint();
+  const [wx, wy] = bar.getPosition();
+  bar.setIgnoreMouseEvents(false);
+  const timer = setInterval(() => {
+    const at = screen.getCursorScreenPoint();
+    placeBar(wx + at.x - from.x, wy + at.y - from.y);
+  }, 16);
+  // If the "let go" message is ever lost, stop following the mouse anyway.
+  const safety = setTimeout(stopBarDrag, 30_000);
+  drag = { timer, safety };
+}
+
+export function stopBarDrag(): void {
+  if (!drag) return;
+  clearInterval(drag.timer);
+  clearTimeout(drag.safety);
+  drag = null;
+}
+
+/** Back to bottom-center (double-click on the bar's top). */
+export function resetBarPosition(): void {
+  stopBarDrag();
+  const p = defaultBarPosition();
+  bar?.setPosition(p.x, p.y);
 }
 
 // ---------- Pointer layer ----------

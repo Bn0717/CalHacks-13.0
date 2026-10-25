@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Check in for your visit · Bayview Family Medicine</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="checkin.css">
+</head>
+<body>
+  <div class="top">Bayview Family Medicine <span>Patient check-in (demo page)</span></div>
+  <main>
+    <h1>Check in for your video visit</h1>
+    <p class="meta">Visits with <b>Dr. Priya Patel</b> · Please check in up to 24 hours before your visit.</p>
+
+    <form id="checkin" novalidate>
+      <label for="name">Full name</label>
+      <input id="name" name="name" autocomplete="name" required>
+
+      <label for="appt">Appointment number</label>
+      <input id="appt" name="appointment" placeholder="e.g. BV-12345" required>
+
+      <fieldset class="choice">
+        <legend>Visit type</legend>
+        <label><input type="radio" name="visit_type" value="clinic" required> In person at the clinic</label>
+        <label><input type="radio" name="visit_type" value="video"> Video visit</label>
+        <label><input type="radio" name="visit_type" value="phone"> Phone call</label>
+      </fieldset>
+
+      <label for="language">Language for your visit</label>
+      <select id="language" name="language">
+        <option value="">Choose…</option>
+        <option>English</option>
+        <option>Spanish</option>
+        <option>Mandarin</option>
+      </select>
+
+      <label for="visit">Visit date</label>
+      <input id="visit" name="visit" type="date" required>
+
+      <label for="phone">Phone number to reach you</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel">
+
+      <label for="dob">Date of birth</label>
+      <input id="dob" name="dob" type="date" autocomplete="bday">
+
+      <label for="insurance">Insurance member ID</label>
+      <input id="insurance" name="insurance">
+
+      <label for="reason">Anything you'd like Dr. Patel to know? (optional)</label>
+      <textarea id="reason" name="reason" rows="3"></textarea>
+
+      <label class="tick"><input type="checkbox" id="consent" required> I agree to a video visit</label>
+
+      <button type="submit">Check in</button>
+      <p class="error" id="error" hidden>Please fill in your name and appointment number, choose a visit type, and tick the box.</p>
+    </form>
+
+    <div class="done" id="done" hidden>
+      <h2>✅ You're checked in</h2>
+      <p>Visit type: <b id="done-type"></b>. See you on Monday, October 26 at 10:00 AM. Join from the link in your email.</p>
+    </div>
+  </main>
+  <script src="checkin.js"></script>
+</body>
+</html>

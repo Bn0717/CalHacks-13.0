@@ -87,8 +87,23 @@ button, input { font: inherit; color: inherit; }
 }
 .card.is-hidden { opacity: 0; transform: translate(-50%, 14px); pointer-events: none; }
 
-/* ---------- Header ---------- */
-.head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 14px 4px 24px; flex: none; }
+/* ---------- Header (also the handle to move the card) ---------- */
+.head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 14px 4px 24px; flex: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.card.is-dragging, .card.is-dragging .head { cursor: grabbing; }
+.grip { position: absolute; top: 7px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line); pointer-events: none; }
+.card:hover .grip { background: var(--ink-3); }
+
+/* ---------- Smaller: just the title, the "now" line and the buttons ---------- */
+.card.is-compact .body,
+.card.is-compact .details,
+.card.is-compact .follow,
+.card.is-compact .caption,
+.card.is-compact .now-toggle,
+.card.is-compact .now.only-toggle { display: none !important; }
+.card.is-compact .head { padding-top: 16px; padding-bottom: 8px; }
+.card.is-compact .eyebrow { display: none; }
+.card.is-compact .title,
+.card.is-compact[data-phase="ask"] .title { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .head-btns { display: flex; gap: 2px; flex: none; margin-top: -6px; }
 .head-text { flex: 1; min-width: 0; }
 .eyebrow { font-size: 14px; font-weight: 600; color: var(--ink-2); letter-spacing: 0.01em; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

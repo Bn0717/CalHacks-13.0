@@ -40,9 +40,40 @@ describe("autopilot commands", () => {
     expect(c).toContain('\\"');
     expect(c.startsWith("osascript -e '")).toBe(true);
   });
+
+  it("never clicks at the excluded image edges or with an invalid scale", () => {
+    expect(actionCommand(act({ x: 1000, y: 10 }), shot())).toBeNull();
+    expect(actionCommand(act({ x: 10, y: 600 }), shot())).toBeNull();
+    expect(actionCommand(act({}), { ...shot(), toScreen: Number.MAX_VALUE })).toBeNull();
+  });
 });
 
 describe("autopilot loop: the AI's judgment decides the route", () => {
+  it("records failed positioning and never executes an unlocated click", async () => {
+    const positioning = { attempts: [
+      { provider: "jev" as const, model: "jev-1.14.0", status: "error" as const, elapsedMs: 1, reason: "http_502" },
+      { provider: "haiku" as const, model: "claude-haiku-5-5", status: "not_found" as const, elapsedMs: 2 },
+    ], fallbackReason: "http_502" };
+    const t = setup([]);
+    const records: ActionRecord[] = [];
+    const result = await autopilot(t.ctx, { instruction: "Click Add", wait: async () => {},
+      decide: async () => act({ x: undefined, y: undefined, positioning }), record: (r) => records.push(r) });
+    expect(result.outcome).toBe("gave_up");
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+    expect(records[0]).toMatchObject({ outcome: "refused_unsafe", positioning });
+  });
+
+  it("keeps handoff guidance when positioning fails, without drawing a highlight", async () => {
+    const t = setup([act({ handling: "person", x: undefined, y: undefined, positioning: { attempts: [] } })]);
+    const points: unknown[] = [];
+    t.ctx.ui.guide = async (g) => { points.push(g.point); return "skip"; };
+    expect((await t.run()).outcome).toBe("skipped");
+    expect(points).toEqual([undefined]);
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+  });
+
   it("routine actions the agent handles run directly, and the loop ends when the screen shows it's done", async () => {
     const t = setup([act({ target: "Wallpaper in the sidebar" }), act({ kind: "done", reason: "Wallpaper page is open" })]);
     const r = await t.run();

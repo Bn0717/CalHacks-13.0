@@ -45,7 +45,7 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, say as sayNow, setBarRect, showBar as showBarNow } from "./windows.js";
+import { currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -633,7 +633,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
     const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen, glance: glanceScreen, beforeClick: holdClicksThrough } : undefined });
     const result = await runAgent(
-      { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
+      { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env), sourceApp: lastExternalApp ?? undefined },
       ui,
       mac,
       {
@@ -1326,6 +1326,8 @@ ipcMain.on("bar-send-summary", () => {
   void clipboard.writeText(helpSummary(job.goal, job.problem, job.plan.steps, job.results, job.receipt));
   say("Copied. Paste it in a message to someone who can help.", "now");
 });
+ipcMain.on("bar-drag", (_e, data: { on?: boolean }) => (data?.on === true ? startBarDrag() : stopBarDrag()));
+ipcMain.on("bar-move-reset", () => resetBarPosition());
 ipcMain.on("bar-rect", (_e, rect: { x: number; y: number; width: number; height: number }) => {
   if (rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) setBarRect(rect);
 });
