@@ -788,6 +788,11 @@ const checkScreen: AgentTool = {
     if (!shot) return "I couldn't take a look at the screen.";
     const { screenShows } = await import("./autopilot.js");
     const a = await screenShows(question, shot, ctx.signal);
+    if (a.decisionTrace) {
+      ctx.ui.detail(`Screen check: ${a.decisionTrace.provider} (${a.decisionTrace.model}), ${a.decisionTrace.elapsedMs} ms`, true);
+      fileRecord({ ts: new Date().toISOString(), step: question, round: 0, decisionTrace: a.decisionTrace,
+        action: { taken: "none", route: "none" }, outcome: "decided", delay: { decisionMs: a.decisionTrace.elapsedMs }, cancelled: false });
+    }
     const ref = addEvidence(ctx, { kind: "after", command: `screen check: ${question}`, code: a.shows ? 0 : 1, output: a.seen || (a.shows ? "shown" : "not shown") });
     return `[${ref}] ${a.shows ? "Yes" : "No"}: ${a.seen}`;
   },

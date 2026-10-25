@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const create = vi.fn();
 const locate = vi.hoisted(() => vi.fn());
 vi.mock("../src/ai/positioner.js", async (original) => ({ ...await original<typeof import("../src/ai/positioner.js")>(), locatePointer: locate }));
-vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create } }), MODEL: () => "test-model" }));
+vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create } }), MODEL: () => "test-model", loadEnv: () => {} }));
+// The real router stays; only Jev itself is replaced, to prove form steps never go to it.
+const jevScreen = vi.hoisted(() => vi.fn(async () => { throw new Error("jev not expected"); }));
+const jevWindow = vi.hoisted(() => vi.fn(async () => { throw new Error("jev not expected"); }));
+vi.mock("../src/agent/ui-decision.js", async (original) => ({ ...await original<typeof import("../src/agent/ui-decision.js")>(), jevScreenAction: jevScreen, jevWindowAction: jevWindow }));
 
 import { decideNext } from "../src/agent/autopilot.js";
 import { formPageProblem, matchFact, safeFacts } from "../src/agent/fill.js";
@@ -58,7 +62,24 @@ describe("screenshot autopilot on a form", () => {
 
   beforeEach(() => {
     create.mockReset();
+    jevScreen.mockClear();
+    process.env.CALHACK_UI_DECISION_PROVIDER = "claude";
     locate.mockReset().mockResolvedValue({ attempts: [], selected: "haiku", point: { x: 10, y: 10 } });
+  });
+
+  it("sends form steps to Claude even when Jev is set up (Jev doesn't type or know the details)", async () => {
+    process.env.CALHACK_UI_DECISION_PROVIDER = "auto";
+    const key = process.env.TYPESAFE_API_KEY;
+    process.env.TYPESAFE_API_KEY = "test-key";
+    try {
+      answer({ ...base, kind: "type", text: "Linda" });
+      expect(await decideNext("Fill in the form", shot, [], undefined, undefined, facts)).toMatchObject({ fillsDetail: true });
+      expect(jevScreen).not.toHaveBeenCalled();
+      expect(create.mock.calls[0][0].system).toContain("Details you may fill in");
+    } finally {
+      if (key === undefined) delete process.env.TYPESAFE_API_KEY;
+      else process.env.TYPESAFE_API_KEY = key;
+    }
   });
 
   it("types a given detail on a details screen, as a sensitive action", async () => {
@@ -103,12 +124,13 @@ describe("window-reading pilot on a form", () => {
     const pressed: string[] = [];
     const guided: string[] = [];
     const asked: string[] = [];
+    const values: Record<string, string> = {};
     let n = 0;
     const ui: UiDeps = {
-      // A new list each time so the window "changes" after every action.
-      list: async () => ({ ...form, window: `Check in ${n++}` }),
+      // Like a real form, a box shows what was typed into it.
+      list: async () => ({ ...form, window: `Check in ${n++}`, items: form.items.map((it) => ({ ...it, value: values[it.name]?.length })) }),
       act: async (_a, it) => (pressed.push(it.name), { ok: true }),
-      type: async (_a, it, text) => (typed.push(`${it.name}=${text}`), { ok: true }),
+      type: async (_a, it, text) => (typed.push(`${it.name}=${text}`), (values[it.name] = text), { ok: true }),
       command: () => "x",
     };
     const mac = { execute: async () => ({ code: 0, output: "", timedOut: false }) } as unknown as MacDeps;
@@ -124,12 +146,16 @@ describe("window-reading pilot on a form", () => {
   }
 
   it("types the given details, then leaves the Check in button to the person", async () => {
+    // One action per decision (the window is read again after each).
     const t = setup([
-      plan({ steps: [{ item: 1, do: "type", text: "Linda" }, { item: 2, do: "type", text: "BV-48213" }, { item: 3, do: "press", text: null }] }),
+      plan({ steps: [{ item: 1, do: "type", text: "Linda" }] }),
+      plan({ steps: [{ item: 2, do: "type", text: "BV-48213" }] }),
+      plan({ steps: [{ item: 3, do: "press", text: null }] }),
     ]);
     await t.run();
     expect(t.typed).toEqual(["Name=Linda", "Appointment number=BV-48213"]);
     expect(t.pressed).toEqual([]);
+    expect(t.guided.at(-1)).toMatch(/send the form yourself/);
     expect(t.ctx.evidence.map((e) => e.command).join(" ")).not.toContain("Linda");
   });
 

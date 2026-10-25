@@ -68,11 +68,19 @@ async function main(): Promise<void> {
     mock: { type: "boolean", default: false }, live: { type: "boolean", default: false },
     runs: { type: "string", default: "1" }, output: { type: "string" },
     browser: { type: "string" }, url: { type: "string" },
+    mode: { type: "string", default: "pointer" },
+    provider: { type: "string", default: "both" },
   } });
   if (values.mock && values.live) throw new Error("Choose either --mock or --live.");
   const runs = Number(values.runs);
   if (!Number.isInteger(runs) || runs < 1 || runs > 100) throw new Error("--runs must be an integer from 1 to 100.");
   const mode = values.mock ? "mock" : "live";
+  if (!["pointer", "loop"].includes(values.mode!)) throw new Error("--mode must be pointer or loop.");
+  if (values.mode === "loop") {
+    const { compareLoops } = await import("./ui-loop-compare.js");
+    if (!["both", "jev", "claude"].includes(values.provider!)) throw new Error("Loop --provider must be both, jev, or claude.");
+    return compareLoops({ runs, mock: !!values.mock, output: values.output, browser: browserPath(values.browser), url: values.url, provider: values.provider as "both" | "jev" | "claude" });
+  }
   const output = resolve(values.output ?? join("downloads", `pointer-comparison-${mode}-${Date.now()}.jsonl`));
   const base = new URL(values.url ?? "http://127.0.0.1:4321").origin;
   if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(base).hostname)) throw new Error("--url must point to the local demo server.");

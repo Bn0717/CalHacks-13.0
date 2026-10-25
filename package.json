@@ -27,6 +27,7 @@
     "@factory/droid-sdk": "^0.10.0",
     "pdfjs-dist": "^6.4.299",
     "playwright-core": "^1.64.1",
+    "sharp": "^0.35.5",
     "shell-quote": "^1.12.0",
     "zod": "^4.6.7"
   },

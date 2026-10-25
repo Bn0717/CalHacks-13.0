@@ -156,7 +156,7 @@ For a message like a clinic's "before your video visit" email, CalHack does each
 
 ## Screenshot pointer positioning: Jev and Haiku
 
-The Accessibility-first route stays in place. When CalHack needs a screenshot, its existing Claude planner chooses the action and judges who should perform it. A separate positioner locates that exact target for clicks, double-clicks, and highlights. Keyboard actions and completion checks do not need positioning.
+The Accessibility-first route stays in place. By default, Jev now chooses the next UI action, checks its handling and sensitivity, decides when to wait or finish, and verifies visible results. This covers both Accessibility items and screenshots. Screenshot decisions ground their control directly, without another pointer request. Claude handles high-level task planning and tool orchestration, written explanations, and fallback cases.
 
 Add your **official TypeSafe AI** key to `.env` when ready:
 
@@ -169,13 +169,21 @@ CALHACK_JEV_MIN_PRESENCE=0.90
 CALHACK_JEV_MIN_CONFIDENCE=0.80
 ```
 
-`auto` uses Jev when its key is present and otherwise uses Haiku with `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN`). `jev` explicitly tries Jev and retains Haiku fallback; `haiku` bypasses Jev. The planner still uses `CALHACK_AGENT_MODEL` / `CALHACK_MODEL` as before. Each screenshot click now includes a separate positioning call after planning.
+`CALHACK_POINTER_PROVIDER=auto` uses Jev when its key is present and otherwise uses Haiku with `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN`). `jev` explicitly tries Jev and retains Haiku fallback; `haiku` bypasses Jev. This positioner is used by the Claude fallback path and the standalone pointer benchmark. The initial task planner still uses `CALHACK_AGENT_MODEL` / `CALHACK_MODEL` as before.
+
+Set `CALHACK_UI_DECISION_PROVIDER=auto` (the default) for the full Jev UI loop. `jev` explicitly tries Jev with Claude fallback; `claude` restores the previous UI planner plus its positioner. No `.env` edit is needed to enable Jev if `TYPESAFE_API_KEY` is already configured.
+
+Jev makes closed-set decisions rather than generating text. It first selects a control/action, then validates the concrete item or screenshot box against the same safety policy used by Claude. Screenshot actions must agree with independent grounding in the safety request. When a visible control is literally named in the task, Jev can select that exact text span for a focused grounding request. Otherwise small controls receive an in-memory enlarged crop for finer coordinate precision. Crops are never saved in logs. Accessibility navigation acts once before reading the window again; windows with more than 254 items use group selection followed by exact-item selection. Remembered routes still need a fresh completion decision. New typing content falls back to Claude.
+
+Choice answers need selected-option probability and confidence of at least 0.85; affirmative completion and visible verification need probability of at least 0.95. Completion also checks whether a person's own part still remains, so opening a permission/choice page alone does not finish that part. Uncertain required judgments fall back on the same observation. Unused speculative answers, such as which keyboard key to use during a mouse click, are ignored. A personal choice, password, payment or permission stays with the person under the existing execution rules.
 
 Jev receives the screenshot and target through the [official TypeSafe image API](https://docs.typesafe.ai/images), with the experimental images header enabled. CalHack asks whether the target is present as well as asking for its bounding box, because [Box always returns a box, including for absent targets](https://docs.typesafe.ai/primitives/box). The presence and confidence cutoffs above are provisional application thresholds, not calibrated guarantees. Images outside TypeSafe's supported dimensions or size fall back to Haiku without resizing the coordinate frame.
 
 Each attempt has a 10-second deadline. Errors, invalid coordinates, low confidence, or a missing target cause Jev to fall back to Haiku. Stop cancels positioning and prevents fallback or clicking. If both positioners fail, CalHack does not click; guidance can still appear without a highlight. Positioning cannot change the planner's safety judgment or authorize an action.
 
 The existing `~/.cache/calhack/autopilot.jsonl` log records each positioning attempt, model, screenshot-pixel coordinates, timing, available confidence/token usage, selected provider, and fallback reason. Positioning logs contain neither images nor API keys.
+
+UI decision records also include per-request stages, confidence/probability judgments, usage, provider identity and fallback reason. Screenshot records separate capture, decision/grounding, execution and preceding settling time. Accessibility execution records include decision and command timing; final screen checks identify their decision provider. Records contain no screenshots or API credentials.
 
 ### Quick browser comparison (Windows, macOS, or Linux)
 
@@ -185,6 +193,11 @@ npm run pointer:compare -- --mock
 
 # Once keys are configured: compare model responses on identical screenshots and targets.
 npm run pointer:compare -- --live --runs 3
+
+# Compare complete task loops: current Claude + Jev pointer versus full Jev decisions.
+npm run pointer:compare -- --mode loop --live --runs 3
+# Exercise full-loop browser plumbing with synthetic decisions and no keys.
+npm run pointer:compare -- --mode loop --mock
 ```
 
 The command starts the existing demo server on port 4321, opens installed Chrome or Edge headlessly, and closes both when finished. If the demo server is already running, add `--url http://127.0.0.1:4321`. If browser discovery fails, pass `--browser <executable>` or set `CALHACK_BROWSER_PATH`. No Electron binary, desktop mouse events, or macOS permissions are needed.
@@ -192,6 +205,21 @@ The command starts the existing demo server on port 4321, opens installed Chrome
 Five cases cover three demo-page navigation links, a guide-heading highlight, and an absent button. Both positioners receive the same screenshot and target; DOM bounds are used only to score live responses. Comparison calls never fall back to the other provider. The table reports target hits, absent-target rejection, errors, browser clicks, rendered highlights, median/p95 positioning latency, and reported token totals. JSONL records, including a screenshot hash for each matched pair, go to `downloads/pointer-comparison-*.jsonl`; use `--output <path>` to choose another file.
 
 Mock mode supplies DOM-derived oracle coordinates to test the browser/renderer plumbing. Its synthetic successes and timings are **not model quality or speed measurements**. Live mode explicitly skips providers without credentials. Positioning latency excludes action planning and browser operations; native macOS execution still needs a Mac smoke test.
+
+Full-loop mode uses the real `autopilot` and `uiPilot` loops on the existing printer guide and `ui-loop.html` settings fixture. Tasks cover multi-step navigation, enabling battery percentage, choosing Large text, personal-choice handoff and camera-permission handoff. Each engine receives the goal once. Screenshot observations contain no DOM-derived target information; the Accessibility adapter supplies the visible control list. DOM state independently scores completion, incorrect actions and premature completion. Cached routes are disabled for comparisons. The Claude baseline defaults to `CALHACK_AGENT_MODEL` or Haiku 5.5, and includes its pointer calls; the Jev path counts every Claude fallback.
+
+Results include total loop time, capture and execution time, decision/grounding time, request counts, Anthropic calls, fallbacks, usage and decision traces. They are written to `downloads/ui-loop-comparison-*.jsonl`. Initial task planning, speech generation and native macOS execution are outside this browser benchmark.
+
+Use `--provider jev` or `--provider claude` with `--mode loop` to rerun one engine independently. The default is both. Stage timings distinguish decision work from combined selection/grounding requests; `pipelineMs` measures their total.
+
+Browser smoke results on 2026-10-24 (five tasks, three rounds each, with fallback enabled):
+
+| Path | Jev median task time | Claude median task time | Jev strict passes | Claude strict passes |
+|---|---:|---:|---:|---:|
+| Accessibility | 2.39 s | 6.43 s | 15/15 | 15/15 |
+| Screenshot | 5.73 s | 8.24 s | 13/15 | 12/15 |
+
+A strict pass requires the correct final state or handoff, no incorrect actions, and no premature completion. Both Accessibility runs had zero incorrect actions or premature completions. Screenshot runs remained imperfect: Jev recorded four incorrect actions and one premature completion across the 15 tasks; Claude recorded one and two respectively. Jev used 18 Claude fallback calls on the Accessibility tasks and 26 Anthropic calls on the screenshot tasks. These are small controlled browser samples, including capture/settling and fallback time; they exclude initial high-level planning and do not establish native macOS performance.
 
 On Windows, run the tests using threads if the default fork pool is blocked:
 

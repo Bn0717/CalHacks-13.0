@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The model call is replaced, so this proves where the decision comes from: whatever the model returns, not the words.
 const create = vi.fn();
+vi.mock("../src/agent/ui-decision.js", async (original) => {
+  const actual = await original<typeof import("../src/agent/ui-decision.js")>();
+  return { ...actual, routeDecision: <T>(jev: unknown, claude: () => Promise<T>) => claude() };
+});
 const locate = vi.hoisted(() => vi.fn());
 vi.mock("../src/ai/positioner.js", async (original) => ({ ...await original<typeof import("../src/ai/positioner.js")>(), locatePointer: locate }));
 vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create } }), MODEL: () => "test-model" }));
