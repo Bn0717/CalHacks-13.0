@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The model call is replaced, so this proves where the decision comes from: whatever the model returns, not the words.
 const create = vi.fn();
+const locate = vi.hoisted(() => vi.fn());
+vi.mock("../src/ai/positioner.js", async (original) => ({ ...await original<typeof import("../src/ai/positioner.js")>(), locatePointer: locate }));
 vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create } }), MODEL: () => "test-model" }));
 
 import { decideNext } from "../src/agent/autopilot.js";
@@ -11,7 +13,10 @@ const answer = (input: Record<string, unknown>) => create.mockResolvedValueOnce(
 const base = { screen: "normal", personal_choice: false, effect: "navigates", step_names_option: false, kind: "click", x: 5, y: 5, text: null, key: null, target: "x", reason: "r" };
 
 describe("decideNext uses the model, not words", () => {
-  beforeEach(() => create.mockReset());
+  beforeEach(() => {
+    create.mockReset();
+    locate.mockReset().mockResolvedValue({ attempts: [], selected: "jev", point: { x: 21, y: 32 } });
+  });
 
   it("sends the screenshot and the step to the model", async () => {
     answer({ ...base, handling: "agent", sensitivity: "routine" });
@@ -23,6 +28,37 @@ describe("decideNext uses the model, not words", () => {
     // A fixed answer shape (structured output) rather than a forced tool, so it works on every model.
     expect(req.output_config.format.type).toBe("json_schema");
     expect(req.tool_choice).toBeUndefined();
+    expect(req.output_config.format.schema.properties.x).toBeUndefined();
+    expect(locate).toHaveBeenCalledWith("x", shot, undefined);
+  });
+
+  it("uses only positioner coordinates, and cannot use planner coordinates after a failed lookup", async () => {
+    answer({ ...base, handling: "agent", sensitivity: "routine" });
+    expect(await decideNext("x", shot, [])).toMatchObject({ x: 21, y: 32 });
+    locate.mockResolvedValueOnce({ attempts: [] });
+    answer({ ...base, handling: "agent", sensitivity: "routine" });
+    const a = await decideNext("x", shot, []);
+    expect(a.x).toBeUndefined();
+    expect(a.y).toBeUndefined();
+  });
+
+  it.each(["done", "wait", "type", "key"])("skips positioning for agent %s actions", async (kind) => {
+    answer({ ...base, kind, handling: "agent", sensitivity: "routine" });
+    await decideNext("x", shot, []);
+    expect(locate).not.toHaveBeenCalled();
+  });
+
+  it("positions handoff highlights even when the action was typing", async () => {
+    answer({ ...base, kind: "type", screen: "sign_in", handling: "agent" });
+    expect(await decideNext("x", shot, [])).toMatchObject({ handling: "person", x: 21, y: 32 });
+    expect(locate).toHaveBeenCalledOnce();
+  });
+
+  it("passes Stop through the positioning request", async () => {
+    const controller = new AbortController();
+    answer({ ...base, handling: "agent", sensitivity: "routine" });
+    locate.mockImplementationOnce(async (_target, _shot, signal: AbortSignal) => { controller.abort(); signal.throwIfAborted(); });
+    await expect(decideNext("x", shot, [], undefined, controller.signal)).rejects.toThrow();
   });
 
   it("a harmless-sounding step can be handed to the person, and a scary-sounding one can be done, as the model says", async () => {

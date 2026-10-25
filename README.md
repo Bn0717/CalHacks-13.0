@@ -143,3 +143,48 @@ npm run agent:sim     # 28 requests a non-technical person would make, through t
 Shortcut: ⌃⌥⌘D by default. If another app already uses it, set `CALHACK_HOTKEY=Control+Alt+Shift+D` (or any other) in `.env`.
 
 Model: Claude Opus 5.5 by default (`CALHACK_MODEL` in `.env` to change). One ⌃⌥⌘D press costs about $0.10.
+
+## Screenshot pointer positioning: Jev and Haiku
+
+The Accessibility-first route stays in place. When CalHack needs a screenshot, its existing Claude planner chooses the action and judges who should perform it. A separate positioner locates that exact target for clicks, double-clicks, and highlights. Keyboard actions and completion checks do not need positioning.
+
+Add your **official TypeSafe AI** key to `.env` when ready:
+
+```dotenv
+TYPESAFE_API_KEY=your-key
+CALHACK_POINTER_PROVIDER=auto
+CALHACK_JEV_MODEL=jev-1.14.0
+CALHACK_HAIKU_POINTER_MODEL=claude-haiku-5-5
+CALHACK_JEV_MIN_PRESENCE=0.90
+CALHACK_JEV_MIN_CONFIDENCE=0.80
+```
+
+`auto` uses Jev when its key is present and otherwise uses Haiku with `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN`). `jev` explicitly tries Jev and retains Haiku fallback; `haiku` bypasses Jev. The planner still uses `CALHACK_AGENT_MODEL` / `CALHACK_MODEL` as before. Each screenshot click now includes a separate positioning call after planning.
+
+Jev receives the screenshot and target through the [official TypeSafe image API](https://docs.typesafe.ai/images), with the experimental images header enabled. CalHack asks whether the target is present as well as asking for its bounding box, because [Box always returns a box, including for absent targets](https://docs.typesafe.ai/primitives/box). The presence and confidence cutoffs above are provisional application thresholds, not calibrated guarantees. Images outside TypeSafe's supported dimensions or size fall back to Haiku without resizing the coordinate frame.
+
+Each attempt has a 10-second deadline. Errors, invalid coordinates, low confidence, or a missing target cause Jev to fall back to Haiku. Stop cancels positioning and prevents fallback or clicking. If both positioners fail, CalHack does not click; guidance can still appear without a highlight. Positioning cannot change the planner's safety judgment or authorize an action.
+
+The existing `~/.cache/calhack/autopilot.jsonl` log records each positioning attempt, model, screenshot-pixel coordinates, timing, available confidence/token usage, selected provider, and fallback reason. Positioning logs contain neither images nor API keys.
+
+### Quick browser comparison (Windows, macOS, or Linux)
+
+```bash
+# No keys needed: exercise real browser navigation and the production highlight renderer.
+npm run pointer:compare -- --mock
+
+# Once keys are configured: compare model responses on identical screenshots and targets.
+npm run pointer:compare -- --live --runs 3
+```
+
+The command starts the existing demo server on port 4321, opens installed Chrome or Edge headlessly, and closes both when finished. If the demo server is already running, add `--url http://127.0.0.1:4321`. If browser discovery fails, pass `--browser <executable>` or set `CALHACK_BROWSER_PATH`. No Electron binary, desktop mouse events, or macOS permissions are needed.
+
+Five cases cover three demo-page navigation links, a guide-heading highlight, and an absent button. Both positioners receive the same screenshot and target; DOM bounds are used only to score live responses. Comparison calls never fall back to the other provider. The table reports target hits, absent-target rejection, errors, browser clicks, rendered highlights, median/p95 positioning latency, and reported token totals. JSONL records, including a screenshot hash for each matched pair, go to `downloads/pointer-comparison-*.jsonl`; use `--output <path>` to choose another file.
+
+Mock mode supplies DOM-derived oracle coordinates to test the browser/renderer plumbing. Its synthetic successes and timings are **not model quality or speed measurements**. Live mode explicitly skips providers without credentials. Positioning latency excludes action planning and browser operations; native macOS execution still needs a Mac smoke test.
+
+On Windows, run the tests using threads if the default fork pool is blocked:
+
+```bash
+npm test -- --pool=threads --maxWorkers=1
+```
