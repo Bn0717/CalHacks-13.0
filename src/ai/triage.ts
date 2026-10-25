@@ -1,4 +1,4 @@
-// One quick Claude call that decides what the person needs after ⌃⌥⌘D:
+// One quick Claude call that decides what the person needs after ⌥⌘:
 // follow the how-to on screen, use a built-in fix guide, look up an official source, or ask a question.
 // Claude only sorts the request. It never writes commands; our code checks its answer (cleanTriage).
 import { z } from "zod";
