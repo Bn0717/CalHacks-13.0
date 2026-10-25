@@ -362,8 +362,10 @@ const PROFILE = join(tmpdir(), "calhack-forms");
 
 /** Brings CalHack's Chrome window in front of the person's own Chrome, so they can watch it fill (macOS, best effort). */
 function raiseWindow(): void {
-  execFile("/usr/bin/pgrep", ["-f", `user-data-dir=${PROFILE}`], (err, out) => {
-    const pid = err ? "" : out.toString().trim().split("\n")[0];
+  // Chrome's helper processes share the profile folder; the main browser process is the one without "--type=".
+  execFile("/bin/ps", ["-axo", "pid=,args="], (err, out) => {
+    const line = err ? undefined : out.toString().split("\n").find((l) => l.includes(`--user-data-dir=${PROFILE}`) && !l.includes("--type="));
+    const pid = line?.trim().split(/\s+/)[0] ?? "";
     if (!/^\d+$/.test(pid)) return;
     execFile("/usr/bin/osascript", ["-e", `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`], () => {});
   });

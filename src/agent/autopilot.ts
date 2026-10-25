@@ -344,6 +344,8 @@ export interface AutopilotOptions {
   instruction: string;
   /** Checked by code before every look: true = the step is finished (e.g. the page a link opens is showing). */
   doneWhen?: () => Promise<boolean>;
+  /** Never hand a part to the person: a part that would be theirs ends the step as "gave_up" instead, so the caller reports it. */
+  noHandoff?: boolean;
   /** Tells the person what to do for the parts that stay theirs. */
   clickTarget?: string;
   /** The app the step happens in (e.g. "System Settings"). Default: the app in front. */
@@ -402,7 +404,7 @@ async function workOnStep(ctx: ToolContext, o: AutopilotOptions): Promise<Autopi
   if (ctx.mac.ui) {
     const { uiPilot } = await import("./uipilot.js");
     const t0 = Date.now();
-    const r = await uiPilot(ctx, ctx.mac.ui, { instruction: o.instruction, app: o.app, routes: !o.facts?.length, facts: o.facts, record: o.record, doneWhen: o.doneWhen });
+    const r = await uiPilot(ctx, ctx.mac.ui, { instruction: o.instruction, app: o.app, routes: !o.facts?.length, facts: o.facts, record: o.record, doneWhen: o.doneWhen, noHandoff: o.noHandoff });
     if (process.env.CALHACK_DEBUG) console.log(`[uipilot] ${r.outcome} in ${Date.now() - t0} ms, ${r.decisions} decisions: ${r.trail.join("; ")}`);
     if (r.outcome !== "fallback") return { outcome: r.outcome, trail: r.trail, personHelped: r.personHelped };
     trail.push(...r.trail);
@@ -563,6 +565,11 @@ async function workOnStep(ctx: ToolContext, o: AutopilotOptions): Promise<Autopi
     // The AI judged the screen and the action. A sign-in, payment, permission or personal-details screen is the person's,
     // except a click that only takes access away (Block, Don't Allow). Anything unclear was already turned into "person".
     if (a.handling === "person" || a.personalChoice || (a.screen !== "normal" && !(a.reducesRisk && a.screen === "permission_prompt") && !a.fillsDetail)) {
+      if (o.noHandoff) {
+        emit({ action: { taken: "none", route: "none", label: a.target }, outcome: "refused_unsafe", delay: { decisionMs } });
+        trail.push(`Stopped: ${a.reason || a.target}`);
+        return { outcome: "gave_up", trail };
+      }
       const what = a.screen === "sign_in" ? "Please sign in" : a.screen === "payment" ? "Please take care of the payment" : a.screen === "permission_prompt" ? "Please decide on this permission" : a.screen === "personal_details" ? (facts.length ? "Your turn on the form" : "Please fill in your details") : "";
       const instruction = [what, [a.reason || o.instruction, a.target ? `(${a.target})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(": ");
       ctx.ui.say("This part is yours to do.");

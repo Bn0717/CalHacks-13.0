@@ -209,9 +209,12 @@ function shq(text: string): string {
  * A step only the screen can finish (a click somewhere). CalHack opens the page, then looks at the screen every few seconds
  * and does the clicks itself. The AI judges each action: parts that need the person's own hands, and anything it can't work out, go to the person.
  */
-async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickTarget?: string; settingsUrl?: string; facts?: Fact[]; doneWhen?: () => Promise<boolean> }): Promise<{ result: "done" | "skip"; by: "calhack" | "person"; trail: string[] }> {
+async function finishOnScreen(
+  ctx: ToolContext,
+  g: { instruction: string; clickTarget?: string; settingsUrl?: string; facts?: Fact[]; doneWhen?: () => Promise<boolean>; noHandoff?: boolean },
+): Promise<{ result: "done" | "skip" | "failed"; by: "calhack" | "person"; trail: string[] }> {
   const url = g.settingsUrl && SETTINGS_URL.test(g.settingsUrl) ? g.settingsUrl : undefined;
-  if (!ctx.mac.screen) return { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
+  if (!ctx.mac.screen) return g.noHandoff ? { result: "failed", by: "calhack", trail: ["CalHack can't see the screen (Screen Recording is off)"] } : { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
   if (url) {
     const before = await ctx.mac.screen.glance?.().catch(() => null);
     const r = await ctx.mac.run(`open ${shq(url)}`);
@@ -222,9 +225,10 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord, facts: g.facts, doneWhen: g.doneWhen });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord, facts: g.facts, doneWhen: g.doneWhen, noHandoff: g.noHandoff });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
+  if (g.noHandoff) return { result: "failed", by: "calhack", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
   const why = r.needsAccessibility ? `${r.trail.at(-1)}. For now: ` : "";
   return { result: await ctx.ui.guide({ instruction: why + g.instruction, clickTarget: g.clickTarget, settingsUrl: g.settingsUrl }), by: "person", trail: r.trail };
@@ -1118,8 +1122,13 @@ async function formViaPlaywright(
     return u && u !== startUrl && /^https?:/.test(u) && !signedInPage(u) ? u : null;
   };
   if (o.inMessage && o.clickTarget) {
-    const click = await finishOnScreen(ctx, { instruction: `Click the "${o.clickTarget}" link in the message`, doneWhen: async () => !!(await formUrl()) });
-    if (click.result === "skip") return { done: `The person skipped it (${click.trail.join("; ")}).`, linkClicked };
+    // CalHack clicks the link itself; nothing is handed to the person. If it can't, it says so and the agent moves on.
+    const click = await finishOnScreen(ctx, { instruction: `Click the "${o.clickTarget}" link in the message`, doneWhen: async () => !!(await formUrl()), noHandoff: true });
+    if (click.result === "skip") return { done: `Stopped (${click.trail.join("; ")}).`, linkClicked };
+    if (click.result === "failed" && !(await formUrl())) {
+      webLog("link_failed", { trail: click.trail });
+      return { done: `CalHack couldn't open the "${o.clickTarget}" link: ${click.trail.at(-1) ?? "it didn't open"}. Say so in finish; carry on with the other steps.`, linkClicked };
+    }
     linkClicked = true;
     webLog("link_clicked", { trail: click.trail, by: click.by });
   }
@@ -1201,9 +1210,11 @@ const guidePerson: AgentTool = {
         clickTarget = undefined;
       }
     }
-    const g = await finishOnScreen(ctx, { instruction, clickTarget, settingsUrl: SETTINGS_URL.test(url) ? url : undefined, facts });
+    // A form to fill is CalHack's job end to end: on screen too, nothing is handed to the person.
+    const g = await finishOnScreen(ctx, { instruction, clickTarget, settingsUrl: SETTINGS_URL.test(url) ? url : undefined, facts, noHandoff: facts.length > 0 });
     const steps = g.trail.length ? ` (${g.trail.join("; ")})` : "";
     if (g.result === "skip") return `The person skipped it${steps}.`;
+    if (g.result === "failed") return `CalHack couldn't finish this on screen${steps}. Say so in finish and carry on with the other steps.`;
     return g.by === "calhack" ? `CalHack did it on the screen${steps}. The last screen check is in the evidence; still check it worked with a tool.` : `The person says they did it${steps}. Check it worked if you can.`;
   },
 };
@@ -1224,7 +1235,7 @@ const askPerson: AgentTool = {
 const proposePlan: AgentTool = {
   name: "propose_plan",
   kind: "talk",
-  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only the person can: a password, a payment, granting a permission such as camera or microphone, a personal choice), or 'skip' (CalHack won't, with why). Clicking a link in the message and filling in its form with details from the message is 'me' (CalHack leaves only the final Submit to them).",
+  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only things software can't do at all: typing a password, a payment, answering a macOS permission prompt such as camera or microphone), or 'skip' (CalHack won't, with why). Clicking a link in the message, filling in and submitting its form, installing, settings and calendar are all 'me'.",
   input_schema: obj({
     goal: str("The overall goal in plain words, max 10, e.g. 'Get you ready for the video call'"),
     warning: strOrNull("If the message may not be genuine (the sender's address doesn't match who it claims to be, pressure to act fast, links that don't go where they say): what looks off, in one or two plain sentences. The person then decides whether to go ahead. null if it looks fine"),
@@ -1267,13 +1278,13 @@ const proposePlan: AgentTool = {
       if (!yes) return "The person chose not to go ahead because of the warning. Do nothing; finish with verdict 'not_done', a kind headline, and one detail on why the message looked suspicious.";
       ctx.personTrusts = true;
       ctx.approvedPlan = steps.filter((x) => x.by !== "skip").map((x) => x.text);
-      return "The person read your warning and chose to go ahead. Treat the message as genuine from now on: do every 'me' step now, in order, fully (click its links with guide_person in_message=true, fill its forms with fill_details), without asking again and without holding back or stopping early because of the warning. A tool that asks for its own OK still will. Use guide_person for 'you' steps. Then check and finish, and mention the warning once in the details.";
+      return "The person read your warning and chose to go ahead. Treat the message as genuine from now on: do every 'me' step now, in order, fully (click its links with guide_person in_message=true, fill its forms with fill_details), without asking again and without holding back or stopping early because of the warning. A tool that asks for its own OK still will. Don't walk the person through 'you' steps; mention them once in finish. Then check and finish, and mention the warning once in the details.";
     }
     ctx.ui.say(`I can do this for you. Here's my plan.`);
     const yes = await ctx.ui.confirm({ title: `${goal}?`, message: "I'll do these one after another. You can press Stop any time.", details, yes: "Yes, do it all", no: "No thanks" });
     if (!yes) return "The person said no. Do nothing; finish with verdict 'not_done' and a kind headline.";
     ctx.approvedPlan = steps.filter((x) => x.by !== "skip").map((x) => x.text);
-    return "The person said yes to the whole plan. Do every 'me' step now, in order, without asking again (a tool that asks for its own OK still will). Use guide_person for 'you' steps. Then check and finish.";
+    return "The person said yes to the whole plan. Do every 'me' step now, in order, without asking again (a tool that asks for its own OK still will). Don't walk the person through 'you' steps; mention them once in finish. Then check and finish.";
   },
 };
 

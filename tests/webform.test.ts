@@ -253,16 +253,17 @@ describe("guide_person with a form: click on screen, then Playwright fills and s
     answer([{ field: 0, detail: "Name" }, { field: 1, detail: "Appointment number" }, { field: 11, detail: "Phone" }]);
     verdict(true, "✅ You're checked in.");
     const card: Fact[] = [{ label: "First name", value: "Linda" }, { label: "Phone", value: "(555) 010-2030" }];
+    let reads = 0;
     const { ctx, guided, said } = fakeCtx({ sourceApp: "Google Chrome", approvedPlan: ["Check in online"] }, {
       run: async () => ({ code: 0, output: "", timedOut: false }),
       // The email first; the check-in page once the link was clicked.
-      pageUrl: async () => (guided.length ? "http://localhost:4321/checkin.html" : "https://mail.google.com/mail/u/0/#inbox/abc"),
+      pageUrl: async () => (++reads > 1 ? "http://localhost:4321/checkin.html" : "https://mail.google.com/mail/u/0/#inbox/abc"),
       webForm: b.deps,
       myCard: async () => card,
     });
     const out = await guidePerson.run(input([{ label: "Name", value: "Linda" }, { label: "Appointment number", value: "BV-48213" }]), ctx);
-    // No screen access in this fake, so the link click is "done by the person".
-    expect(guided).toEqual(['Click the "Check in" link in the message']);
+    // Nothing is ever handed to the person.
+    expect(guided).toEqual([]);
     expect(b.typed).toEqual(["Full name=Linda", "Appointment number=BV-48213", "Phone=(555) 010-2030"]);
     expect(b.submitted()).toBe(1);
     expect(said.at(-1)).toMatch(/You're checked in/);
@@ -282,12 +283,21 @@ describe("guide_person with a form: click on screen, then Playwright fills and s
     expect(create.mock.calls[0][0].messages[0].content as string).not.toContain("999-0000");
   });
 
-  it("falls back to filling on screen only when the page isn't a web page it can open", async () => {
+  it("when the page isn't one it can open, it tries on screen and reports a failure: it never hands the form to the person", async () => {
     const b = fakeBrowser();
     const { ctx, guided } = fakeCtx({}, { pageUrl: async () => "https://mail.google.com/mail/u/0/#inbox", webForm: b.deps });
-    await guidePerson.run({ instruction: "Fill in the form", click_target: null, settings_url: null, in_message: false, fill_details: [{ label: "Name", value: "Linda" }] }, ctx);
+    const out = await guidePerson.run({ instruction: "Fill in the form", click_target: null, settings_url: null, in_message: false, fill_details: [{ label: "Name", value: "Linda" }] }, ctx);
     expect(b.typed).toEqual([]);
-    expect(guided).toEqual(["Fill in the form"]);
+    expect(guided).toEqual([]);
+    expect(out).toMatch(/couldn't finish this on screen/);
+  });
+
+  it("if the link can't be opened, it says so and moves on, without asking the person to click", async () => {
+    const b = fakeBrowser();
+    const { ctx, guided } = fakeCtx({ approvedPlan: ["Check in"] }, { pageUrl: async () => "https://mail.google.com/mail/u/0/#inbox", webForm: b.deps });
+    const out = await guidePerson.run({ instruction: "x", click_target: "Check in", settings_url: null, in_message: true, fill_details: [{ label: "Name", value: "Linda" }] }, ctx);
+    expect(guided).toEqual([]);
+    expect(out).toMatch(/couldn't open the "Check in" link.*carry on/);
   });
 });
 
@@ -362,10 +372,21 @@ describe("the link step ends as soon as the page opens (checked by code)", () =>
     const guidePerson = TOOLS.find((t) => t.name === "guide_person")!;
     const { ctx } = fakeCtx({ approvedPlan: ["Check in online"] }, {
       // The new tab takes a moment: the email's address is still showing for the first few reads.
-      pageUrl: async () => (++reads < 4 ? "https://mail.google.com/mail/u/0/#inbox/abc" : "https://checkin.bayview.example/visit"),
+      pageUrl: async () => (++reads < 2 ? "https://mail.google.com/mail/u/0/#inbox/abc" : "https://checkin.bayview.example/visit"),
       webForm: b.deps,
     });
     await guidePerson.run({ instruction: "x", click_target: "Check in", settings_url: null, in_message: true, fill_details: [{ label: "Name", value: "Linda" }, { label: "Appointment number", value: "BV-48213" }] }, ctx);
     expect(b.submitted()).toBe(1);
+  });
+});
+
+describe("no handoffs in the email's link-and-form step", () => {
+  it("a part the AI calls the person's ends the step instead of asking them", async () => {
+    const ui = { list: async () => ({ app: "Google Chrome", window: "Mail", items: [{ path: "a", role: "AXLink", name: "Check in", frame: { x: 0, y: 0, w: 10, h: 10 } }, { path: "b", role: "AXButton", name: "Reply", frame: { x: 0, y: 0, w: 10, h: 10 } }] }) } as unknown as UiDeps;
+    const decide = vi.fn(async () => ({ status: "person" as const, steps: [], point_at: 1, handling: "person" as const, sensitivity: "sensitive" as const, target: "Check in", reason: "Please click it" }));
+    const { ctx, guided } = fakeCtx();
+    const r = await uiPilot(ctx, ui, { instruction: 'Click the "Check in" link', decide, noHandoff: true, settleMs: 0, sleep: async () => {} });
+    expect(r.outcome).toBe("gave_up");
+    expect(guided).toEqual([]);
   });
 });

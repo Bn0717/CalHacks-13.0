@@ -263,6 +263,8 @@ export interface UiPilotOptions {
   facts?: Fact[];
   /** Checked by code before every decision: true = the step is finished (e.g. the page a link opens is showing). */
   doneWhen?: () => Promise<boolean>;
+  /** Never hand a part to the person: such a part ends with "gave_up" instead. */
+  noHandoff?: boolean;
   /** The address of the page in front, to check before typing details. Default: ctx.mac.pageUrl. */
   pageUrl?: () => Promise<string | null>;
   record?: (r: ActionRecord) => void;
@@ -412,6 +414,10 @@ export async function uiPilot(ctx: ToolContext, ui: UiDeps, o: UiPilotOptions): 
       trail.push(`You finished your part [E${ctx.evidence.length}]`);
       if (o.routes && done.length) saveRoute(key, done);
       return result("done");
+    }
+    if (theirs && o.noHandoff) {
+      trail.push(`Stopped: ${d.reason || d.target}`);
+      return result("gave_up");
     }
     if (theirs) {
       const it = w.items[(d.point_at ?? steps[0]?.item ?? 0) - 1];
