@@ -1,10 +1,11 @@
-// The windows the person sees: the helper bar (bottom-center at first; the person can drag it anywhere) and the buddy, a red
-// mascot that sits on the bar and hops over to point at things. Shapes of the messages are in protocol.ts.
+// The windows the person sees: the helper bar (bottom-center at first; the person can drag it anywhere) and Stride, the red
+// buddy that sits on the bar and hops over to point at things. Shapes of the messages are in protocol.ts.
 import { BrowserWindow, screen } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ClickHolds, keepCardOnScreen, shouldIgnoreMouse } from "./clickthrough.js";
 import { poseForBar, seatOnCard } from "./buddy-pose.js";
+import { chooseEmptySpot, type Bitmap } from "./empty-spot.js";
 import type { BarState, BuddyCommand, BuddyPose, PointerCommand, SayMessage } from "./protocol.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -25,7 +26,7 @@ function barCardOnScreen(): { x: number; y: number; width: number; height: numbe
   return { ...barCardInWindow, x: b.x + barCardInWindow.x, y: b.y + barCardInWindow.y };
 }
 /** Set while the person drags the bar by its top. */
-let drag: { timer: NodeJS.Timeout; safety: NodeJS.Timeout } | null = null;
+let drag: { timer: NodeJS.Timeout; safety: NodeJS.Timeout; from: { x: number; y: number } } | null = null;
 const clickHolds = new ClickHolds();
 
 /**
@@ -95,6 +96,7 @@ export function ensureBar(): BrowserWindow {
 
 /** Shows a new bar state. "hidden" hides the window. */
 export function showBar(state: BarState): void {
+  const phaseChanged = state.phase !== lastBarState.phase;
   lastBarState = state;
   if (process.env.CALHACK_DEBUG) console.log(`[bar] ${state.phase}: ${JSON.stringify(state).slice(0, 300)}`);
   const w = ensureBar();
@@ -107,6 +109,8 @@ export function showBar(state: BarState): void {
     else if (!w.isVisible()) w.showInactive();
   });
   buddyForBar(state);
+  // A new moment: once the card has its new size, glide it off the words it covers.
+  if (phaseChanged && state.phase !== "hidden") setTimeout(() => void moveToEmptySpot(), 450);
 }
 
 export function currentBar(): BarState {
@@ -161,6 +165,7 @@ function placeBar(x: number, y: number): void {
 export function startBarDrag(): void {
   if (!bar || bar.isDestroyed()) return;
   stopBarDrag();
+  stopGlide();
   const from = screen.getCursorScreenPoint();
   const [wx, wy] = bar.getPosition();
   bar.setIgnoreMouseEvents(false);
@@ -170,13 +175,18 @@ export function startBarDrag(): void {
   }, 16);
   // If the "let go" message is ever lost, stop following the mouse anyway.
   const safety = setTimeout(stopBarDrag, 30_000);
-  drag = { timer, safety };
+  drag = { timer, safety, from: { x: wx, y: wy } };
 }
 
 export function stopBarDrag(): void {
   if (!drag) return;
   clearInterval(drag.timer);
   clearTimeout(drag.safety);
+  // The person put the bar somewhere themselves: it stays there (no more moving on its own) until double-clicked back.
+  if (bar && !bar.isDestroyed()) {
+    const [x, y] = bar.getPosition();
+    if (Math.hypot(x - drag.from.x, y - drag.from.y) > 6) placedByPerson = true;
+  }
   drag = null;
   reseatBuddySoon();
 }
@@ -184,6 +194,8 @@ export function stopBarDrag(): void {
 /** Back to bottom-center (double-click on the bar's top). */
 export function resetBarPosition(): void {
   stopBarDrag();
+  stopGlide();
+  placedByPerson = false;
   const p = defaultBarPosition();
   bar?.setPosition(p.x, p.y);
   reseatBuddySoon();
@@ -232,7 +244,7 @@ export function hidePointer(): void {
 }
 
 // ---------- Buddy layer ----------
-// The red mascot (ui/buddy*.js). A see-through layer over the main display, like the pointer layer: it never takes clicks
+// Stride, the red buddy (ui/buddy*.js). A see-through layer over the main display, like the pointer layer: it never takes clicks
 // or focus, and it's kept out of screenshots. It sits on the bar's card and takes a pose for each moment (poseForBar);
 // pointAt sends it over to point at the thing to click, and hidePointer brings it back.
 
@@ -338,4 +350,86 @@ function reseatBuddySoon(): void {
 /** The bar's voice started or stopped: the buddy's mouth moves while it talks. */
 export function buddyTalking(on: boolean): void {
   if (buddy.visible) toBuddy({ type: "talking", on });
+}
+
+// ---------- Moving the bar off the words ----------
+// When the bar opens or moves on to a new moment, CalHack glances at the screen (a small copy; the bar itself is kept out
+// of screenshots, so it sees what's underneath) and glides the card to the emptiest place, so it doesn't cover what the
+// person is reading. It moves only when the new place is clearly emptier, never while the person drags it, and never
+// again once they've put it somewhere themselves (double-click the top to hand it back). CALHACK_AUTO_PLACE=0 turns it off.
+
+/** A small copy of the main display, and image pixels per screen point. Set by main.ts, which has screen access. */
+export type ScreenGlance = () => Promise<{ bitmap: Bitmap; toImage: number } | null>;
+let glanceScreen: ScreenGlance | null = null;
+let placedByPerson = false;
+let placing = false;
+let lastPlaced = 0;
+let glide: NodeJS.Timeout | null = null;
+
+export function setScreenGlance(fn: ScreenGlance): void {
+  glanceScreen = fn;
+}
+
+function stopGlide(): void {
+  if (glide) clearInterval(glide);
+  glide = null;
+}
+
+/** Glides the bar's window to (x, y): eases out with a small overshoot, while the card leans the way it's pulled. */
+function glideBar(x: number, y: number): void {
+  if (!bar || bar.isDestroyed()) return;
+  stopGlide();
+  const w = bar;
+  const [x0, y0] = w.getPosition();
+  const dx = x - x0;
+  const dy = y - y0;
+  const ms = Math.round(Math.min(900, Math.max(450, 380 + Math.hypot(dx, dy) * 0.35)));
+  w.webContents.send("bar-glide", { dx, dy, ms });
+  const start = Date.now();
+  // easeOutBack: quick start, slides a little past, settles back.
+  const ease = (t: number) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
+  glide = setInterval(() => {
+    if (w.isDestroyed() || drag) return stopGlide();
+    const t = Math.min(1, (Date.now() - start) / ms);
+    const k = ease(t);
+    w.setPosition(Math.round(x0 + dx * k), Math.round(y0 + dy * k));
+    if (t >= 1) {
+      stopGlide();
+      placeBar(x, y);
+      reseatBuddySoon(); // Stride hops after the bar
+    }
+  }, 16);
+}
+
+async function moveToEmptySpot(): Promise<void> {
+  if (!glanceScreen || placedByPerson || drag || glide || placing || clickHolds.count > 0) return;
+  // With CalHack visible in screenshots it would see itself as "busy", so it stays put.
+  if (process.env.CALHACK_AUTO_PLACE === "0" || process.env.CALHACK_SHOW_IN_SCREENSHOTS === "1") return;
+  if (Date.now() - lastPlaced < 2000) return;
+  const card = barCardOnScreen();
+  if (!bar || bar.isDestroyed() || !bar.isVisible() || !card) return;
+  const display = screen.getPrimaryDisplay();
+  const b = display.bounds;
+  const mid = { x: card.x + card.width / 2, y: card.y + card.height / 2 };
+  if (mid.x < b.x || mid.y < b.y || mid.x > b.x + b.width || mid.y > b.y + b.height) return; // only on the main screen
+  placing = true;
+  try {
+    const g = await glanceScreen();
+    if (!g || !bar || bar.isDestroyed() || drag || placedByPerson) return;
+    const now = barCardOnScreen();
+    if (!now) return;
+    // The card grows upward as steps are added, so keep some room above it free too.
+    const tall = Math.max(now.height, 240);
+    const current = { x: now.x - b.x, y: now.y + now.height - tall - b.y };
+    const a = display.workArea;
+    const area = { x: a.x - b.x + 8, y: a.y - b.y + 8, width: a.width - 16, height: a.height - 16 };
+    const choice = chooseEmptySpot(g.bitmap, g.toImage, area, { width: now.width, height: tall }, current);
+    lastPlaced = Date.now();
+    if (process.env.CALHACK_DEBUG) console.log(`[place] here ${choice.here.toFixed(3)} there ${choice.there.toFixed(3)} move=${choice.move}`);
+    if (!choice.move) return;
+    const [wx, wy] = bar.getPosition();
+    glideBar(wx + choice.at.x - current.x, wy + choice.at.y - current.y);
+  } finally {
+    placing = false;
+  }
 }

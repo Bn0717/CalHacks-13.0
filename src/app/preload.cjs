@@ -9,7 +9,7 @@ const TO_APP = new Set([
   "bar-send-summary", "bar-mic-start", "bar-mic-audio", "bar-mic-cancel", "bar-rect",
   "bar-confirm", "bar-explain-ok", "bar-drag", "bar-move-reset", "bar-speaking",
 ]);
-const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "warning", "bar", "say", "pointer", "buddy"]);
+const FROM_APP = new Set(["state", "approve-request", "manual-request", "step-progress", "finished", "warning", "bar", "say", "pointer", "buddy", "bar-glide"]);
 
 contextBridge.exposeInMainWorld("calhack", {
   synthesize(text) {
