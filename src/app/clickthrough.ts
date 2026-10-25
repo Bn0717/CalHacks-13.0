@@ -18,6 +18,18 @@ export function shouldIgnoreMouse(cursor: { x: number; y: number }, card: Rect |
   return !inside;
 }
 
+/**
+ * Where to put the bar's window so its card stays fully inside `area` (the screen's usable part).
+ * `card` is the card's place inside the window. Whole points only.
+ */
+export function keepCardOnScreen(win: { x: number; y: number }, card: Rect, area: Rect): { x: number; y: number } {
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+  return {
+    x: Math.round(clamp(win.x, area.x - card.x, area.x + area.width - card.x - card.width)),
+    y: Math.round(clamp(win.y, area.y - card.y, area.y + area.height - card.y - card.height)),
+  };
+}
+
 /** Counts overlapping holds. Releasing twice, or after the safety timeout, never goes below zero. */
 export class ClickHolds {
   private n = 0;

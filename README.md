@@ -144,6 +144,16 @@ Shortcut: ⌃⌥⌘D by default. If another app already uses it, set `CALHACK_HO
 
 Model: Claude Opus 5.5 by default (`CALHACK_MODEL` in `.env` to change). One ⌃⌥⌘D press costs about $0.10.
 
+## Following an email end to end (calendar, links, forms)
+
+For a message like a clinic's "before your video visit" email, CalHack does each step with its own tool:
+
+- **Calendar:** `add_calendar_event` adds the event to Apple Calendar with the reminder the email asks for, then looks it up again as proof (the year comes from today's date). It won't add the same event twice. The event's text goes to `osascript` as arguments, never inside the script (`src/mac/calendar.ts`). macOS asks once to let CalHack use Calendar.
+- **Links:** the agent clicks the link in the email on screen (`guide_person`), like a person would.
+- **Web forms with Playwright:** after clicking the link on screen, CalHack reads the new page's address and opens it in its own Chrome window with Playwright (`src/agent/webform.ts`). Fields are found by their labels in the page, a quick Claude Haiku call says which detail goes in which box (values always come from the email, never from the AI), and each box is read back. Password, card, one-time-code, insurance and hidden boxes, menus and tick boxes are never touched; the submit button is outlined, not pressed. About 5 s for the whole form, versus 5–10 s per field on screen. If Chrome or Edge isn't installed, the page doesn't load or nothing matches, it falls back to filling on screen. Playwright can't drive the person's own Chrome (not logged in, and Chrome blocks it), which is why it opens a separate window. Demo page: `http://localhost:4321/checkin.html`.
+- **Forms:** the agent passes `fill_details`: only facts written in the message (name, appointment number…). Code (`src/agent/fill.ts`) drops anything that looks secret (passwords, codes, card, social security and insurance numbers), types only those exact values, only on an https page that isn't a link shortener or raw IP, and leaves the button that sends the form (Submit, Check in, Next…) to the person. The log records which detail was typed, not its value.
+- Camera and microphone access stay the person's; volume and Do Not Disturb use the existing tools.
+
 ## Screenshot pointer positioning: Jev and Haiku
 
 The Accessibility-first route stays in place. When CalHack needs a screenshot, its existing Claude planner chooses the action and judges who should perform it. A separate positioner locates that exact target for clicks, double-clicks, and highlights. Keyboard actions and completion checks do not need positioning.

@@ -16,6 +16,8 @@ import { actCommand, actOn, closeSheet, controlCenter, listWindow, typeInto } fr
 import type { ScreenDeps } from "./autopilot.js";
 import { folderPath } from "./danger.js";
 import { listFilesIn, type AppInfo, type MacDeps } from "./tools.js";
+import { browserUrl, frontAppName } from "../mac/front.js";
+import { playwrightForms } from "./webform.js";
 
 const run = promisify(execFile);
 
@@ -144,6 +146,11 @@ export function realMac(opts: { execute: Executor; trash: (path: string) => Prom
     home,
     screen: opts.screen,
     ui,
+    webForm: playwrightForms,
+    pageUrl: async () => {
+      const app = await frontAppName();
+      return app ? browserUrl(app) : null;
+    },
     protectedApps: ["Finder", "CalHack", "Electron", ...(opts.protectedApps ?? [])],
     sandboxed: (c, t) => runSandboxed(c, t),
     checkRunner: realCheckRunner,
