@@ -23,10 +23,29 @@
 //  - Required tick boxes (agreeing to the visit) are ticked only with the person's yes: the approved plan, or the summary.
 //  - Doubtful page: the person is asked first (fillConsent).
 // If the form can't be opened or nothing matches, it returns null and the caller tells the person.
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFile } from "node:child_process";
 import { askJson } from "../ai/json.js";
 import { fillConsent, SECRET_LABEL, SUBMIT_LIKE, type Fact } from "./fill.js";
 import { addEvidence, type ToolContext } from "./tools.js";
+
+/**
+ * One line per step of filling a web form, in ~/.cache/calhack/webform.jsonl (and the terminal), so "why didn't it fill?"
+ * can be answered. Field labels and outcomes only, never what was typed.
+ */
+export function webLog(stage: string, data: Record<string, unknown> = {}): void {
+  const line = JSON.stringify({ ts: new Date().toISOString(), stage, ...data });
+  console.log(`[webform] ${line}`);
+  try {
+    const dir = join(homedir(), ".cache", "calhack");
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, "webform.jsonl"), line + "\n");
+  } catch {
+    // Logging must never get in the way.
+  }
+}
 
 export interface FormField {
   /** Our number for the field on the page. */
@@ -190,7 +209,10 @@ export async function matchFields(fields: FormField[], facts: Fact[], signal?: A
  */
 export async function fillWebForm(ctx: ToolContext, url: string, facts: Fact[], deps: WebFormDeps, o: { approved?: boolean } = {}): Promise<WebFillResult | null> {
   const consent = await fillConsent(ctx, url);
-  if (consent) return null;
+  if (consent) {
+    webLog("not_filled", { reason: consent });
+    return null;
+  }
   if (ctx.signal?.aborted) return null;
   let page: WebPage;
   try {
@@ -198,6 +220,7 @@ export async function fillWebForm(ctx: ToolContext, url: string, facts: Fact[], 
     page = await deps.open(url);
   } catch (e) {
     ctx.ui.detail(`Couldn't open the form with Playwright: ${(e as Error).message}`, true);
+    webLog("open_failed", { error: (e as Error).message.slice(0, 300) });
     return null;
   }
   try {
@@ -205,7 +228,9 @@ export async function fillWebForm(ctx: ToolContext, url: string, facts: Fact[], 
     const boxes = all.filter(fillable);
     const choices = all.filter(choosable);
     ctx.ui.detail(`Form has ${all.length} fields; I may type into ${boxes.map((b) => b.label || b.type).join(", ") || "none"}; choices I may set if your message states them: ${choices.map((c) => c.label).join(", ") || "none"}`, true);
+    webLog("fields", { all: all.map((f) => `${f.tag}/${f.type || "-"} "${f.label}"${f.required ? " (required)" : ""}${f.options ? ` [${f.options.join(" | ")}]` : ""}`), boxes: boxes.map((b) => b.label), choices: choices.map((c) => c.label), details: facts.map((f) => f.label) });
     const matches = await matchFields([...boxes, ...choices], facts, ctx.signal);
+    webLog("matched", { matches: matches.map((m) => `${m.field.label} <- ${m.fact.label}${m.option !== undefined ? ` = ${m.field.options![m.option]}` : ""}`) });
     const filled: WebFillResult["filled"] = [];
     for (const { field, fact, option, quote } of matches) {
       if (ctx.signal?.aborted) break;
@@ -225,6 +250,7 @@ export async function fillWebForm(ctx: ToolContext, url: string, facts: Fact[], 
       const now = await page.fill(field.i, value).catch(() => "");
       if (now === value) filled.push({ field: field.label || field.type, detail: fact.label });
     }
+    webLog("filled", { filled: filled.map((f) => (f.chose ? `${f.field}=${f.chose}` : f.field)) });
     if (!filled.length) {
       await page.close().catch(() => {});
       return null;
@@ -241,9 +267,11 @@ export async function fillWebForm(ctx: ToolContext, url: string, facts: Fact[], 
       // Which details went where, never the typed values (a chosen option is the form's own wording, so it's shown).
       output: `Filled ${filled.map((f) => (f.chose ? `${f.field}: ${f.chose} (${f.detail})` : `${f.field} (${f.detail})`)).join(", ")}; read back from the page. ${r.submitted ? `Submitted; the page now says: "${r.confirmation}"` : `Not submitted: ${r.problem}`}`,
     });
+    webLog(r.submitted ? "submitted" : "not_submitted", { submit, confirmation: r.confirmation, problem: r.problem });
     return { filled, submit, ...r, evidenceRef };
   } catch (e) {
     ctx.ui.detail(`Filling the form with Playwright failed: ${(e as Error).message}`, true);
+    webLog("failed", { error: (e as Error).message.slice(0, 300) });
     await page.close().catch(() => {});
     return null;
   }
@@ -327,9 +355,19 @@ export async function confirmSubmitted(
 
 const BROWSERS = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/Applications/Chromium.app/Contents/MacOS/Chromium"];
 
-type Browser = Awaited<ReturnType<typeof import("playwright-core")["chromium"]["launch"]>>;
-/** One browser for the whole session: the form must stay open after filling, for the person to check and send. */
-let browser: Browser | null = null;
+type Context = Awaited<ReturnType<typeof import("playwright-core")["chromium"]["launchPersistentContext"]>>;
+/** One browser window for the whole session: the form stays open afterwards, so the person can see what was sent. */
+let context: Context | null = null;
+const PROFILE = join(tmpdir(), "calhack-forms");
+
+/** Brings CalHack's Chrome window in front of the person's own Chrome, so they can watch it fill (macOS, best effort). */
+function raiseWindow(): void {
+  execFile("/usr/bin/pgrep", ["-f", `user-data-dir=${PROFILE}`], (err, out) => {
+    const pid = err ? "" : out.toString().trim().split("\n")[0];
+    if (!/^\d+$/.test(pid)) return;
+    execFile("/usr/bin/osascript", ["-e", `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`], () => {});
+  });
+}
 
 /**
  * Finds the form's fields and describes each by its label. Runs in the page. Text boxes and menus are numbered with
@@ -372,6 +410,17 @@ const FIELDS_SCRIPT = `(() => {
     }
     if (!shown(el)) continue;
     let label = labelOf(el);
+    // A label that isn't tied to its box (just text above it): the closest label or text just before the box.
+    if (!label) {
+      let prev = el.previousElementSibling;
+      while (prev && !text(prev)) prev = prev.previousElementSibling;
+      if (prev && prev.tagName !== "INPUT" && prev.tagName !== "SELECT" && prev.tagName !== "TEXTAREA") label = text(prev);
+    }
+    if (!label) {
+      const wrap = el.parentElement;
+      const near = wrap && [...wrap.querySelectorAll("label, legend")].find((l) => !l.control || l.control === el);
+      if (near) label = text(near);
+    }
     if (!label) label = el.getAttribute("placeholder") || el.getAttribute("name") || el.id || "";
     const field = { i: out.length, tag: el.tagName.toLowerCase(), type, label: label.slice(0, 80), autocomplete: (el.getAttribute("autocomplete") || "").toLowerCase(), value: type === "checkbox" ? "" : el.value || "", required: el.required || el.getAttribute("aria-required") === "true" };
     if (type === "checkbox") field.checked = el.checked;
@@ -416,14 +465,22 @@ export const playwrightForms: WebFormDeps = {
     const path = [process.env.CALHACK_BROWSER_PATH, ...BROWSERS].find((p) => p && existsSync(p));
     if (!path) throw new Error("Chrome or Edge isn't installed");
     const { chromium } = await import("playwright-core");
-    if (!browser?.isConnected()) {
-      browser = await chromium.launch({ executablePath: path, headless: process.env.CALHACK_FORM_HEADLESS === "1", args: ["--no-first-run", "--no-default-browser-check", "--window-size=1100,900"] });
+    if (!context) {
+      webLog("launching", { browser: path.split("/").slice(-1)[0] });
+      context = await chromium.launchPersistentContext(PROFILE, {
+        executablePath: path,
+        headless: process.env.CALHACK_FORM_HEADLESS === "1",
+        viewport: null,
+        args: ["--no-first-run", "--no-default-browser-check", "--window-size=1100,900"],
+      });
+      context.on("close", () => (context = null));
     }
-    const context = await browser.newContext({ viewport: null });
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
     await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
     await page.bringToFront();
+    raiseWindow();
+    webLog("opened", { host: new URL(url).hostname, title: (await page.title()).slice(0, 80) });
     return {
       fields: () => page.evaluate(FIELDS_SCRIPT) as Promise<FormField[]>,
       async fill(i, value) {
@@ -472,7 +529,7 @@ export const playwrightForms: WebFormDeps = {
             .map((el) => (el.labels && el.labels.length ? text(el.labels[0]) : el.getAttribute("aria-label") || el.name || "a field").slice(0, 60));
           return { url: location.href, text: document.body.innerText.slice(0, 6000), invalid: [...new Set(invalid)] };
         })()`) as Promise<{ url: string; text: string; invalid: string[] }>,
-      close: () => context.close(),
+      close: () => page.close(),
       // For checking by hand and in end-to-end scripts (screenshots); not part of WebPage.
       raw: page,
     } as WebPage;

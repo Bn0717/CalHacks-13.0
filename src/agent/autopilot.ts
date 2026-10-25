@@ -342,6 +342,8 @@ export const ACCESSIBILITY_SETTINGS = "x-apple.systempreferences:com.apple.prefe
 
 export interface AutopilotOptions {
   instruction: string;
+  /** Checked by code before every look: true = the step is finished (e.g. the page a link opens is showing). */
+  doneWhen?: () => Promise<boolean>;
   /** Tells the person what to do for the parts that stay theirs. */
   clickTarget?: string;
   /** The app the step happens in (e.g. "System Settings"). Default: the app in front. */
@@ -400,7 +402,7 @@ async function workOnStep(ctx: ToolContext, o: AutopilotOptions): Promise<Autopi
   if (ctx.mac.ui) {
     const { uiPilot } = await import("./uipilot.js");
     const t0 = Date.now();
-    const r = await uiPilot(ctx, ctx.mac.ui, { instruction: o.instruction, app: o.app, routes: !o.facts?.length, facts: o.facts, record: o.record });
+    const r = await uiPilot(ctx, ctx.mac.ui, { instruction: o.instruction, app: o.app, routes: !o.facts?.length, facts: o.facts, record: o.record, doneWhen: o.doneWhen });
     if (process.env.CALHACK_DEBUG) console.log(`[uipilot] ${r.outcome} in ${Date.now() - t0} ms, ${r.decisions} decisions: ${r.trail.join("; ")}`);
     if (r.outcome !== "fallback") return { outcome: r.outcome, trail: r.trail, personHelped: r.personHelped };
     trail.push(...r.trail);
@@ -464,6 +466,10 @@ async function workOnStep(ctx: ToolContext, o: AutopilotOptions): Promise<Autopi
   const now = () => Date.now();
 
   for (let round = 0; round < max * 2 && acted < max; round++) {
+    if (o.doneWhen && (await o.doneWhen().catch(() => false))) {
+      trail.push("Done: the page opened");
+      return { outcome: "done", trail, personHelped };
+    }
     let a: Action | undefined;
     let capturedAt = 0;
     let decidedAt = 0;

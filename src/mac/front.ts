@@ -15,6 +15,9 @@ export async function frontAppName(): Promise<string | null> {
   return info?.match(/="(.+)"/)?.[1] ?? null;
 }
 
+/** Browsers whose page address CalHack can read. */
+export const BROWSERS = ["Safari", "Safari Technology Preview", "Google Chrome", "Arc", "Brave Browser", "Microsoft Edge", "Chromium", "Vivaldi", "Opera"];
+
 const CHROMIUM_BROWSERS = new Set(["Google Chrome", "Chrome", "Arc", "Brave Browser", "Microsoft Edge", "Chromium", "Vivaldi", "Opera"]);
 
 /**

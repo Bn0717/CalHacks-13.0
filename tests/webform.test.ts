@@ -255,13 +255,14 @@ describe("guide_person with a form: click on screen, then Playwright fills and s
     const card: Fact[] = [{ label: "First name", value: "Linda" }, { label: "Phone", value: "(555) 010-2030" }];
     const { ctx, guided, said } = fakeCtx({ sourceApp: "Google Chrome", approvedPlan: ["Check in online"] }, {
       run: async () => ({ code: 0, output: "", timedOut: false }),
-      pageUrl: async () => "http://localhost:4321/checkin.html",
+      // The email first; the check-in page once the link was clicked.
+      pageUrl: async () => (guided.length ? "http://localhost:4321/checkin.html" : "https://mail.google.com/mail/u/0/#inbox/abc"),
       webForm: b.deps,
       myCard: async () => card,
     });
     const out = await guidePerson.run(input([{ label: "Name", value: "Linda" }, { label: "Appointment number", value: "BV-48213" }]), ctx);
     // No screen access in this fake, so the link click is "done by the person".
-    expect(guided).toEqual(['Click the "Check in" link in the message, then stop as soon as the page it opens is showing']);
+    expect(guided).toEqual(['Click the "Check in" link in the message']);
     expect(b.typed).toEqual(["Full name=Linda", "Appointment number=BV-48213", "Phone=(555) 010-2030"]);
     expect(b.submitted()).toBe(1);
     expect(said.at(-1)).toMatch(/You're checked in/);
@@ -338,5 +339,33 @@ describe("choosing an option the message states (e.g. the visit type)", () => {
     const deps: WebFormDeps = { open: async () => ({ ...(await b.deps.open("x")), choose: async () => "" }) };
     answer([{ field: 8, detail: "Visit type", option: 1, quote: "Video visit" }]);
     expect(await fillWebForm(fakeCtx().ctx, URL, safeFacts([video]), deps, { approved: true })).toBeNull();
+  });
+});
+
+import { uiPilot, type UiDeps } from "../src/agent/uipilot.js";
+
+describe("the link step ends as soon as the page opens (checked by code)", () => {
+  it("stops before asking the AI anything once doneWhen says the page is open", async () => {
+    const decide = vi.fn();
+    const ui = { list: async () => ({ app: "Google Chrome", window: "Check in", items: [{ path: "a", role: "AXButton", name: "Check in", frame: { x: 0, y: 0, w: 10, h: 10 } }, { path: "b", role: "AXTextField", name: "Appointment number", frame: { x: 0, y: 0, w: 10, h: 10 } }] }) } as unknown as UiDeps;
+    const { ctx } = fakeCtx();
+    const r = await uiPilot(ctx, ui, { instruction: 'Click the "Check in" link in the message', decide, doneWhen: async () => true, settleMs: 0, sleep: async () => {} });
+    expect(r.outcome).toBe("done");
+    expect(decide).not.toHaveBeenCalled();
+  });
+
+  it("waits for the new page's address, then hands the form to Playwright", async () => {
+    const b = fakeBrowser();
+    answer([{ field: 0, detail: "Name" }, { field: 1, detail: "Appointment number" }]);
+    verdict(true, "✅ You're checked in.");
+    let reads = 0;
+    const guidePerson = TOOLS.find((t) => t.name === "guide_person")!;
+    const { ctx } = fakeCtx({ approvedPlan: ["Check in online"] }, {
+      // The new tab takes a moment: the email's address is still showing for the first few reads.
+      pageUrl: async () => (++reads < 4 ? "https://mail.google.com/mail/u/0/#inbox/abc" : "https://checkin.bayview.example/visit"),
+      webForm: b.deps,
+    });
+    await guidePerson.run({ instruction: "x", click_target: "Check in", settings_url: null, in_message: true, fill_details: [{ label: "Name", value: "Linda" }, { label: "Appointment number", value: "BV-48213" }] }, ctx);
+    expect(b.submitted()).toBe(1);
   });
 });

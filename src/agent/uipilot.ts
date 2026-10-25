@@ -261,6 +261,8 @@ export interface UiPilotOptions {
   routes?: boolean;
   /** Details the person was given that CalHack may type into a form (already cleaned by safeFacts). */
   facts?: Fact[];
+  /** Checked by code before every decision: true = the step is finished (e.g. the page a link opens is showing). */
+  doneWhen?: () => Promise<boolean>;
   /** The address of the page in front, to check before typing details. Default: ctx.mac.pageUrl. */
   pageUrl?: () => Promise<string | null>;
   record?: (r: ActionRecord) => void;
@@ -348,6 +350,10 @@ export async function uiPilot(ctx: ToolContext, ui: UiDeps, o: UiPilotOptions): 
 
   for (let round = 0; round < max; round++) {
     if (stopped()) return result("stopped");
+    if (o.doneWhen && (await o.doneWhen().catch(() => false))) {
+      trail.push("Done: the page opened");
+      return result("done");
+    }
     let d: UiDecision;
     try {
       decisions++;

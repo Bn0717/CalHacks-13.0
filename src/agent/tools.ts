@@ -19,7 +19,7 @@ import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 import { closeOpenedSheet } from "./uipilot.js";
 import { safeFacts, type Fact } from "./fill.js";
-import { fillWebForm, type WebFormDeps } from "./webform.js";
+import { fillWebForm, webLog, type WebFormDeps } from "./webform.js";
 import { signedInPage } from "../core/trusted.js";
 import { cardIsThePerson } from "../mac/contacts.js";
 import { addEventCommand, findEventCommand, parseEvent, parseFound, whenLabel } from "../mac/calendar.js";
@@ -209,7 +209,7 @@ function shq(text: string): string {
  * A step only the screen can finish (a click somewhere). CalHack opens the page, then looks at the screen every few seconds
  * and does the clicks itself. The AI judges each action: parts that need the person's own hands, and anything it can't work out, go to the person.
  */
-async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickTarget?: string; settingsUrl?: string; facts?: Fact[] }): Promise<{ result: "done" | "skip"; by: "calhack" | "person"; trail: string[] }> {
+async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickTarget?: string; settingsUrl?: string; facts?: Fact[]; doneWhen?: () => Promise<boolean> }): Promise<{ result: "done" | "skip"; by: "calhack" | "person"; trail: string[] }> {
   const url = g.settingsUrl && SETTINGS_URL.test(g.settingsUrl) ? g.settingsUrl : undefined;
   if (!ctx.mac.screen) return { result: await ctx.ui.guide(g), by: "person", trail: ["No screen access"] };
   if (url) {
@@ -222,7 +222,7 @@ async function finishOnScreen(ctx: ToolContext, g: { instruction: string; clickT
     if (w.reason === "no-glance") await new Promise((x) => setTimeout(x, 1500));
   }
   ctx.ui.say("Let me take care of that for you.");
-  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord, facts: g.facts });
+  const r = await autopilot(ctx, { instruction: g.instruction, clickTarget: g.clickTarget, app: url ? "System Settings" : undefined, stopped: ctx.stopped, record: fileRecord, facts: g.facts, doneWhen: g.doneWhen });
   if (r.outcome === "done") return { result: "done", by: "calhack", trail: r.trail };
   if (r.outcome === "skipped" || r.outcome === "stopped") return { result: "skip", by: "person", trail: r.trail };
   // It couldn't finish: the person gets the plain version, and is told why.
@@ -1110,13 +1110,27 @@ async function formViaPlaywright(
   o: { clickTarget?: string; inMessage: boolean; facts: Fact[]; webForm: WebFormDeps },
 ): Promise<{ done?: string; linkClicked: boolean }> {
   let linkClicked = false;
+  // The link's page is open once the browser shows a new web address that isn't the email: checked by code, not by
+  // looking at the screen, so the screen step stops right there and Playwright does the form.
+  const startUrl = await ctx.mac.pageUrl?.().catch(() => null);
+  const formUrl = async () => {
+    const u = await ctx.mac.pageUrl?.().catch(() => null);
+    return u && u !== startUrl && /^https?:/.test(u) && !signedInPage(u) ? u : null;
+  };
   if (o.inMessage && o.clickTarget) {
-    const click = await finishOnScreen(ctx, { instruction: `Click the "${o.clickTarget}" link in the message, then stop as soon as the page it opens is showing` });
+    const click = await finishOnScreen(ctx, { instruction: `Click the "${o.clickTarget}" link in the message`, doneWhen: async () => !!(await formUrl()) });
     if (click.result === "skip") return { done: `The person skipped it (${click.trail.join("; ")}).`, linkClicked };
     linkClicked = true;
+    webLog("link_clicked", { trail: click.trail, by: click.by });
   }
   if (ctx.signal?.aborted) return { done: "The person pressed Stop.", linkClicked };
-  const url = await ctx.mac.pageUrl?.().catch(() => null);
+  // A new tab can take a moment to load: wait up to 6 s for its address.
+  let url = linkClicked ? await formUrl() : await ctx.mac.pageUrl?.().catch(() => null);
+  for (let t = 0; linkClicked && !url && t < 12 && !ctx.signal?.aborted; t++) {
+    await new Promise((x) => setTimeout(x, 500));
+    url = await formUrl();
+  }
+  webLog("page_address", { host: url ? new URL(url).hostname : null, readable: !!url });
   if (!url || signedInPage(url) || !/^https?:/.test(url)) {
     // Not a web page CalHack can open (or the address can't be read): only then is the form filled on screen.
     ctx.ui.detail(`No form page to open with Playwright (${url ? new URL(url).hostname : "couldn't read the page address"}); filling it on screen instead.`, true);

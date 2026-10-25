@@ -16,7 +16,7 @@ import { actCommand, actOn, closeSheet, controlCenter, listWindow, typeInto } fr
 import type { ScreenDeps } from "./autopilot.js";
 import { folderPath } from "./danger.js";
 import { listFilesIn, type AppInfo, type MacDeps } from "./tools.js";
-import { browserUrl, frontAppName } from "../mac/front.js";
+import { BROWSERS, browserUrl, frontAppName } from "../mac/front.js";
 import { playwrightForms } from "./webform.js";
 import { myCard } from "../mac/contacts.js";
 
@@ -149,9 +149,17 @@ export function realMac(opts: { execute: Executor; trash: (path: string) => Prom
     ui,
     webForm: playwrightForms,
     myCard: () => myCard(),
+    // The page in the browser: the app in front when that's a browser, otherwise a browser that's already running
+    // (CalHack's own bar is often in front after a tap). Never starts a browser that isn't open.
     pageUrl: async () => {
-      const app = await frontAppName();
-      return app ? browserUrl(app) : null;
+      const front = await frontAppName();
+      const running = await runningAppNames().catch(() => [] as string[]);
+      const candidates = [front, ...BROWSERS.filter((b) => running.includes(b))].filter((a, i, all): a is string => !!a && BROWSERS.includes(a) && all.indexOf(a) === i);
+      for (const app of candidates) {
+        const url = await browserUrl(app);
+        if (url) return url;
+      }
+      return null;
     },
     protectedApps: ["Finder", "CalHack", "Electron", ...(opts.protectedApps ?? [])],
     sandboxed: (c, t) => runSandboxed(c, t),
