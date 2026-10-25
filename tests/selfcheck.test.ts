@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // The model is faked: it first tries to finish leaving the check-in to the person, then does it.
 const create = vi.fn();
-vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ beta: { messages: { create } } }), MODEL: () => "test-model" }));
+vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ beta: { messages: { create } } }), MODEL: () => "test-model", loadEnv: () => {} }));
 
 import { handedBack, runAgent } from "../src/agent/agent.js";
 import type { AgentUI, MacDeps } from "../src/agent/tools.js";

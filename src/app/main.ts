@@ -32,6 +32,7 @@ import { realMac } from "../agent/mac.js";
 import { autopilot, fileRecord, waitForSettle } from "../agent/autopilot.js";
 import { offlineGuide } from "../agent/offline.js";
 import { TOOLS as AGENT_TOOLS, type AgentUI, type ToolContext } from "../agent/tools.js";
+import { refusal } from "../agent/scam.js";
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
@@ -372,6 +373,8 @@ async function onHotkey(): Promise<void> {
 
 async function lookAndHelp(): Promise<void> {
   busy = true;
+  // A new look at the screen: an earlier scam's lock ends (the same scam on screen is caught again).
+  scamLock = null;
   job = null;
   pendingLookup = null;
   try {
@@ -490,6 +493,11 @@ async function uninstallFlow(name: string): Promise<void> {
 let agentAsk: ((answer: string) => void) | null = null;
 let agentConfirm: { resolve: (yes: boolean) => void; typeToConfirm?: string } | null = null;
 let agentExplain: (() => void) | null = null;
+/**
+ * The message on screen was a scam: until the person presses the shortcut on something else, every follow-up
+ * ("continue", "I trust it", Continue after Stop) gets the same refusal, without asking the agent again.
+ */
+let scamLock: string[] | null = null;
 let agentGuide: ((answer: "done" | "skip") => void) | null = null;
 let agentRunning = false;
 /** Follow-ups typed while the agent works. */
@@ -534,6 +542,17 @@ function capitalize(text: string): string {
 }
 
 async function agentFlow(request: string, look: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" }, resume?: AgentResume): Promise<void> {
+  if (scamLock) {
+    const r = refusal(scamLock);
+    resumeAgent = null;
+    agentExplain = () => {
+      agentExplain = null;
+      showBar({ phase: "hidden" });
+    };
+    showBar({ phase: "explain", title: r.title, paragraphs: r.paragraphs, steps: r.steps });
+    say("I'm sorry, this is a scam, so I can't continue with it.", "now");
+    return;
+  }
   job = null;
   resumeAgent = null;
   agentRunning = true;
@@ -632,6 +651,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     // While developing, CalHack runs inside the editor or terminal that started it, so closing that would close CalHack.
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
     const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen, glance: glanceScreen, beforeClick: holdClicksThrough } : undefined });
+    let runCtx: ToolContext | null = null;
     const result = await runAgent(
       { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env), sourceApp: lastExternalApp ?? undefined },
       ui,
@@ -642,6 +662,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
         approvedPlan: resume?.approvedPlan,
         onContext: (c) => {
           if (agentNow) agentNow.ctx = c;
+          runCtx = c;
         },
         stopped: () => stopRequested || !live(),
         onTool: (name, input) => {
@@ -655,6 +676,9 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     );
     finishStep();
     lastExchange = { request: request || "(pressed the help key)", headline: result.headline, details: result.details };
+    // Set by the agent's callback during the run (TypeScript can't see that, hence the cast).
+    const scam = (runCtx as ToolContext | null)?.scam;
+    if (scam) scamLock = scam.reasons;
     if (live()) agentNow = null;
     const verdict = result.verdict === "done" ? "done" : result.verdict === "answered" ? "answered" : result.verdict === "cant_do" ? "cant-do" : "not-done";
     const proofs = result.proofs.map((p) => ({ claim: capitalize(p.shows || p.evidence.output.split("\n")[0].slice(0, 90) || "Check passed"), checks: [p.evidence.command] }));

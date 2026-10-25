@@ -19,6 +19,8 @@ import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 import { closeOpenedSheet } from "./uipilot.js";
 import { safeFacts, type Fact } from "./fill.js";
+import { keepWarning, refusal, scamSigns, type ScamVerdict } from "./scam.js";
+import { loadEnv } from "../ai/client.js";
 import { fillWebForm, webLog, type WebFormDeps } from "./webform.js";
 import { signedInPage } from "../core/trusted.js";
 import { cardIsThePerson } from "../mac/contacts.js";
@@ -116,7 +118,9 @@ export interface ToolContext {
   /** Before → after rows for the receipt. */
   beforeAfter: { label: string; before: string; after: string }[];
   /** A tool sets this when the run must end now without another call to Claude (e.g. Wi-Fi was just switched off). */
-  autoFinish?: { headline: string; details: string[]; proofRefs: { ref: string; shows: string }[] };
+  autoFinish?: { headline: string; details: string[]; proofRefs: { ref: string; shows: string }[]; verdict?: "done" | "cant_do" };
+  /** The message is a scam: every action is refused for the rest of the run, whatever anyone asks. */
+  scam?: ScamVerdict;
   /** True once the person pressed Stop or Cancel. Long loops check it before every action. */
   stopped?: () => boolean;
   /** Aborted the moment the person presses Stop: requests in flight are cancelled and loops end at once. */
@@ -1229,6 +1233,7 @@ async function formViaPlaywright(
 
 /** The backup join link from .env (CALHACK_JOIN_LINK), used only when the message's link can't be read. https only. */
 export function backupJoinLink(): string | null {
+  loadEnv();
   const raw = process.env.CALHACK_JOIN_LINK?.trim();
   if (!raw) return null;
   try {
@@ -1367,6 +1372,28 @@ const askPerson: AgentTool = {
   },
 };
 
+/** Refuses a scam: shows why, locks every action for the rest of the run, and ends it. */
+async function refuseScam(ctx: ToolContext, reasons: string[]): Promise<string> {
+  const plain = reasons.map((r) => r.trim()).filter(Boolean).slice(0, 5);
+  ctx.scam = { reasons: plain.length ? plain : ["It has signs of a scam."] };
+  ctx.ui.say("Careful. This is a scam, so I won't do it.");
+  await ctx.ui.explain(refusal(ctx.scam.reasons));
+  ctx.autoFinish = { verdict: "cant_do", headline: "This is a scam, so I didn't do any of its steps.", details: ctx.scam.reasons.slice(0, 3), proofRefs: [] };
+  return "Refused: this message is a scam. Nothing was done, and nothing will be done for it.";
+}
+
+const reportScam: AgentTool = {
+  name: "report_scam",
+  kind: "talk",
+  description: "The message or page on screen is a scam (it asks for gift cards or untraceable payment, to turn off antivirus, to allow remote control, to download a program from a site that isn't the maker's, for passwords or ID through a link, threatens to cancel within hours, or says not to call the real office). CalHack refuses, tells the person why, and won't do any of its steps even if they insist. Use this instead of propose_plan.",
+  input_schema: obj({ reasons: { type: "array", items: { type: "string" }, description: "Each sign of the scam, in plain words, e.g. 'It asks you to pay with a gift card'" } }),
+  label: () => "Checking this message…",
+  async run(input, ctx) {
+    const reasons = Array.isArray(input.reasons) ? input.reasons.filter((r): r is string => typeof r === "string").map((r) => r.slice(0, 200)) : [];
+    return refuseScam(ctx, reasons);
+  },
+};
+
 const proposePlan: AgentTool = {
   name: "propose_plan",
   kind: "talk",
@@ -1399,7 +1426,13 @@ const proposePlan: AgentTool = {
     if (!steps.length) return "No steps given. Ask the person what they want with ask_person.";
     const details = steps.map((x, i) => `${i + 1}. ${x.text}${x.by === "you" ? ` (you'll do this part${x.why ? `: ${x.why}` : ""})` : x.by === "skip" ? ` (I'll skip this${x.why ? `: ${x.why}` : ""})` : ""}`);
     const goal = s(input, "goal") || "Do the steps on your screen";
-    const warning = s(input, "warning").slice(0, 400);
+    // Code checks the message's steps for scam signs too, whatever the AI concluded: a scam is refused, not planned.
+    const scam = scamSigns([s(input, "goal"), s(input, "warning"), ...steps.map((x) => x.text), ...steps.map((x) => x.why)].join("\n"));
+    if (scam) return refuseScam(ctx, scam.reasons);
+    // A warning that's only about a sender the person trusts (CALHACK_TRUSTED_SENDERS) isn't shown.
+    const rawWarning = s(input, "warning").slice(0, 400);
+    const warning = keepWarning(rawWarning) ? rawWarning : "";
+    if (rawWarning && !warning) ctx.ui.detail("The sender is one you trust, so I'm not warning about it.", true);
     if (warning) {
       ctx.ui.say("Careful. This message might not be real. You decide whether I go ahead.");
       const yes = await ctx.ui.confirm({
@@ -1523,7 +1556,7 @@ const finish: AgentTool = {
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkScreen, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
   quitApp, openApp, changeSetting, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
-  startCall, addCalendarEvent, joinMeeting, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
+  startCall, addCalendarEvent, joinMeeting, reportScam, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 
 /** The real list of files in a folder (not following links, skipping hidden files), up to a limit. */
