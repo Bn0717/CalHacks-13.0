@@ -17,6 +17,8 @@ export interface AgentInput {
   screenText?: string;
   screenshot?: { data: string; mediaType: "image/jpeg" | "image/png" };
   environment: string;
+  /** The web page they were on, if any. */
+  pageUrl?: string;
 }
 
 export interface AgentResult {
@@ -41,6 +43,8 @@ How to work:
 1. Understand what they want. If they asked something specific, that's the goal. If they said nothing, use what's on their screen.
 2. Look first with the read-only tools (apps, sound, printer, internet, disk, files). Don't guess.
 3. Act with your tools. Do it yourself; don't hand them steps to follow. Never tell the person to open an app, System Settings, a folder or a web page: use open_app, open_settings, show_file or open_website. Ordinary settings such as Wi-Fi, Bluetooth and volume are yours to switch: use set_wifi, set_bluetooth and set_volume as soon as asked, without asking permission first. So are Accessibility features (text size, zoom, contrast, reduce motion, pointer size, captions): open_settings with x-apple.systempreferences:com.apple.Accessibility-Settings.extension, then guide_person. Letting an app control the Mac (Privacy & Security > Accessibility) is a permission and stays with the person. Fastest route first: (a) a built-in tool (change_setting, set_volume, set_sound_output, fix_problem, open_app…) takes under a second; (b) run_command only for a change you know a safe command for that no tool covers; (c) the screen only when no command can do it: open_settings at the exact page, then guide_person. The person's own turn is the last resort. Only when a step is still incomplete and only a click on screen can finish it, call guide_person: CalHack then watches the screen and does the clicks itself, and hands only private parts (permissions, passwords, sign-in, payments, personalization such as names and preferences, deleting) to the person. Never ask for, guess or fill in those yourself: let the person do them.
+Links in their email or on their screen are theirs to use: CalHack never types passwords, codes, card or ID numbers on a web page (code stops it), so the most a page gets is what their own text already says. Don't skip a step just because a link's address doesn't match the sender's name; skip it only if the email or page looks like a scam (threats, urgency, prizes, asks for passwords, payment, gift cards or ID numbers) or the link is clearly a placeholder.
+Web pages: anything to do on a website (fill in a form and send it, sign up, book, register, click through a site) goes to web_task with the page address and every detail from their text. It fills each field, reads it back, sends it and checks the page confirms it. Don't use guide_person, check_screen or the screen tools for web pages.
 4. Check again that it worked: the act tools read their result back. When the result is something you can see (dark mode, a page or app now showing), add one check_screen as the final check. Then call finish with the evidence numbers that prove it.
 
 Rules:
@@ -86,7 +90,7 @@ export interface AgentOptions {
 
 export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opts: AgentOptions = {}): Promise<AgentResult> {
   const started = Date.now();
-  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal, stopped: opts.stopped, approvedPlan: opts.approvedPlan };
+  const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [], signal: opts.signal, stopped: opts.stopped, approvedPlan: opts.approvedPlan, request: input.request, screenText: input.screenText, pageUrl: input.pageUrl };
   opts.onContext?.(ctx);
   const stopped = () => !!opts.signal?.aborted || !!opts.stopped?.();
   const toolCalls: AgentResult["toolCalls"] = [];
@@ -106,6 +110,7 @@ export async function runAgent(input: AgentInput, ui: AgentUI, mac: MacDeps, opt
       `This Mac:\n${input.environment}`,
       input.screenText?.trim() ? `<screen_text>\n${input.screenText.slice(0, 6000)}\n</screen_text>` : "",
       input.screenshot ? "The image is their screen right now." : "",
+      input.pageUrl ? `They're on this web page: ${input.pageUrl}` : "",
       input.request ? `They said: "${input.request}"` : "They pressed the help key without saying anything. Work out what they need from the screen. If it shows steps for them to follow, use propose_plan; if it's unclear, ask_person.",
       danger ? `CalHack's safety rules flag this request as something that can't be undone (${danger}). Use explain_irreversible.` : "",
     ].filter(Boolean).join("\n\n"),

@@ -55,6 +55,8 @@ export interface StepLine {
   status: "todo" | "running" | "done" | "unverified" | "skipped" | "blocked" | "failed" | "waiting";
   /** Short reason when skipped/blocked/failed. */
   note?: string;
+  /** Part of the step above it (e.g. one field of a web form): shown indented. */
+  sub?: boolean;
 }
 
 export interface Note {

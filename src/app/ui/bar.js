@@ -592,7 +592,7 @@
       const off = st.status === "skipped" || st.status === "blocked";
       const bad = st.status === "blocked" || st.status === "failed";
       const tag = STEP_TAG[st.status];
-      return el("li", { class: "step" + (off ? " is-off" : "") + (bad ? " is-bad" : "") },
+      return el("li", { class: "step" + (st.sub ? " is-sub" : "") + (off ? " is-off" : "") + (bad ? " is-bad" : "") },
         st.status === "done" ? el("span", { class: "mark ok", "aria-label": "Done" }, icon("check")) : st.status === "unverified" ? el("span", { class: "mark unknown", role: "img", "aria-label": "Ran, not verified" }, icon("question")) : el("span", { class: "step-num", "aria-hidden": "true" }, String(i + 1)),
         el("div", { class: "step-text" },
           st.text,

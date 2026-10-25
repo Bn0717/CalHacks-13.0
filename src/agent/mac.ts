@@ -11,6 +11,7 @@ import { checkOfficial } from "../core/official.js";
 import type { Executor } from "../core/runner.js";
 import { findAppBundles } from "../core/uninstall.js";
 import { findOfficialSource } from "../droid/research.js";
+import { browserPath, playwrightDeps } from "../browser/chrome.js";
 import { listOutputs, setOutput } from "../mac/audio.js";
 import { actCommand, actOn, closeSheet, controlCenter, listWindow, typeInto } from "../mac/ui.js";
 import type { ScreenDeps } from "./autopilot.js";
@@ -144,6 +145,7 @@ export function realMac(opts: { execute: Executor; trash: (path: string) => Prom
     home,
     screen: opts.screen,
     ui,
+    web: browserPath() ? playwrightDeps : undefined,
     protectedApps: ["Finder", "CalHack", "Electron", ...(opts.protectedApps ?? [])],
     sandboxed: (c, t) => runSandboxed(c, t),
     checkRunner: realCheckRunner,

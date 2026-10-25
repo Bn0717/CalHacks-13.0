@@ -177,6 +177,8 @@ if cmd == "list" {
       if let sel = attr(e, kAXSelectedAttribute) as? Bool, sel { item["selected"] = true }
       if let en = attr(e, kAXEnabledAttribute) as? Bool, !en { item["disabled"] = true }
       if let v = attr(e, kAXValueAttribute) as? NSNumber, ["AXCheckBox", "AXSwitch", "AXRadioButton", "AXToggle", "AXSlider"].contains(r) { item["value"] = v }
+      // A link in a web page or email: where it goes.
+      if r == "AXLink", let u = attr(e, "AXURL") { item["url"] = (u as? URL)?.absoluteString ?? String(describing: u) }
       items.append(item)
     }
     for (i, c) in children(e).enumerated() { walk(c, path.isEmpty ? "\(i)" : "\(path).\(i)", d + 1) }
@@ -184,6 +186,42 @@ if cmd == "list" {
   walk(window, "", 0)
   // A panel (sheet) in front is the app's focused window: then only the panel's items are listed.
   out(["ok": true, "app": app.localizedName ?? "", "window": str(window, kAXTitleAttribute), "sheet": role(window) == "AXSheet", "items": items])
+  exit(0)
+}
+
+// The words in the front window, in reading order, with each link's address: "Check in <https://…>".
+// Reads a web page or email the person is signed in to, which downloading the page again can't.
+if cmd == "text" {
+  guard let app = appNamed(args.count > 2 ? args[2] : nil) else { fail("That app isn't running.") }
+  guard let window = frontWindow(app) else { fail("\(app.localizedName ?? "The app") has no open window.") }
+  var text = ""
+  var nodes = 0
+  func add(_ piece: String) {
+    let p = piece.trimmingCharacters(in: .newlines)
+    if p.trimmingCharacters(in: .whitespaces).isEmpty { return }
+    // Pieces of one sentence (text, then a link, then text) stay on one line.
+    if text.isEmpty || text.hasSuffix(" ") || text.hasSuffix("\n") || p.hasPrefix(" ") || p.first.map({ ",.;:)".contains($0) }) == true { text += p }
+    else { text += "\n" + p }
+  }
+  func walk(_ e: AXUIElement, _ d: Int) {
+    nodes += 1
+    if d > 60 || nodes > 8000 || text.count > 30000 { return }
+    let r = role(e)
+    if r == "AXLink" {
+      let n = name(e).isEmpty ? children(e).map({ str($0, kAXValueAttribute) }).joined() : name(e)
+      let u = attr(e, "AXURL").map { ($0 as? URL)?.absoluteString ?? String(describing: $0) } ?? ""
+      add(u.hasPrefix("http") ? "\(n) <\(u)>" : n)
+      if !text.hasSuffix(" ") { text += " " }
+      return
+    }
+    if r == "AXStaticText" { add(str(e, kAXValueAttribute)); return }
+    if r == "AXTextArea" || r == "AXTextField" || r == "AXSecureTextField" { return }
+    // The browser's own tabs and toolbars: other pages' titles aren't part of what they're reading.
+    if r == "AXTabGroup" || r == "AXToolbar" || r == "AXMenuBar" { return }
+    for c in children(e) { walk(c, d + 1) }
+  }
+  walk(window, 0)
+  out(["ok": true, "app": app.localizedName ?? "", "window": str(window, kAXTitleAttribute), "text": text])
   exit(0)
 }
 

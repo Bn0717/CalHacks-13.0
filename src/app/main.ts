@@ -35,12 +35,13 @@ import { TOOLS as AGENT_TOOLS, type AgentUI, type ToolContext } from "../agent/t
 import { triage, type Triage } from "../ai/triage.js";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { parseInstructions, type ParseResult } from "../ai/parse.js";
+import { closeBrowser } from "../browser/chrome.js";
 import { droidProblem, runWithDroid } from "../droid/executor.js";
 import { judgeWithDroid, type PageJudgment } from "../droid/judge.js";
 import { findOfficialSource, type OfficialSource } from "../droid/research.js";
 import { fetchPageText } from "../mac/text.js";
 import { frontAppName } from "../mac/front.js";
-import { describeSource, gatherInstructions } from "./gather.js";
+import { SIGNED_IN, describeSource, gatherInstructions } from "./gather.js";
 import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
@@ -111,7 +112,7 @@ function freshStop(): AbortSignal {
 let envCache: { env: Environment; at: number } | null = null;
 let lastExternalApp: string | null = null;
 /** The last screenshot and screen text, so an answer can be read together with what was on screen. */
-let lastLook: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" };
+let lastLook: { shot: Shot | null; screenText: string; pageUrl?: string } = { shot: null, screenText: "" };
 /** After a guide finds nothing wrong, "Yes, look it up" searches the official help for this goal. */
 let pendingLookup: string | null = null;
 
@@ -394,7 +395,7 @@ async function lookAndHelp(): Promise<void> {
     const shot = screenAllowed() ? await captureScreen() : null;
     const source = await gatherInstructions({ app: appName, recentClipboard: recentClipboard() });
     if (!live()) return;
-    lastLook = { shot, screenText: source.text.slice(0, 6000) };
+    lastLook = { shot, screenText: source.text.slice(0, 6000), pageUrl: source.kind === "webpage" ? source.location : undefined };
 
     // A page that matches our basic scam patterns always goes through the careful route, where Droid judges it.
     if (source.text.trim() && scanForScamSigns(source.text).some((w) => w.level === "blocked")) {
@@ -404,7 +405,10 @@ async function lookAndHelp(): Promise<void> {
 
     // A how-to page on screen is followed as written (with its plan and OK). Anything else goes to the agent,
     // which reads the screen (an error message, say) and helps, or asks what's going on.
-    const pageWithSteps = source.kind !== "screenshot" && source.text.trim().length > 200 && /\b(step|install|click|open|run|terminal|download|settings)\b/i.test(source.text);
+    // An email (or other signed-in page) with steps is for the agent: it plans every step (calendar, a form, an app)
+    // and does them after one yes. How-to pages with commands keep the checked-plan route.
+    const personal = !!source.location && SIGNED_IN.test(source.location);
+    const pageWithSteps = !personal && source.kind !== "screenshot" && source.text.trim().length > 200 && /\b(step|install|click|open|run|terminal|download|settings)\b/i.test(source.text);
     if (pageWithSteps) await instructionsFlow(source, shot);
     else {
       busy = false;
@@ -538,7 +542,7 @@ function capitalize(text: string): string {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
 
-async function agentFlow(request: string, look: { shot: Shot | null; screenText: string } = { shot: null, screenText: "" }, resume?: AgentResume): Promise<void> {
+async function agentFlow(request: string, look: { shot: Shot | null; screenText: string; pageUrl?: string } = { shot: null, screenText: "" }, resume?: AgentResume): Promise<void> {
   job = null;
   resumeAgent = null;
   agentRunning = true;
@@ -565,6 +569,15 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     },
     say: (t) => say(t, "queue"),
     detail: (text, mono) => detail.push({ text, mono }),
+    // A tool's own list (each field of a web form): shown as steps under the one that's running.
+    plan: (lines, done) => {
+      const at = steps.findIndex((st) => st.status === "running");
+      const base = at >= 0 ? at + 1 : steps.length;
+      const head = steps.slice(0, base).filter((st) => !st.sub);
+      steps.length = 0;
+      steps.push(...head, ...lines.map((text, i) => ({ id: `${head.length}.${i + 1}`, text, status: (i < done ? "done" : i === done ? "running" : "todo") as StepLine["status"], sub: true })));
+      work();
+    },
     ask: (question, choices, note) =>
       new Promise((resolve) => {
         agentAsk = (a) => {
@@ -638,7 +651,7 @@ async function agentFlow(request: string, look: { shot: Shot | null; screenText:
     const devHosts = app.isPackaged ? [] : ["Visual Studio Code", "Code", "Terminal", "iTerm", "iTerm2", "Cursor", "Warp"];
     const mac = realMac({ execute, trash: (p) => shell.trashItem(p), protectedApps: devHosts, screen: screenAllowed() ? { capture: captureScreen, glance: glanceScreen, beforeClick: holdClicksThrough } : undefined });
     const result = await runAgent(
-      { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env) },
+      { request: context, screenText: look.screenText, screenshot: look.shot ? { data: look.shot.data, mediaType: look.shot.mediaType } : undefined, environment: describeEnvironment(env), pageUrl: look.pageUrl },
       ui,
       mac,
       {
@@ -1466,7 +1479,7 @@ if (!app.requestSingleInstanceLock()) {
       }, 2500);
     }
   });
-  app.on("will-quit", () => { globalShortcut.unregisterAll(); stopVoiceOut(); });
+  app.on("will-quit", () => { globalShortcut.unregisterAll(); void closeBrowser(); stopVoiceOut(); });
   app.on("window-all-closed", () => {
     // Stay in the menu bar.
   });

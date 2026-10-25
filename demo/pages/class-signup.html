@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Class sign-up · Maple Grove Community Center</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  form { max-width: 520px; display: grid; gap: 14px; }
+  label { display: grid; gap: 4px; font-weight: 600; }
+  input, select, textarea { font: inherit; padding: 8px; }
+  fieldset { display: grid; gap: 6px; }
+  .error { color: #b00020; font-weight: 600; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Maple Grove Community Center</h1>
+  <p>Free computer classes for seniors. Sign up below. (A practice page for CalHack: nothing is sent anywhere.)</p>
+
+  <form id="signup" novalidate>
+    <section id="page1">
+      <h2>Step 1 of 2: About you</h2>
+      <label>First name <input name="first" required autocomplete="given-name"></label>
+      <label>Last name <input name="last" required autocomplete="family-name"></label>
+      <label>Email <input name="email" type="email" required autocomplete="email"></label>
+      <label>Phone <input name="phone" type="tel" required autocomplete="tel"></label>
+      <p class="error" id="err1" role="alert" hidden></p>
+      <button type="button" id="next">Next</button>
+    </section>
+
+    <section id="page2" hidden>
+      <h2>Step 2 of 2: Your class</h2>
+      <label>Class
+        <select name="class" required>
+          <option value="">Choose a class…</option>
+          <option>iPad basics (Tuesday 10am)</option>
+          <option>Video calls with family (Thursday 2pm)</option>
+          <option>Staying safe online (Saturday 11am)</option>
+        </select>
+      </label>
+      <fieldset>
+        <legend>How will you join?</legend>
+        <label><input type="radio" name="format" value="in-person" required> In person</label>
+        <label><input type="radio" name="format" value="online"> Online</label>
+      </fieldset>
+      <label><input type="checkbox" name="largeprint"> I'd like large-print handouts</label>
+      <label>Anything we should know? (optional) <textarea name="notes" rows="3"></textarea></label>
+      <p class="error" id="err2" role="alert" hidden></p>
+      <button type="submit">Sign me up</button>
+    </section>
+  </form>
+
+  <section id="thanks" hidden>
+    <h2 id="thanks-title"></h2>
+    <p id="thanks-text"></p>
+  </section>
+</main>
+<script src="class-signup.js"></script>
+</body>
+</html>

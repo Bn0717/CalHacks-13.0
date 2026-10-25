@@ -26,6 +26,8 @@ export interface UiItem {
   disabled?: boolean;
   /** On/off or slider value, for switches, checkboxes and sliders. */
   value?: number;
+  /** Where a link goes (links in web pages and emails). */
+  url?: string;
 }
 
 export interface UiWindow {
@@ -115,4 +117,37 @@ const q = (s: string) => "'" + s.replace(/'/g, "'\\''") + "'";
 /** The same action as a shell command, for running sensitive ones through Droid's gate. */
 export function actCommand(app: string, item: UiItem, how: string): string {
   return [UI_HELPER, "act", app, item.path, item.role, item.name, how].map(q).join(" ");
+}
+
+/** The links in an app's front window (a web page or an email), with where each one goes. */
+export async function windowLinks(app: string): Promise<{ name: string; url: string }[]> {
+  const w = await listWindow(app);
+  if ("error" in w) return [];
+  const seen = new Set<string>();
+  const out: { name: string; url: string }[] = [];
+  for (const i of w.items) {
+    if (i.role !== "AXLink" || !i.url || !/^https?:/i.test(i.url) || seen.has(i.url)) continue;
+    seen.add(i.url);
+    out.push({ name: i.name, url: i.url });
+  }
+  return out;
+}
+
+/** The words in an app's front window (a web page or email they're signed in to), with each link's address. */
+export async function windowText(app: string): Promise<{ window: string; text: string } | null> {
+  const r = await call(["text", app]);
+  return r.ok && typeof r.text === "string" ? { window: String(r.window ?? ""), text: unwrapRedirects(r.text) } : null;
+}
+
+/** Email links that go through a redirect (Gmail's google.com/url?q=…, Outlook's safelinks): the real address. */
+export function unwrapRedirects(text: string): string {
+  return text.replace(/<(https?:\/\/[^>\s]+)>/g, (whole, raw: string) => {
+    try {
+      const u = new URL(raw);
+      const inner = (u.hostname.endsWith("google.com") && u.pathname === "/url" && u.searchParams.get("q")) || (u.hostname.endsWith("safelinks.protection.outlook.com") && u.searchParams.get("url"));
+      return inner && /^https?:\/\//.test(inner) ? `<${inner}>` : whole;
+    } catch {
+      return whole;
+    }
+  });
 }

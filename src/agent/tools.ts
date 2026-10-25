@@ -18,6 +18,7 @@ import { matchOutput, type SoundOutput } from "../mac/audio.js";
 import { autopilot, fileRecord, type ScreenDeps } from "./autopilot.js";
 import { folderPath, humanSize, insideUserFolder, removalTier, USER_FOLDERS, type UserFolder } from "./danger.js";
 import { closeOpenedSheet } from "./uipilot.js";
+import { runWebTask, type WebDeps } from "../browser/webtask.js";
 
 export interface AppInfo {
   name: string;
@@ -60,6 +61,8 @@ export interface MacDeps {
   screen?: ScreenDeps;
   /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
   ui?: import("./uipilot.js").UiDeps;
+  /** CalHack's own browser window (Playwright). Missing = no web tasks. */
+  web?: () => WebDeps;
   home: string;
   /** Apps CalHack must never close: Finder, CalHack itself, and (while developing) the app it was started from. */
   protectedApps: string[];
@@ -91,6 +94,8 @@ export interface AgentUI {
   guide(g: { instruction: string; clickTarget?: string; settingsUrl?: string; point?: { x: number; y: number; label: string } }): Promise<"done" | "skip">;
   /** Details for "show what's happening". */
   detail(text: string, mono?: boolean): void;
+  /** A task's own step list (e.g. each field of a web form), with how many are done. */
+  plan?(lines: string[], done: number): void;
 }
 
 export interface ToolContext {
@@ -109,6 +114,10 @@ export interface ToolContext {
   signal?: AbortSignal;
   /** The steps the person said yes to on the plan screen (propose_plan). */
   approvedPlan?: string[];
+  /** What the person said, the text on their screen, and the page they were on: web forms are filled only from these. */
+  request?: string;
+  screenText?: string;
+  pageUrl?: string;
 }
 
 export interface AgentTool {
@@ -524,6 +533,150 @@ const openWebsite: AgentTool = {
     return r.code === 0 ? `[${ref}] Opened ${new URL(url).hostname} in the browser.` : `Couldn't open it: ${tail(r.output, 2)}`;
   },
 };
+
+/** Words in the person's request that ask for the form to be sent. */
+const ASKS_TO_SEND = /\b(submit|send|sign (me |us |them )?up|register|apply|book|enrol|enroll|rsvp|reserve|order|request)\b/i;
+
+/** AppleScript text: quotes and backslashes escaped. */
+const asq = (t: string) => '"' + t.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+
+/** "2026-10-26T10:00" → its parts, or null. Local time, as the person reads it in the email. */
+export function parseLocal(when: string): { y: number; mo: number; d: number; h: number; mi: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/.exec(when.trim());
+  if (!m) return null;
+  const [y, mo, d, h, mi] = m.slice(1).map(Number);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
+  return { y, mo, d, h, mi };
+}
+
+export function calendarScript(e: { title: string; start: string; minutes: number; reminder: number | null; location: string; notes: string }): string | null {
+  const t = parseLocal(e.start);
+  if (!t) return null;
+  const date = (v: string) => [`set ${v} to current date`, `set day of ${v} to 1`, `set year of ${v} to ${t.y}`, `set month of ${v} to ${t.mo}`, `set day of ${v} to ${t.d}`, `set hours of ${v} to ${t.h}`, `set minutes of ${v} to ${t.mi}`, `set seconds of ${v} to 0`];
+  return [
+    ...date("s"),
+    `set e to s + (${Math.round(e.minutes)} * minutes)`,
+    'tell application "Calendar"',
+    "  set cal to first calendar whose writable is true",
+    `  set ev to make new event at end of events of cal with properties {summary:${asq(e.title)}, start date:s, end date:e, location:${asq(e.location)}, description:${asq(e.notes)}}`,
+    e.reminder !== null ? `  tell ev to make new display alarm at end of display alarms with properties {trigger interval:-${Math.round(e.reminder)}}` : "",
+    "  set u to uid of ev",
+    // Read it back from Calendar, as proof.
+    "  set found to (first event of cal whose uid is u)",
+    "  set n to count of display alarms of found",
+    '  return (summary of found) & " | " & ((start date of found) as string) & " | " & (name of cal) & " | reminders: " & n',
+    "end tell",
+  ].filter(Boolean).join("\n");
+}
+
+const addCalendarEvent: AgentTool = {
+  name: "add_calendar_event",
+  kind: "act",
+  description: "Add an event to the person's Calendar app, with a reminder before it, and read it back to prove it's there. Use the date, time and details exactly as their text gives them (local time).",
+  input_schema: obj({
+    title: str("e.g. 'Video visit with Dr. Priya Patel'"),
+    start: str("Local date and time, YYYY-MM-DDTHH:MM, e.g. 2026-10-26T10:00"),
+    minutes: { type: "integer", description: "How long, in minutes (30 if the text doesn't say)" },
+    reminder_minutes: { type: "integer", description: "Reminder this many minutes before; 0 for none" },
+    location: str("Where, or a link; empty if none"),
+    notes: str("Useful details from the text (appointment number, phone); empty if none"),
+  }),
+  label: (i) => `Adding "${s(i, "title")}" to your calendar…`,
+  async run(input, ctx) {
+    const start = s(input, "start");
+    const t = parseLocal(start);
+    if (!t) return "That date isn't in the form YYYY-MM-DDTHH:MM.";
+    const when = new Date(t.y, t.mo - 1, t.d, t.h, t.mi);
+    if (when.getTime() < ctx.mac.now() - 60 * 60_000) return `That's in the past (${when.toDateString()}). Check the date in their text.`;
+    const minutes = Math.min(24 * 60, Math.max(5, Number(input.minutes) || 30));
+    const reminder = Number(input.reminder_minutes) > 0 ? Math.min(7 * 24 * 60, Number(input.reminder_minutes)) : null;
+    const script = calendarScript({ title: s(input, "title").slice(0, 200) || "Appointment", start, minutes, reminder, location: s(input, "location").slice(0, 300), notes: s(input, "notes").slice(0, 1000) })!;
+    const command = `osascript -e ${shq(script)}`;
+    const r = await ctx.mac.run(command);
+    const out = r.output.trim();
+    if (r.code !== 0) {
+      if (/not allowed|-1743|not authorized/i.test(out)) return "Calendar asked for permission first. The person needs to click OK on the Mac's question, then try again.";
+      return `Couldn't add it: ${tail(out, 2)}`;
+    }
+    const ref = addEvidence(ctx, { kind: "after", outcome: "passed", command: `Calendar: ${s(input, "title")}`, code: 0, output: out });
+    ctx.beforeAfter.push({ label: "Calendar", before: "Not on the calendar", after: `${s(input, "title")}, ${when.toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}${reminder ? `, reminder ${reminder} min before` : ""}` });
+    return `[${ref}] Added and read back from Calendar: ${out}`;
+  },
+};
+
+const webTask: AgentTool = {
+  name: "web_task",
+  kind: "act",
+  description:
+    "Do a task on a web page in CalHack's own browser window: fill in a form and send it, or click through a site. CalHack opens the page, reads every field, plans each one from the person's text, fills and reads each back, sends it, and checks the page shows it went through. Use this (not guide_person or the screen) for anything on a web page. Put every detail to use in task: names, email, phone, dates, choices, exactly as the person's text gives them. Passwords, codes, card numbers and payment buttons stay with the person; it asks them when it needs something the text doesn't say.",
+  input_schema: obj({
+    url: str("The page: the one they're on, or a link from their text or screen"),
+    task: str("What to do, with every detail to use, e.g. 'Sign Margaret up for the Tuesday iPad class: name Margaret Lee, email margaret@example.com, phone 425 628 4156, then send it'"),
+  }),
+  label: (i) => `Filling in the form on ${hostOf(s(i, "url")) || "the page"}…`,
+  async run(input, ctx) {
+    if (!ctx.mac.web) return "CalHack's browser isn't available here.";
+    const url = s(input, "url").trim() || ctx.pageUrl || "";
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return "Refused: that isn't a web address.";
+    }
+    if (!/^https?:$/.test(parsed.protocol)) return "Refused: only http and https pages.";
+    const source = [ctx.request ?? "", ctx.screenText ?? ""].join("\n\n");
+    // Only the page they're on, a link in their own text, or an official site: never somewhere the AI picked.
+    const known = (ctx.pageUrl && sameAddress(ctx.pageUrl, url)) || urlInText(url, source) || officialUrl(url) !== null;
+    if (!known) return "Refused: CalHack only opens the page the person is on, a link from their own text, or an official site.";
+    const sendApproved = (ctx.approvedPlan?.length ?? 0) > 0 || ASKS_TO_SEND.test(ctx.request ?? "");
+    const r = await runWebTask(
+      ctx.mac.web(),
+      {
+        status: (l) => ctx.ui.status(l),
+        detail: (l) => ctx.ui.detail(l),
+        plan: (lines, done) => ctx.ui.plan?.(lines, done),
+        ask: (q, choices, note) => ctx.ui.ask(q, choices, note),
+        confirm: (title, message, details) => ctx.ui.confirm({ title, message, details, yes: "Send it", no: "Not yet" }),
+      },
+      { url, task: s(input, "task"), sourceText: source, sendApproved },
+      { stopped: ctx.stopped, signal: ctx.signal },
+    );
+    const filled = r.filled.map((f) => `${f.field}: ${f.value}`);
+    const ref = addEvidence(ctx, {
+      kind: "after",
+      outcome: r.ok ? "passed" : "failed",
+      command: `browser ${r.url}`,
+      code: r.ok ? 0 : 1,
+      output: [r.ok ? `Page shows: "${r.proof}"` : r.summary, ...filled].join("\n").slice(0, 1500),
+    });
+    if (r.ok) ctx.beforeAfter.push({ label: hostOf(r.url) || "The form", before: "Not filled in", after: r.sent ? "Sent, and the page confirms it" : "Done" });
+    return `[${ref}] ${r.ok ? "Done" : "Not finished"}: ${r.summary}${r.proof ? ` The page says: "${r.proof}".` : ""}\nFilled (read back from the page): ${filled.join("; ") || "nothing"}\nSent: ${r.sent ? "yes" : "no"}`;
+  },
+};
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
+
+/** The link is written in the person's text or on their screen (with or without https://). */
+function urlInText(url: string, text: string): boolean {
+  const bare = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return bare.length > 3 && text.includes(bare);
+}
+
+function sameAddress(a: string, b: string): boolean {
+  try {
+    const x = new URL(a);
+    const y = new URL(b);
+    return x.origin === y.origin && x.pathname.replace(/\/$/, "") === y.pathname.replace(/\/$/, "");
+  } catch {
+    return false;
+  }
+}
 
 const trashApp: AgentTool = {
   name: "move_app_to_trash",
@@ -946,11 +1099,19 @@ const fixProblem: AgentTool = {
 const installApp: AgentTool = {
   name: "install_app",
   kind: "act",
-  description: "Install an app from its maker's official website only (never mirrors or download sites). CalHack checks the file is signed by the maker, installs it (macOS asks for the password), and checks it's there. Asks the person first.",
-  input_schema: obj({ app_name: str("The app's name, e.g. Zoom") }),
+  description: "Install an app from its maker's official website only (never mirrors or download sites). CalHack checks the file is signed by the maker, installs it (macOS asks for the password), and checks it's there. Asks the person first. If the app is already installed it says so (with its version) instead of downloading it again; pass reinstall=true only when the person asked to update or reinstall it and it isn't an app that updates itself.",
+  input_schema: obj({ app_name: str("The app's name, e.g. Zoom"), reinstall: { type: "boolean", description: "true only to replace an installed copy" } }),
   label: (i) => `Installing ${s(i, "app_name")}…`,
   async run(input, ctx) {
     const name = s(input, "app_name");
+    const have = oneApp(ctx, name);
+    if ("path" in have && input.reinstall !== true) {
+      const plist = `${have.path}/Contents/Info.plist`;
+      const v = await ctx.mac.sandboxed(`/usr/bin/defaults read ${shq(plist)} CFBundleShortVersionString`, 10_000);
+      const version = v.code === 0 ? v.output.trim().split("\n")[0] : "";
+      const ref = addEvidence(ctx, { kind: "before", outcome: "passed", command: `ls ${have.path}`, code: 0, output: `${appLabel(have.path)} is installed${version ? `, version ${version}` : ""}` });
+      return `[${ref}] ${appLabel(have.path)} is already installed${version ? ` (version ${version})` : ""} at ${have.path}. Nothing downloaded. Apps like Zoom update themselves when they open.`;
+    }
     const ok = await ctx.ui.confirm({ title: `Install ${name}?`, message: `I'll download ${name} from its maker's official website, check it's genuine, and install it. Your Mac will ask for your password.`, yes: "Yes, install", no: "Not now" });
     if (!ok) return "The person said no. Don't install.";
     const r = await ctx.mac.installOfficial(name);
@@ -1074,7 +1235,7 @@ const askPerson: AgentTool = {
 const proposePlan: AgentTool = {
   name: "propose_plan",
   kind: "talk",
-  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only the person can, e.g. a password), or 'skip' (CalHack won't, with why).",
+  description: "When the screen shows steps meant for the person (an email, a message, a document) and they didn't say what they want: list each step as a goal, in order, and ask ONCE whether to do them all. After a yes, do every step without asking again. Mark each step with who does it: 'me' (CalHack does it), 'you' (only the person can, e.g. a password), or 'skip' (CalHack won't, with why). Filling in and sending an online form (check in, sign up, RSVP, book, register) is 'me': web_task fills it from the text, asks for anything missing and leaves passwords and card numbers to the person. Adding to the calendar is 'me' (add_calendar_event).",
   input_schema: obj({
     goal: str("The overall goal in plain words, max 10, e.g. 'Get you ready for the video call'"),
     steps: {
@@ -1209,7 +1370,7 @@ const finish: AgentTool = {
 
 export const TOOLS: AgentTool[] = [
   listApps, runningApps, soundStatus, checkScreen, checkProblem, diskUsage, findFiles, findFile, runCheck, revealFile,
-  quitApp, openApp, changeSetting, openSettings, openWebsite, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
+  quitApp, openApp, changeSetting, openSettings, openWebsite, webTask, addCalendarEvent, trashApp, setVolume, setSoundOutput, setWifi, setBluetooth, fixProblem, installApp, trashFiles, runCommand,
   startCall, guidePerson, askPerson, proposePlan, explainIrreversible, finish,
 ];
 

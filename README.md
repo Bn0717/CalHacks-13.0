@@ -86,6 +86,24 @@ The first time, macOS asks for permissions. Say **Allow**:
 
 While developing, these permissions go to the app you started it from (Terminal or VS Code). **After turning on Screen Recording, quit and restart.**
 
+## Web pages and emails: Playwright fills the form and proves it went through
+
+Press ⌥⌘D on an email like "Your video visit is Monday at 10 AM. Please check in online, add it to your calendar, install Zoom…". CalHack:
+
+1. **Reads the email from the window**, links included. Gmail and Outlook need you signed in, so downloading the page again only gets a sign-in screen. CalHack reads the words and each link's real address through Accessibility instead (`src/mac/ui-elements.swift text`), and unwraps Gmail's `google.com/url?q=` redirects.
+2. **Makes one plan** of every step and asks once (`propose_plan`).
+3. **Fills in web forms with Playwright** (`web_task`, `src/browser/`). It opens the page in its own Chrome window (installed Chrome or Edge, a profile of its own, nothing downloaded) and reads every field by its label. Claude (Sonnet 5.5, `CALHACK_BROWSER_MODEL`) plans each step. CalHack then fills each field, reads it back, sends the form, and keeps going through "Next" pages and error messages until the page confirms it.
+4. **Adds calendar events** with a reminder, and reads them back from Calendar (`add_calendar_event`).
+
+Rules in code, whatever the AI plans:
+- Every value typed must be in the person's own text or their answers. Anything else is refused, and the person is asked.
+- Passwords, codes, card, bank and ID numbers, and pay/buy buttons are only ever the person's.
+- Sending asks once, unless the person asked to send it or approved the plan.
+- "Done" needs proof: words Claude quotes from the page after sending, which code finds on the page.
+- The page must be the one the person is on, a link in their own text, or an official site.
+
+Measured on Vincent's check-in page (`https://calhacks.vzhsiao.com/checkin`): appointment number, date and visit type filled and sent in about 7 s, ending with the page's "You're checked in. Thanks, Linda." The whole email (calendar, check-in, Zoom, sound) took 26 s after one yes.
+
 ## Demo (about 3 minutes)
 
 **Fix a problem (the main story):** run `scripts/demo-break-printer.sh` (adds a fake "Office Printer", pauses it, and queues 3 stuck jobs), press ⌥⌘D and say "my printer won't print". CalHack checks, fixes it (Droid runs the fixes), checks again, and shows **Before: Paused, 3 stuck jobs → After: Ready**. `scripts/demo-reset.sh` removes the fake printer. Other good ones: "the sound is coming out of my AirPods, I want it on the computer", "I can't find my resume", "delete all my files" (watch it refuse and teach).
