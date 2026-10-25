@@ -3,7 +3,7 @@ import { actionCommand, autopilot, type Action, type ActionRecord, type Shot } f
 import type { AgentUI, MacDeps, ToolContext } from "../src/agent/tools.js";
 
 const shot = (n = 0): Shot => ({ data: "img" + n, mediaType: "image/jpeg", width: 1000, height: 600, toScreen: 2 });
-const act = (a: Partial<Action>): Action => ({ kind: "click", target: "the Add button", screen: "normal", personalChoice: false, effect: "navigates", stepNamesOption: false, handling: "agent", sensitivity: "routine", reason: "", x: 100, y: 50, ...a });
+const act = (a: Partial<Action>): Action => ({ kind: "click", target: "the Add button", screen: "normal", personalChoice: false, effect: "navigates", stepNamesOption: false, reducesRisk: false, handling: "agent", sensitivity: "routine", reason: "", x: 100, y: 50, ...a });
 
 function setup(actions: Action[], guideAnswers: ("done" | "skip")[] = []) {
   const ran: string[] = [];
@@ -85,6 +85,22 @@ describe("autopilot loop: the AI's judgment decides the route", () => {
     expect(t.direct).toEqual([]);
     expect(t.ran).toEqual([]);
     expect(t.guided).toHaveLength(3);
+  });
+
+  it("clicks Block on a permission prompt itself, through Droid, without asking", async () => {
+    const t = setup([act({ screen: "permission_prompt", reducesRisk: true, target: "Block notifications" }), act({ kind: "done" })]);
+    await t.run();
+    expect(t.guided).toEqual([]);
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toHaveLength(1);
+  });
+
+  it.each(["sign_in", "payment", "personal_details"] as const)("still never clicks on a %s screen, even for a risk-lowering click", async (screen) => {
+    const t = setup([act({ screen, reducesRisk: true, handling: "person" })]);
+    await t.run();
+    expect(t.direct).toEqual([]);
+    expect(t.ran).toEqual([]);
+    expect(t.guided).toHaveLength(1);
   });
 
   it("leaves a personal choice (like which wallpaper) to the person even if the AI said the agent could", async () => {

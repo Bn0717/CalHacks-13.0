@@ -59,4 +59,19 @@ describe("decideNext uses the model, not words", () => {
     create.mockResolvedValueOnce({ content: [] });
     await expect(decideNext("x", shot, [])).rejects.toThrow(/no usable action/);
   });
+
+  it("lets the agent take access away without asking, but only by clicking and never on a sign-in, payment or details screen", async () => {
+    answer({ ...base, screen: "permission_prompt", effect: "changes_setting", reduces_risk: true, handling: "person", sensitivity: "sensitive" });
+    expect(await decideNext("Turn off notifications from this site", shot, [])).toMatchObject({ reducesRisk: true, handling: "agent" });
+    answer({ ...base, effect: "changes_setting", reduces_risk: true, handling: "person", sensitivity: "sensitive" });
+    expect(await decideNext("Block notifications in Chrome", shot, [])).toMatchObject({ reducesRisk: true, handling: "agent" });
+    for (const screen of ["sign_in", "payment", "personal_details"]) {
+      answer({ ...base, screen, reduces_risk: true, handling: "agent", sensitivity: "sensitive" });
+      expect(await decideNext("x", shot, [])).toMatchObject({ reducesRisk: false, handling: "person" });
+    }
+    answer({ ...base, kind: "type", text: "hi", screen: "permission_prompt", reduces_risk: true, handling: "agent", sensitivity: "sensitive" });
+    expect(await decideNext("x", shot, [])).toMatchObject({ reducesRisk: false, handling: "person" });
+    answer({ ...base, screen: "permission_prompt", handling: "agent", sensitivity: "sensitive" });
+    expect(await decideNext("x", shot, [])).toMatchObject({ reducesRisk: false, handling: "person" });
+  });
 });

@@ -134,6 +134,7 @@ Answer with:
 
 Judge each plan:
 - handling "person" when it needs their own hands: a password, code or other secret; a privacy or security permission; signing in; a payment or purchase; agreeing to terms; or a choice only they can make. Personal choices (which picture, colour, sound, name, which of their own things) are theirs unless the step names the exact choice. A "PASSWORD box" is always the person's.
+- Taking access away is yours, not the person's: pressing "Block" or "Don't Allow", turning off a website's or app's notifications, removing a site's or app's access to the camera, microphone or location, turning off sharing or remote access, or turning a protection on. These lower risk and are easy to undo, so do them (handling "agent", sensitivity "sensitive") without asking. Anything that allows, grants or opens up access stays the person's.
 - "Bigger", "larger", "louder", "brighter", "smaller" name the choice: do it yourself (a clear change, about 2-3 slider steps), it is not the person's to pick.
 - Choosing is theirs. When the step is about something personal (wallpaper, picture, colour, theme, sound, name, which of their own things) and does not name the exact choice, you only do the mechanics: open the right page, then answer status "person" with point_at on the choices and target like "Pick a wallpaper you like". Example: "change my wallpaper" → select the Wallpaper row; then status "person", point at the wallpapers. Never pick one for them. If the step names it ("use the blue Sequoia wallpaper"), picking that one is fine.
 - sensitivity "routine" for harmless, easily undone actions (opening a page, choosing a sidebar row, a neutral option the step names). "sensitive" for anything risky, personal, security-related or hard to undo (turning a feature on or off, confirming, installing, deleting). When unsure, "sensitive".
@@ -175,7 +176,7 @@ const TOOL = {
 export async function decideUi(instruction: string, w: UiWindow, history: string[], signal?: AbortSignal, model?: string): Promise<UiDecision> {
   const i = await askJson({
     model: model ?? process.env.CALHACK_AGENT_MODEL ?? MODEL(),
-    maxTokens: 700,
+    maxTokens: 4000,
     system: SYSTEM,
     schema: TOOL.input_schema,
     content: `The step to finish: ${instruction}\nAlready done: ${history.length ? history.join("; ") : "nothing yet"}\n\n<window>\n${describeWindow(w).slice(0, 24_000)}\n</window>`,

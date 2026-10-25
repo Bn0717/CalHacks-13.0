@@ -22,6 +22,8 @@ export async function askJson<T = Record<string, unknown>>(o: {
     { signal: o.signal },
   );
   if (response.stop_reason === "refusal") throw new Error("Claude declined to answer.");
+  // The model thinks before answering, and the thinking counts toward max_tokens: a cut-off answer is never valid JSON.
+  if (response.stop_reason === "max_tokens") throw new Error(`The answer was cut off at ${o.maxTokens ?? 800} tokens.`);
   const text = response.content.find((b) => b.type === "text");
   try {
     return JSON.parse(text && "text" in text ? text.text : "") as T;
