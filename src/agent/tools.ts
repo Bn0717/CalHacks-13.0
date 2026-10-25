@@ -1111,6 +1111,7 @@ const addCalendarEvent: AgentTool = {
         if (pl.links.length) links = ctx.messageLinks = pl.links;
       }
       joinUrl = linkFor(links, linkText) ?? "";
+      webLog("calendar_link", { link: linkText, links: links.length, found: !!joinUrl, host: joinUrl ? new URL(joinUrl).hostname : null });
       if (!joinUrl) ctx.ui.detail(`I couldn't read the "${linkText}" link from the message, so the event has no join link.`, true);
     }
     const e = parseEvent(

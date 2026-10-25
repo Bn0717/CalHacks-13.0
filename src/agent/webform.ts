@@ -268,6 +268,9 @@ export async function fillWebForm(ctx: ToolContext, url: string, facts: Fact[], 
       output: `Filled ${filled.map((f) => (f.chose ? `${f.field}: ${f.chose} (${f.detail})` : `${f.field} (${f.detail})`)).join(", ")}; read back from the page. ${r.submitted ? `Submitted; the page now says: "${r.confirmation}"` : `Not submitted: ${r.problem}`}`,
     });
     webLog(r.submitted ? "submitted" : "not_submitted", { submit, confirmation: r.confirmation, problem: r.problem });
+    // Sent and confirmed: close CalHack's window, so only the person's own browser is left for the next steps.
+    // Not sent: leave it open, with what was filled in.
+    if (r.submitted) await page.close().catch(() => {});
     return { filled, submit, ...r, evidenceRef };
   } catch (e) {
     ctx.ui.detail(`Filling the form with Playwright failed: ${(e as Error).message}`, true);
@@ -477,7 +480,8 @@ export const playwrightForms: WebFormDeps = {
       });
       context.on("close", () => (context = null));
     }
-    const page = await context.newPage();
+    // A new Chrome starts with one empty tab: use it rather than leaving it behind.
+    const page = context.pages().find((p) => p.url() === "about:blank") ?? (await context.newPage());
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
     await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
     await page.bringToFront();
@@ -531,7 +535,11 @@ export const playwrightForms: WebFormDeps = {
             .map((el) => (el.labels && el.labels.length ? text(el.labels[0]) : el.getAttribute("aria-label") || el.name || "a field").slice(0, 60));
           return { url: location.href, text: document.body.innerText.slice(0, 6000), invalid: [...new Set(invalid)] };
         })()`) as Promise<{ url: string; text: string; invalid: string[] }>,
-      close: () => page.close(),
+      async close() {
+        await page.close();
+        // The last form closed: close CalHack's whole Chrome window too.
+        if (context && context.pages().every((p) => p.url() === "about:blank")) await context.close().catch(() => {});
+      },
       // For checking by hand and in end-to-end scripts (screenshots); not part of WebPage.
       raw: page,
     } as WebPage;
