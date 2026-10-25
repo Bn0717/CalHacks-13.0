@@ -25,7 +25,7 @@ function secretValue(v: string): boolean {
   return false;
 }
 
-/** The details CalHack may type, cleaned: no secrets, no control characters, short, at most 12. */
+/** The details CalHack may type, cleaned: no secrets, no control characters, short, at most 24. */
 export function safeFacts(raw: unknown): Fact[] {
   if (!Array.isArray(raw)) return [];
   const out: Fact[] = [];
@@ -37,7 +37,7 @@ export function safeFacts(raw: unknown): Fact[] {
     if (SECRET_LABEL.test(label) || secretValue(value)) continue;
     if (!out.some((f) => f.value === value)) out.push({ label, value });
   }
-  return out.slice(0, 12);
+  return out.slice(0, 24);
 }
 
 /** The detail this text is, or null. Only an exact value (ignoring case and outer spaces) counts. */

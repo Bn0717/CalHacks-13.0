@@ -21,6 +21,7 @@ import { closeOpenedSheet } from "./uipilot.js";
 import { safeFacts, type Fact } from "./fill.js";
 import { fillWebForm, type WebFormDeps } from "./webform.js";
 import { signedInPage } from "../core/trusted.js";
+import { cardIsThePerson } from "../mac/contacts.js";
 import { addEventCommand, findEventCommand, parseEvent, parseFound, whenLabel } from "../mac/calendar.js";
 
 export interface AppInfo {
@@ -66,6 +67,8 @@ export interface MacDeps {
   pageUrl?(): Promise<string | null>;
   /** Fills web forms with Playwright in CalHack's own Chrome window. Missing = forms are filled on screen. */
   webForm?: WebFormDeps;
+  /** The person's own contact card (My Card in Contacts), as details for a form. Missing = not used. */
+  myCard?(): Promise<Fact[]>;
   /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
   ui?: import("./uipilot.js").UiDeps;
   home: string;
@@ -1115,22 +1118,36 @@ async function formViaPlaywright(
   if (ctx.signal?.aborted) return { done: "The person pressed Stop.", linkClicked };
   const url = await ctx.mac.pageUrl?.().catch(() => null);
   if (!url || signedInPage(url) || !/^https?:/.test(url)) {
+    // Not a web page CalHack can open (or the address can't be read): only then is the form filled on screen.
     ctx.ui.detail(`No form page to open with Playwright (${url ? new URL(url).hostname : "couldn't read the page address"}); filling it on screen instead.`, true);
     return { linkClicked };
   }
-  const r = await fillWebForm(ctx, url, o.facts, o.webForm);
-  if (!r) return { linkClicked };
-  const what = r.filled.map((f) => f.detail.toLowerCase()).join(" and ");
-  ctx.ui.say(`I filled in your ${what}. Please check them, then press ${r.submit ?? "the button"} yourself.`);
-  const g = await ctx.ui.guide({ instruction: `I filled in your ${what} in the new window. Check them, then press "${r.submit ?? "Submit"}" yourself (it's outlined).` });
-  if (g === "skip") return { done: `[${r.evidenceRef}] CalHack filled ${r.filled.map((f) => f.field).join(", ")} with Playwright (read back from the page), but the person skipped sending the form.`, linkClicked };
-  return { done: `[${r.evidenceRef}] CalHack clicked the link and filled ${r.filled.map((f) => `${f.field} (${f.detail})`).join(", ")} with Playwright in its own Chrome window (read back from the page). The person says they pressed "${r.submit ?? "Submit"}". Use ${r.evidenceRef} as proof that the form was filled.`, linkClicked };
+  // The rest of the form comes from the person's own contact card, if that card is the person the message is about.
+  let facts = o.facts;
+  const card = (await ctx.mac.myCard?.().catch(() => [])) ?? [];
+  if (card.length && cardIsThePerson(card, o.facts)) {
+    facts = safeFacts([...o.facts, ...card.filter((c) => !o.facts.some((f) => f.label.toLowerCase() === c.label.toLowerCase()))]);
+    ctx.ui.detail(`Also using your contact card: ${card.map((c) => c.label).join(", ")}`, true);
+  } else if (card.length) ctx.ui.detail("Your contact card is someone other than the person in the message, so I didn't use it.", true);
+  const approved = !!ctx.approvedPlan?.length || ctx.personTrusts === true;
+  const r = await fillWebForm(ctx, url, facts, o.webForm, { approved });
+  if (!r) {
+    ctx.ui.say("I couldn't fill in that form.");
+    return { done: `CalHack couldn't open or fill the form at ${new URL(url).hostname} with Playwright (no Chrome, the page didn't load, or no box matched the details). Tell the person; don't retry on screen.`, linkClicked };
+  }
+  const filledList = r.filled.map((f) => (f.chose ? `${f.field}: ${f.chose}` : f.field)).join(", ");
+  if (r.submitted) {
+    ctx.ui.say(`Done. The site says: ${r.confirmation}`);
+    return { done: `[${r.evidenceRef}] CalHack clicked the link, filled ${filledList} with Playwright, ticked the required boxes and pressed "${r.submit}". The site confirmed it: "${r.confirmation}". Use ${r.evidenceRef} as proof the form was submitted.`, linkClicked };
+  }
+  ctx.ui.say(`I filled in the form, but didn't send it: ${r.problem}.`);
+  return { done: `[${r.evidenceRef}] CalHack filled ${filledList} with Playwright but did NOT submit: ${r.problem}. Tell the person exactly that in finish; the form is still open in CalHack's Chrome window.`, linkClicked };
 }
 
 const guidePerson: AgentTool = {
   name: "guide_person",
   kind: "talk",
-  description: "For a step that is still incomplete and only a click on screen can finish (e.g. adding a printer in Settings, choosing an option in an app, clicking a link in an email, filling in a web form). CalHack opens the page and then looks at the screen every few seconds and does the clicks itself. Anything private (permissions, passwords, sign-in, payments, deleting) it hands to the person, who is shown what to click. For a form, pass fill_details: only facts written in the message on screen (e.g. the person's name as it addresses them, an appointment number, a date, and what kind of visit or appointment it is, like 'Video visit', so CalHack can pick that option on the form). CalHack types only those exact values; secrets, card, social security and insurance numbers are never typed, and the person presses the final Submit. Returns who did it.",
+  description: "For a step that is still incomplete and only a click on screen can finish (e.g. adding a printer in Settings, choosing an option in an app, clicking a link in an email, filling in a web form). CalHack opens the page and then looks at the screen every few seconds and does the clicks itself. Anything private (permissions, passwords, sign-in, payments, deleting) it hands to the person, who is shown what to click. For a form, pass fill_details: only facts written in the message on screen (e.g. the person's name as it addresses them, an appointment number, a date, and what kind of visit or appointment it is, like 'Video visit', so CalHack can pick that option on the form). On a web page CalHack fills it with Playwright, adds what's missing from the person's own contact card when it's them, ticks the required agreement boxes once the person approved the plan, submits it, and checks the site confirmed it. Nothing is made up; secrets, card, social security and insurance numbers are never typed. Returns what happened.",
   input_schema: obj({
     instruction: str("One short, plain instruction, e.g. 'Click the Check in link in the email, then fill in the check-in form'"),
     click_target: strOrNull("The exact on-screen label to click, or null"),

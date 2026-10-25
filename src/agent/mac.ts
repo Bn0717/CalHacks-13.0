@@ -18,6 +18,7 @@ import { folderPath } from "./danger.js";
 import { listFilesIn, type AppInfo, type MacDeps } from "./tools.js";
 import { browserUrl, frontAppName } from "../mac/front.js";
 import { playwrightForms } from "./webform.js";
+import { myCard } from "../mac/contacts.js";
 
 const run = promisify(execFile);
 
@@ -147,6 +148,7 @@ export function realMac(opts: { execute: Executor; trash: (path: string) => Prom
     screen: opts.screen,
     ui,
     webForm: playwrightForms,
+    myCard: () => myCard(),
     pageUrl: async () => {
       const app = await frontAppName();
       return app ? browserUrl(app) : null;

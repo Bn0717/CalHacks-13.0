@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 form { display: grid; gap: 6px; max-width: 460px; }
 label { font-weight: 600; margin-top: 10px; }
 input:not([type=checkbox]), textarea { font: inherit; padding: 9px 12px; border: 1px solid #c7c7cc; border-radius: 8px; }
