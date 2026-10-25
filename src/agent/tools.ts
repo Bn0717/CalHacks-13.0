@@ -118,6 +118,8 @@ export interface ToolContext {
   request?: string;
   screenText?: string;
   pageUrl?: string;
+  /** ask_person was turned into propose_plan once already (so a real question after that goes through). */
+  planAsked?: boolean;
 }
 
 export interface AgentTool {
@@ -1219,6 +1221,12 @@ const guidePerson: AgentTool = {
   },
 };
 
+/** How many lines on the screen read like steps for the person ("Add your appointment…", "1. Download Zoom…"). */
+export function stepsOnScreen(text: string): number {
+  const verbs = /^(?:\d+[.)]\s*|[-•*]\s*)?(add|check|download|install|update|allow|make sure|turn|open|click|go to|sign|call|join|set|bring|complete|fill|register|confirm|reply|book|print|bring|upload|choose|select|enter|type|restart|connect|plug|charge|log in|visit|read|review|save|send|test)\b/i;
+  return text.split(/\n/).map((l) => l.trim()).filter((l) => l.length > 12 && l.length < 300 && verbs.test(l)).length;
+}
+
 const askPerson: AgentTool = {
   name: "ask_person",
   kind: "talk",
@@ -1226,6 +1234,12 @@ const askPerson: AgentTool = {
   input_schema: obj({ question: str("One short, friendly question"), choices: { type: "array", items: { type: "string" }, description: "2-4 short answers" } }),
   label: () => "Asking you something…",
   async run(input, ctx) {
+    // They pressed the key on an email or page full of steps: those steps ARE what they want. Code, not the model,
+    // stops "What would you like help with?" here, so the plan is made instead.
+    if (!ctx.request?.trim() && !ctx.approvedPlan && !ctx.planAsked && stepsOnScreen(ctx.screenText ?? "") >= 2) {
+      ctx.planAsked = true;
+      return "Don't ask what they want: their screen lists the steps to do. Call propose_plan now with every step from it, in order, then do them all after their one yes.";
+    }
     const choices = Array.isArray(input.choices) ? input.choices.filter((c): c is string => typeof c === "string").slice(0, 4) : [];
     const answer = await ctx.ui.ask(s(input, "question"), choices);
     return `The person answered: "${answer}"`;

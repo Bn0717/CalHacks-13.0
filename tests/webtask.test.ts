@@ -181,3 +181,17 @@ describe("email links", () => {
     expect(unwrapRedirects("Check in <https://calhacks.vzhsiao.com/checkin>")).toBe("Check in <https://calhacks.vzhsiao.com/checkin>");
   });
 });
+
+import { stepsOnScreen } from "../src/agent/tools.js";
+describe("steps on screen", () => {
+  it("counts the email's steps", () => {
+    const email = `Hi Linda,
+Your video visit with Dr. Priya Patel is on Monday, October 26 at 10:00 AM (appointment BV-48213). Please complete these steps before your visit:
+Add your appointment to your calendar with a reminder 15 minutes before.
+Check in for your visit online: Check in <https://calhacks.vzhsiao.com/checkin> Download Zoom from zoom.us/download, or update it if you already have it.
+Allow Zoom to use your camera and microphone so Dr. Patel can see and hear you.
+Make sure your volume is turned up and your computer isn't muted.`;
+    expect(stepsOnScreen(email)).toBeGreaterThanOrEqual(4);
+  });
+  it("doesn't see steps in ordinary text", () => expect(stepsOnScreen("Hi! Lunch on Friday?\nSee you soon.")).toBe(0));
+});
