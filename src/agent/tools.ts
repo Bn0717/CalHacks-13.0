@@ -1089,41 +1089,61 @@ const runCommand: AgentTool = {
 const addCalendarEvent: AgentTool = {
   name: "add_calendar_event",
   kind: "act",
-  description: "Add an event to the person's Apple Calendar, with an alert before it, then read it back to prove it's there. Use for appointments, calls and visits from the screen or the person's words. Won't add the same event twice. Use the date exactly as written; work out the year from today's date.",
+  description: "Add an event to the person's Apple Calendar, with an alert before it, then read it back to prove it's there. Use for appointments, calls and visits from the screen or the person's words. If the message has a link to join the call or visit, pass its words as join_link_text: CalHack reads the link's address from the message and puts it on the event. An event that's already there gets whatever it's missing (the join link, the alert) instead of a copy. Use the date exactly as written; work out the year from today's date.",
   input_schema: obj({
     title: str("Short title, e.g. 'Video visit with Dr. Priya Patel'"),
     start: str("Local start time on this Mac as YYYY-MM-DDTHH:MM, e.g. 2026-10-26T10:00"),
     duration_minutes: numOrNull("Length in minutes; null for 30"),
     alert_minutes_before: numOrNull("Minutes before the start for the alert, e.g. 15; null for no alert"),
     notes: strOrNull("Useful details for the event (appointment number, phone), or null"),
-    url: strOrNull("An https link to join or check in, if one is known, or null"),
+    url: strOrNull("An https link to join, if you know its full address, or null"),
+    join_link_text: strOrNull("The words of the message's link to join the call or visit, e.g. 'Join your visit' (CalHack reads its address), or null"),
   }),
   label: () => "Adding it to your calendar…",
   async run(input, ctx) {
+    // The join link's address comes from the message itself: the AI sees the link's words, not where it goes.
+    let joinUrl = s(input, "url");
+    const linkText = s(input, "join_link_text");
+    if (linkText && !joinUrl) {
+      let links = ctx.messageLinks ?? [];
+      if (!linkFor(links, linkText) && ctx.mac.pageLinks) {
+        const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch(() => ({ links: [] as { text: string; url: string }[] }));
+        if (pl.links.length) links = ctx.messageLinks = pl.links;
+      }
+      joinUrl = linkFor(links, linkText) ?? "";
+      if (!joinUrl) ctx.ui.detail(`I couldn't read the "${linkText}" link from the message, so the event has no join link.`, true);
+    }
     const e = parseEvent(
-      { title: s(input, "title"), start: s(input, "start"), durationMinutes: n(input, "duration_minutes"), alertMinutesBefore: n(input, "alert_minutes_before"), notes: s(input, "notes"), url: s(input, "url") },
+      { title: s(input, "title"), start: s(input, "start"), durationMinutes: n(input, "duration_minutes"), alertMinutesBefore: n(input, "alert_minutes_before"), notes: s(input, "notes"), url: joinUrl },
       ctx.mac.now(),
     );
     if ("problem" in e) return `Not added: ${e.problem}`;
     const when = whenLabel(e);
     const add = await ctx.mac.run(addEventCommand(e));
     const outcome = add.output.trim().split("\n").pop() ?? "";
-    if (add.code !== 0 || !/^(added|exists)\|/.test(outcome)) {
+    if (add.code !== 0 || !/^(added|updated|exists)\|/.test(outcome)) {
       const why = /-1743|not allowed|not authorized/i.test(add.output) ? "macOS hasn't allowed CalHack to use Calendar yet (System Settings > Privacy & Security > Automation)" : tail(add.output, 2);
       addEvidence(ctx, { kind: "run", command: `add calendar event "${e.title}" on ${when}`, code: add.code || 1, output: why });
       return `Couldn't add it to Calendar: ${why}`;
     }
     const existed = outcome.startsWith("exists|");
-    // Read it back: the event must really be there, with the alert we asked for.
+    const updated = outcome.startsWith("updated|");
+    // Read it back: the event must really be there, with the alert and join link we asked for.
     const check = await ctx.mac.run(findEventCommand(e));
     const found = parseFound(check.output);
     const alertOk = e.alertMinutesBefore === 0 || (found.found && found.alertMinutesBefore === e.alertMinutesBefore);
-    const ok = check.code === 0 && found.found && (alertOk || existed);
-    const shows = found.found ? `"${e.title}" is in Calendar (${found.calendar}) on ${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ", no alert"}` : "the event wasn't found";
+    const linkOk = !e.url || (found.found && found.url === e.url);
+    const ok = check.code === 0 && found.found && (alertOk || existed) && linkOk;
+    const linkNote = found.found && found.url ? `, join link ${new URL(found.url).hostname}` : "";
+    const shows = found.found ? `"${e.title}" is in Calendar (${found.calendar}) on ${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ", no alert"}${linkNote}` : "the event wasn't found";
     const ref = addEvidence(ctx, { kind: "after", outcome: ok ? "passed" : "failed", command: `look up calendar event "${e.title}" on ${when}`, code: ok ? 0 : 1, output: shows });
-    ctx.beforeAfter.push({ label: "Calendar", before: existed ? "Already there" : "Not in calendar", after: found.found ? `${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ""}` : "Not found" });
-    if (!ok) return `[${ref}] I tried to add it, but the check failed: ${shows}.`;
-    return `[${ref}] ${existed ? "It was already in the calendar" : "Added"}: ${shows}.${existed && !alertOk ? " (The existing event's alert is different; I didn't change it.)" : ""}`;
+    ctx.beforeAfter.push({
+      label: "Calendar",
+      before: existed || updated ? "Already there" : "Not in calendar",
+      after: found.found ? `${when}${found.alertMinutesBefore !== null ? `, alert ${found.alertMinutesBefore} min before` : ""}${found.url ? ", with join link" : ""}` : "Not found",
+    });
+    if (!ok) return `[${ref}] I tried to add it, but the check failed: ${shows}${e.url && !linkOk ? " (the join link isn't on it)" : ""}.`;
+    return `[${ref}] ${updated ? "It was already in the calendar; I added what was missing" : existed ? "It was already in the calendar" : "Added"}: ${shows}.${existed && !alertOk ? " (The existing event's alert is different; I didn't change it.)" : ""}`;
   },
 };
 

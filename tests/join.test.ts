@@ -93,3 +93,41 @@ describe("joining the visit from the email's link", () => {
     expect(out).toMatch(/in the browser/);
   });
 });
+
+describe("the calendar event carries the email's join link", () => {
+  const joinLinks = [{ text: "Join your visit", url: "https://www.google.com/url?q=https://us05web.zoom.us/j/81234567890?pwd%3Dx" }];
+  const input = { title: "Video visit with Dr. Priya Patel", start: "2099-10-26T10:00", duration_minutes: null, alert_minutes_before: 15, notes: null, url: null, join_link_text: "Join your visit" };
+
+  function calendarCtx(addReply: string, foundUrl: string) {
+    const ran: string[] = [];
+    const mac = {
+      now: () => new Date(2099, 9, 24).getTime(),
+      pageLinks: async () => ({ links: joinLinks }),
+      run: async (c: string) => (ran.push(c), { code: 0, output: c.includes('set found to (every event of cal') ? addReply : `found|Home|-15|${foundUrl}`, timedOut: false }),
+    } as unknown as MacDeps;
+    const ui = { status() {}, say() {}, detail() {} } as unknown as AgentUI;
+    const ctx: ToolContext = { mac, ui, evidence: [], diagnoses: new Map(), beforeAfter: [] };
+    return { ctx, ran };
+  }
+
+  it("reads the link's address from the email and puts it on the event (not the words)", async () => {
+    const t = calendarCtx("added|Home", "https://us05web.zoom.us/j/81234567890?pwd=x");
+    const out = await tool("add_calendar_event").run(input, t.ctx);
+    expect(t.ran[0]).toContain("'https://us05web.zoom.us/j/81234567890?pwd=x'");
+    expect(out).toMatch(/Added: .*join link us05web\.zoom\.us/);
+    expect(t.ctx.beforeAfter[0].after).toMatch(/with join link/);
+  });
+
+  it("an event that's already there gets the missing link instead of a copy", async () => {
+    const t = calendarCtx("updated|Home", "https://us05web.zoom.us/j/81234567890?pwd=x");
+    const out = await tool("add_calendar_event").run(input, t.ctx);
+    expect(out).toMatch(/already in the calendar; I added what was missing/);
+  });
+
+  it("doesn't pass the check if the link didn't stick", async () => {
+    const t = calendarCtx("exists|Home", "");
+    const out = await tool("add_calendar_event").run(input, t.ctx);
+    expect(out).toMatch(/check failed.*join link isn't on it/);
+    expect(t.ctx.evidence.at(-1)).toMatchObject({ code: 1 });
+  });
+});
