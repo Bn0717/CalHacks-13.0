@@ -267,7 +267,7 @@ describe("guide_person with a form: click on screen, then Playwright fills and s
     expect(b.typed).toEqual(["Full name=Linda", "Appointment number=BV-48213", "Phone=(555) 010-2030"]);
     expect(b.submitted()).toBe(1);
     expect(said.at(-1)).toMatch(/You're checked in/);
-    expect(out).toMatch(/\[E1\] CalHack clicked the link, filled .* pressed "Check in". The site confirmed it/);
+    expect(out).toMatch(/\[E1\] CalHack opened the link, filled .* pressed "Check in". The site confirmed it/);
   });
 
   it("doesn't use a contact card that belongs to someone else (a forwarded email)", async () => {
@@ -388,5 +388,47 @@ describe("no handoffs in the email's link-and-form step", () => {
     const r = await uiPilot(ctx, ui, { instruction: 'Click the "Check in" link', decide, noHandoff: true, settleMs: 0, sleep: async () => {} });
     expect(r.outcome).toBe("gave_up");
     expect(guided).toEqual([]);
+  });
+});
+
+import { linkFor, parseLinks } from "../src/mac/front.js";
+
+describe("opening the email's link with Playwright directly", () => {
+  const links = parseLinks(JSON.stringify([
+    ["Check in", "https://www.google.com/url?q=https://checkin.bayview.example/visit?id%3DBV-48213&sa=D"],
+    ["zoom.us/download", "https://zoom.us/download"],
+    ["Join your visit", "https://join.example/v"],
+  ]));
+
+  it("finds the link by its words and unwraps webmail redirects", () => {
+    expect(linkFor(links, "Check in")).toBe("https://checkin.bayview.example/visit?id=BV-48213");
+    expect(linkFor(links, "join your visit")).toBe("https://join.example/v");
+    expect(linkFor(links, "Pay now")).toBeNull();
+    // Two different links with the same words: unclear, so not guessed.
+    expect(linkFor([...links, { text: "Check in", url: "https://other.example/" }], "Check in")).toBeNull();
+    expect(parseLinks("not json")).toEqual([]);
+  });
+
+  it("reads the link's address from the email, and Playwright opens and submits that page with no clicking on screen", async () => {
+    const b = fakeBrowser();
+    const opened: string[] = [];
+    const deps: WebFormDeps = { open: async (u) => (opened.push(u), b.deps.open(u)) };
+    answer([{ field: 0, detail: "Name" }, { field: 1, detail: "Appointment number" }]);
+    verdict(true, "✅ You're checked in.");
+    const guidePerson = TOOLS.find((t) => t.name === "guide_person")!;
+    const screenUsed = vi.fn(async () => null);
+    const { ctx, guided } = fakeCtx({ approvedPlan: ["Check in"], sourceApp: "Google Chrome" }, {
+      run: async () => ({ code: 0, output: "", timedOut: false }),
+      pageUrl: async () => "https://mail.google.com/mail/u/0/#inbox/abc",
+      pageLinks: async () => ({ links }),
+      webForm: deps,
+      screen: { capture: screenUsed } as unknown as MacDeps["screen"],
+    });
+    const out = await guidePerson.run({ instruction: "x", click_target: "Check in", settings_url: null, in_message: true, fill_details: [{ label: "Name", value: "Linda" }, { label: "Appointment number", value: "BV-48213" }] }, ctx);
+    expect(opened).toEqual(["https://checkin.bayview.example/visit?id=BV-48213"]);
+    expect(screenUsed).not.toHaveBeenCalled();
+    expect(guided).toEqual([]);
+    expect(b.submitted()).toBe(1);
+    expect(out).toMatch(/The site confirmed it/);
   });
 });

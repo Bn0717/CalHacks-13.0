@@ -16,7 +16,7 @@ import { actCommand, actOn, closeSheet, controlCenter, listWindow, typeInto } fr
 import type { ScreenDeps } from "./autopilot.js";
 import { folderPath } from "./danger.js";
 import { listFilesIn, type AppInfo, type MacDeps } from "./tools.js";
-import { BROWSERS, browserUrl, frontAppName } from "../mac/front.js";
+import { BROWSERS, browserUrl, frontAppName, pageLinks } from "../mac/front.js";
 import { playwrightForms } from "./webform.js";
 import { myCard } from "../mac/contacts.js";
 
@@ -148,6 +148,19 @@ export function realMac(opts: { execute: Executor; trash: (path: string) => Prom
     screen: opts.screen,
     ui,
     webForm: playwrightForms,
+    // The email's links, from the browser it's open in (the one in front when the person asked, else any open browser).
+    pageLinks: async (prefer?: string) => {
+      const front = await frontAppName();
+      const running = await runningAppNames().catch(() => [] as string[]);
+      const candidates = [prefer, front, ...BROWSERS.filter((b) => running.includes(b))].filter((a, i, all): a is string => !!a && BROWSERS.includes(a) && running.includes(a) && all.indexOf(a) === i);
+      let problem: string | undefined;
+      for (const app of candidates) {
+        const r = await pageLinks(app);
+        if (r.links.length) return r;
+        problem ??= r.problem;
+      }
+      return { links: [], problem: problem ?? "no open browser" };
+    },
     myCard: () => myCard(),
     // The page in the browser: the app in front when that's a browser, otherwise a browser that's already running
     // (CalHack's own bar is often in front after a tap). Never starts a browser that isn't open.

@@ -22,6 +22,7 @@ import { safeFacts, type Fact } from "./fill.js";
 import { fillWebForm, webLog, type WebFormDeps } from "./webform.js";
 import { signedInPage } from "../core/trusted.js";
 import { cardIsThePerson } from "../mac/contacts.js";
+import { linkFor } from "../mac/front.js";
 import { addEventCommand, findEventCommand, parseEvent, parseFound, whenLabel } from "../mac/calendar.js";
 
 export interface AppInfo {
@@ -67,6 +68,8 @@ export interface MacDeps {
   pageUrl?(): Promise<string | null>;
   /** Fills web forms with Playwright in CalHack's own Chrome window. Missing = forms are filled on screen. */
   webForm?: WebFormDeps;
+  /** The links on the page in the browser (preferring this browser), with their addresses. Missing = links are clicked on screen. */
+  pageLinks?(prefer?: string): Promise<import("../mac/front.js").PageLinks>;
   /** The person's own contact card (My Card in Contacts), as details for a form. Missing = not used. */
   myCard?(): Promise<Fact[]>;
   /** Reads the front window's buttons and rows by name and acts on them (fast, no screenshot). Missing = screenshots only. */
@@ -1121,7 +1124,16 @@ async function formViaPlaywright(
     const u = await ctx.mac.pageUrl?.().catch(() => null);
     return u && u !== startUrl && /^https?:/.test(u) && !signedInPage(u) ? u : null;
   };
-  if (o.inMessage && o.clickTarget) {
+  // Fastest and exact: read the link's address from the email itself and give it straight to Playwright (no clicking).
+  let direct: string | null = null;
+  if (o.inMessage && o.clickTarget && ctx.mac.pageLinks) {
+    const pl = await ctx.mac.pageLinks(ctx.sourceApp).catch((e: Error) => ({ links: [], problem: e.message }));
+    direct = linkFor(pl.links, o.clickTarget);
+    webLog("message_links", { links: pl.links.length, found: !!direct, host: direct ? new URL(direct).hostname : null, problem: pl.problem });
+    if (!direct && pl.problem) ctx.ui.detail(`I couldn't read the email's links (${pl.problem}), so I'll click the link instead.`, true);
+  }
+  if (direct) linkClicked = true;
+  if (!direct && o.inMessage && o.clickTarget) {
     // CalHack clicks the link itself; nothing is handed to the person. If it can't, it says so and the agent moves on.
     const click = await finishOnScreen(ctx, { instruction: `Click the "${o.clickTarget}" link in the message`, doneWhen: async () => !!(await formUrl()), noHandoff: true });
     if (click.result === "skip") return { done: `Stopped (${click.trail.join("; ")}).`, linkClicked };
@@ -1134,8 +1146,8 @@ async function formViaPlaywright(
   }
   if (ctx.signal?.aborted) return { done: "The person pressed Stop.", linkClicked };
   // A new tab can take a moment to load: wait up to 6 s for its address.
-  let url = linkClicked ? await formUrl() : await ctx.mac.pageUrl?.().catch(() => null);
-  for (let t = 0; linkClicked && !url && t < 12 && !ctx.signal?.aborted; t++) {
+  let url = direct ?? (linkClicked ? await formUrl() : await ctx.mac.pageUrl?.().catch(() => null));
+  for (let t = 0; linkClicked && !direct && !url && t < 12 && !ctx.signal?.aborted; t++) {
     await new Promise((x) => setTimeout(x, 500));
     url = await formUrl();
   }
@@ -1161,7 +1173,7 @@ async function formViaPlaywright(
   const filledList = r.filled.map((f) => (f.chose ? `${f.field}: ${f.chose}` : f.field)).join(", ");
   if (r.submitted) {
     ctx.ui.say(`Done. The site says: ${r.confirmation}`);
-    return { done: `[${r.evidenceRef}] CalHack clicked the link, filled ${filledList} with Playwright, ticked the required boxes and pressed "${r.submit}". The site confirmed it: "${r.confirmation}". Use ${r.evidenceRef} as proof the form was submitted.`, linkClicked };
+    return { done: `[${r.evidenceRef}] CalHack opened the link, filled ${filledList} with Playwright, ticked the required boxes and pressed "${r.submit}". The site confirmed it: "${r.confirmation}". Use ${r.evidenceRef} as proof the form was submitted.`, linkClicked };
   }
   ctx.ui.say(`I filled in the form, but didn't send it: ${r.problem}.`);
   return { done: `[${r.evidenceRef}] CalHack filled ${filledList} with Playwright but did NOT submit: ${r.problem}. Tell the person exactly that in finish; the form is still open in CalHack's Chrome window.`, linkClicked };
