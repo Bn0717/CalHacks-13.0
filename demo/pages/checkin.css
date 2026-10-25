@@ -1,0 +1,14 @@
+[hidden] { display: none !important; }
+form { display: grid; gap: 6px; max-width: 460px; }
+label { font-weight: 600; margin-top: 10px; }
+input:not([type=checkbox]), textarea { font: inherit; padding: 9px 12px; border: 1px solid #c7c7cc; border-radius: 8px; }
+input:focus, textarea:focus { outline: 3px solid #b3d4ff; border-color: #0071e3; }
+.choice { border: 1px solid #d2d2d7; border-radius: 10px; padding: 8px 14px 12px; margin: 10px 0 0; display: grid; gap: 4px; }
+.choice legend { font-weight: 600; padding: 0 4px; }
+.choice label { font-weight: 400; margin: 0; display: flex; gap: 8px; align-items: center; }
+select { font: inherit; padding: 8px 10px; border: 1px solid #c7c7cc; border-radius: 8px; }
+.tick { font-weight: 400; display: flex; gap: 8px; align-items: center; }
+button { margin-top: 18px; font: inherit; font-weight: 600; padding: 11px 18px; border: 0; border-radius: 10px; background: #0071e3; color: white; cursor: pointer; justify-self: start; }
+.error { color: #b3261e; }
+.done { background: #e9f7ee; border: 1px solid #a6dcb6; border-radius: 12px; padding: 14px 18px; }
+.done h2 { margin: 0 0 6px; }

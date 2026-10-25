@@ -85,3 +85,15 @@ export function isSuspiciousHost(host: string): boolean {
   if (host.endsWith(".zip") || host.endsWith(".mov")) return true; // look-alike file-name domains
   return SUSPICIOUS_HOSTS.some((d) => hostMatches(host, d));
 }
+
+/** Sites that only show the person's own content after they sign in, so a fresh download can't see it. */
+const SIGNED_IN_HOSTS = ["mail.google.com", "outlook.live.com", "outlook.office.com", "outlook.office365.com", "mail.yahoo.com", "www.icloud.com", "mail.aol.com", "mail.proton.me", "calendar.google.com", "docs.google.com", "drive.google.com", "web.whatsapp.com", "www.facebook.com", "messages.google.com"];
+
+export function signedInPage(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return SIGNED_IN_HOSTS.includes(u.hostname) || (u.hostname === "www.icloud.com" && u.pathname.startsWith("/mail"));
+  } catch {
+    return false;
+  }
+}

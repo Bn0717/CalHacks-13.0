@@ -22,6 +22,7 @@
   const captionText = $("caption-text");
   const muteBtn = $("mute");
   const closeBtn = $("close");
+  const sizeBtn = $("size");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   let state = { phase: "hidden" };
@@ -68,6 +69,8 @@
     hand: ["M8 12V6.5a1.5 1.5 0 0 1 3 0V11", "M11 10.5V5a1.5 1.5 0 0 1 3 0v5.5", "M14 10.5V7a1.5 1.5 0 0 1 3 0v7a6 6 0 0 1-6 6h-.5a5.5 5.5 0 0 1-4.6-2.5L4.3 15a1.5 1.5 0 0 1 2.4-1.8L8 14.5"],
     dash: ["M7 12h10"],
     alert: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M12 7.5v5.5", "M12 16.3v.2"],
+    expand: ["M14 4h6v6", "M20 4l-6 6", "M10 20H4v-6", "M4 20l6-6"],
+    collapse: ["M4 14h6v6", "M10 14l-6 6", "M20 10h-6V4", "M14 10l6-6"],
   };
   const SVG = "http://www.w3.org/2000/svg";
   function icon(name, cls = "") {
@@ -656,6 +659,8 @@
     const view = VIEWS[phase](state);
     const changedPhase = phase !== lastPhase;
     lastPhase = phase;
+    // A new screen (a question, a confirmation, the result) always opens up again, so nothing is missed.
+    if (changedPhase && compact) setCompact(false, false);
 
     eyebrow.textContent = view.eyebrow || "";
     eyebrow.hidden = !view.eyebrow;
@@ -742,6 +747,50 @@
       updateScrollFade();
     }, 280);
   }
+
+  // ---------------- Smaller / bigger, and moving the card ----------------
+  // Smaller shows just the title, the "now" line and the buttons (so Stop, Done and Skip stay in reach).
+
+  let compact = false;
+  function setCompact(on, animate = true) {
+    const from = card.classList.contains("is-hidden") ? 0 : card.offsetHeight;
+    compact = on;
+    card.classList.toggle("is-compact", on);
+    const label = on ? "Make bigger" : "Make smaller";
+    sizeBtn.replaceChildren(icon(on ? "expand" : "collapse"));
+    sizeBtn.setAttribute("aria-label", label);
+    sizeBtn.title = label;
+    sizeBtn.setAttribute("aria-expanded", on ? "false" : "true");
+    if (animate) animateHeight(from);
+    scheduleRect();
+  }
+  sizeBtn.addEventListener("click", () => setCompact(!compact));
+  sizeBtn.replaceChildren(icon("collapse"));
+
+  // Drag by the top of the card. The app moves the window to follow the mouse until it's let go.
+  let dragging = null;
+  head.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest("button, input, a, textarea")) return;
+    dragging = e.pointerId;
+    try { head.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+    card.classList.add("is-dragging");
+    send("bar-drag", { on: true });
+  });
+  function endDrag() {
+    if (dragging === null) return;
+    try { head.releasePointerCapture(dragging); } catch { /* already released */ }
+    dragging = null;
+    card.classList.remove("is-dragging");
+    send("bar-drag", { on: false });
+  }
+  head.addEventListener("pointerup", endDrag);
+  head.addEventListener("pointercancel", endDrag);
+  head.addEventListener("lostpointercapture", endDrag);
+  window.addEventListener("blur", endDrag);
+  head.addEventListener("dblclick", (e) => {
+    if (e.target.closest("button, input, a, textarea")) return;
+    send("bar-move-reset");
+  });
 
   // ---------------- Tell the app where the card is (so clicks around it pass through) ----------------
 

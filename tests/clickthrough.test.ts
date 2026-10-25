@@ -75,3 +75,17 @@ describe("autopilot never clicks its own window", () => {
     expect(await run(act({ kind: "key", key: "tab" }))).toEqual(["run"]);
   });
 });
+
+import { keepCardOnScreen } from "../src/app/clickthrough.js";
+
+describe("keeping a dragged bar on screen", () => {
+  const card = { x: 30, y: 300, width: 560, height: 240 };
+  const area = { x: 0, y: 25, width: 1440, height: 875 };
+  it("leaves a position that already fits alone", () => {
+    expect(keepCardOnScreen({ x: 400, y: 200 }, card, area)).toEqual({ x: 400, y: 200 });
+  });
+  it("stops the card at each edge, even though the window is bigger than the card", () => {
+    expect(keepCardOnScreen({ x: -500, y: -900 }, card, area)).toEqual({ x: -30, y: -275 });
+    expect(keepCardOnScreen({ x: 5000, y: 5000 }, card, area)).toEqual({ x: 850, y: 360 });
+  });
+});
