@@ -7,31 +7,41 @@
 import type { Check, ProjectFile, Step } from "../lesson.js";
 import type { CheckRunner } from "../validate.js";
 import { haikuJudge, type Judge } from "./ai.js";
-import { failMessage, passMessage, pickHint, reasons, type CheckOutcome, type HintIndex } from "./hint.js";
-import { fileKind, parseProblem, readHtml, type ParsedHtml, type ParseProblem } from "./parse.js";
+import { failMessage, firstReason, passMessage, reasons, type CheckOutcome } from "./hint.js";
+import { fileKind, missingClosers, parseProblem, readHtml, type ParsedHtml, type ParseProblem } from "./parse.js";
 import { playwrightRenderer, type Probe, type ProbeAnswer, type Renderer, type StyleAnswer } from "./render.js";
 import { attributeOf, querySelectorAll, textOf, UnsupportedSelector } from "./selector.js";
-import { JARGON } from "./words.js";
+import { onTrack } from "./track.js";
+import { hasJargon } from "./words.js";
+
 
 export { haikuJudge, type Judge, type JudgeRequest, type Verdict } from "./ai.js";
-export { pickHint, type HintIndex } from "./hint.js";
 export { playwrightRenderer, type Probe, type ProbeAnswer, type Renderer, type RenderRequest, type RenderResult } from "./render.js";
 
-export type CheckDeps = { renderer?: Renderer; judge?: Judge };
+// start: the project as it was when the step opened, so the checker can tell "not finished yet" from "wrong".
+export type CheckDeps = { renderer?: Renderer; judge?: Judge; start?: ProjectFile[] };
 
 export type CheckStatus = "pass" | "partial" | "fail";
 
 export type StepCheckResult = {
-  status: CheckStatus; // partial = mid-edit or some checks pass: the runner waits instead of hinting
+  // pass · partial = the code is half-typed (the runner waits instead of hinting) · fail = something is wrong.
+  // (Whether a wrong try is still progress is the runner's call: it compares `remaining` with the tries before.)
+  status: CheckStatus;
   failed: Check[]; // checks not (yet) passing, in the step's order
-  hintIndex: HintIndex; // which of the step's 3 hints fits best
   message: string; // short plain English for the student
+  reason?: string; // the first thing that's wrong, without "Almost there" (shown next to hint 1)
+  untouched?: boolean; // nothing typed in the step's file yet: it's still "your turn", not wrong
+  onTrack?: number; // how many of the step's first lines they've typed right, with the rest just not typed yet
+  slip?: boolean; // a real slip was spotted (a tag typed where its closing tag should be, a heading left open)
+  remaining: number; // how much is left: failing checks, less a part for a list that's partly there
+  passed: number; // checks passing
+  total: number; // checks in the step
   level: 1 | 2 | 3; // the highest level that had to run
   consoleErrors: string[]; // errors the page logged, if it was rendered
 };
 
 // The real dependencies: one hidden Chromium (call renderer.close() when done) and Claude Haiku.
-export function defaultCheckDeps(): Required<CheckDeps> {
+export function defaultCheckDeps(): Required<Omit<CheckDeps, "start">> {
   return { renderer: playwrightRenderer(), judge: haikuJudge() };
 }
 
@@ -42,10 +52,11 @@ export function checkRunner(deps: CheckDeps): CheckRunner {
 
 // One check's state while the levels run. "undecided" goes up a level.
 type State =
-  | { kind: "done"; passed: boolean; reason?: string }
+  | { kind: "done"; passed: boolean; reason?: string; closeness?: number; fromModel?: boolean }
   | { kind: "render"; page: string; probe: Probe; judge: (a: ProbeAnswer) => Decision }
   | { kind: "ask"; question: string };
-type Decision = { passed: boolean; reason?: string } | null; // null = still can't tell
+// closeness: for a count that's partly there (2 of 3 list items), how far along it is (0-1).
+type Decision = { passed: boolean; reason?: string; closeness?: number } | null; // null = still can't tell
 
 export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: CheckDeps = {}): Promise<StepCheckResult> {
   const files = new Files(projectFiles);
@@ -55,13 +66,16 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
   // Level 1.
   const states: State[] = step.checks.map((check) => levelOne(check, fileFor(check, step), files));
 
-  // Half-typed code in any file this step touches means the student is mid-edit.
+  // Half-typed code in any file this step touches means the student is mid-edit (unless it's a real slip, see parse.ts).
   const touched = new Set([...(step.file ? [norm(step.file)] : []), ...step.checks.map((c) => norm(fileFor(c, step)))]);
   let parseIssue: ParseProblem | undefined;
   for (const path of touched) {
     const content = files.get(path);
     if (content !== undefined) parseIssue ??= parseProblem(path, content);
   }
+  const typing = parseIssue && !parseIssue.mistake ? parseIssue : undefined;
+  // Nothing typed in the step's own file yet (or no file at all): still "your turn", never "wrong".
+  const untouched = step.file !== undefined && (files.get(step.file) ?? "").trim() === "";
 
   // Level 2: one render per page, with every probe that page needs.
   const toRender = states.flatMap((s, i) => (s.kind === "render" ? [{ s, i }] : []));
@@ -87,10 +101,10 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
     }
   }
 
-  // Level 3, skipped when the answer can't change the result: something already passed and something already failed
-  // (or the code is half-typed), so the step is "partial" whatever the model says.
+  // Level 3, skipped when the answer can't change the result: the code is half-typed, the file is still empty, or
+  // something is already wrong, so the step can't pass whatever the model says.
   const done = states.filter((s): s is Extract<State, { kind: "done" }> => s.kind === "done");
-  const fixed = (parseIssue !== undefined || done.some((s) => !s.passed)) && (parseIssue !== undefined || done.some((s) => s.passed));
+  const fixed = parseIssue !== undefined || untouched || done.some((s) => !s.passed);
   const toAsk = states.flatMap((s, i) => (s.kind === "ask" ? [{ s, i }] : []));
   if (toAsk.length > 0 && !fixed && deps.judge) {
     level = 3;
@@ -107,7 +121,7 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
             code,
             reference: step.expected,
           });
-          states[i] = { kind: "done", passed: verdict.answer === "yes", reason: verdict.reason };
+          states[i] = { kind: "done", passed: verdict.answer === "yes", reason: verdict.reason, fromModel: true };
         } catch {
           // Leave it undecided: it counts as not passing yet.
         }
@@ -115,29 +129,83 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
     );
   }
 
+  // A tag typed with too few closing tags ("<li>Drawing<li>") explains a wrong count better than "I see 4 list items".
+  const closers = [...touched].flatMap((path) => (fileKind(path) === "html" ? missingClosers(files.get(path) ?? "") : []));
+
+  let first = true;
   const outcomes: CheckOutcome[] = states.map((s, i) => {
     const check = step.checks[i]!;
     const passed = s.kind === "done" && s.passed;
-    // The lesson's own plain wording wins, unless it slipped in code words.
-    const own = !passed && check.say && !JARGON.test(check.say) ? check.say : undefined;
-    return { check, passed, reason: own ?? (s.kind === "done" ? s.reason : reasons.unknown()) };
+    if (passed) return { check, passed };
+    // The lesson's own plain wording wins, unless it slipped in code words. Words from the model (or anywhere else)
+    // with code words in them are swapped for the check's own plain words, made by code.
+    const own = check.say && !hasJargon(check.say) ? check.say : undefined;
+    let reason = own ?? (s.kind === "done" ? s.reason : reasons.unknown());
+    if (!reason || hasJargon(reason)) reason = plainReason(check);
+    const closer = first && !own ? closers.find((c) => mentionsTag(check, c.tag)) : undefined;
+    if (closer) reason = reasons.missingCloser(closer.tag, closer.missing, closer.line);
+    first = false;
+    return { check, passed, reason };
   });
   const passed = outcomes.filter((o) => o.passed).length;
   const failed = outcomes.filter((o) => !o.passed).map((o) => o.check);
+  const left = states.reduce((sum, s) => sum + (s.kind === "done" ? (s.passed ? 0 : 1 - (s.closeness ?? 0)) : 1), 0);
 
   let status: CheckStatus;
   if (failed.length === 0 && !parseIssue) status = "pass";
-  else if (parseIssue || passed > 0) status = "partial";
+  else if (typing) status = "partial";
   else status = "fail";
 
   return {
     status,
     failed,
-    hintIndex: status === "pass" ? 0 : pickHint(outcomes, parseIssue),
     message: status === "pass" ? passMessage() : failMessage(outcomes, parseIssue, consoleErrors),
+    ...(status === "pass" ? {} : { reason: firstReason(outcomes, parseIssue) }),
+    ...(status !== "pass" && untouched ? { untouched: true } : {}),
+    ...(status !== "pass" && !untouched && linesOnTrack(step, files, deps.start) > 0 ? { onTrack: linesOnTrack(step, files, deps.start) } : {}),
+    ...(status !== "pass" && (parseIssue?.mistake || closers.length > 0) ? { slip: true } : {}),
+    remaining: status === "pass" ? 0 : Math.round(left * 100) / 100 + (parseIssue ? 0.5 : 0),
+    passed,
+    total: outcomes.length,
     level,
     consoleErrors,
   };
+}
+
+// Has the student typed the first lines of this step's code correctly, and just not the rest yet?
+function linesOnTrack(step: Step, files: Files, start: ProjectFile[] | undefined): number {
+  if (!step.file || !start || !step.expected.trim()) return 0;
+  const before = start.find((f) => norm(f.path) === norm(step.file!))?.content ?? "";
+  const now = files.get(step.file);
+  return now === undefined ? 0 : onTrack(before, now, step.expected);
+}
+
+
+// A failing check in plain words, made by code (never by the model), for when other words won't do.
+function plainReason(check: Check): string {
+  switch (check.type) {
+    case "fileExists":
+      return reasons.missingFile(check.file);
+    case "selectorExists":
+      return reasons.notFound(check.selector);
+    case "textIncludes":
+      return reasons.wrongText(check.selector, check.text);
+    case "attribute":
+      return reasons.missingAttr(check.selector, check.name, check.value);
+    case "cssProperty":
+      return reasons.wrongStyle(check.selector, check.property, check.value === undefined);
+    default:
+      return reasons.unknown();
+  }
+}
+
+// Is this check about this tag (e.g. "ul li" is about <li> and <ul>)?
+function mentionsTag(check: Check, tag: string): boolean {
+  if (!("selector" in check)) return false;
+  return check.selector
+    .toLowerCase()
+    .split(/[\s>+~,()]+/)
+    .some((part) => part.replace(/[.#[:].*$/, "") === tag);
 }
 
 // ---------- Level 1 ----------
@@ -177,11 +245,13 @@ function levelOne(check: Check, path: string, files: Files): State {
 type ElementCheck = Extract<Check, { type: "selectorExists" | "textIncludes" | "attribute" }>;
 
 // The same decision for parsed HTML (level 1) and the rendered page (level 2).
-function decideOnElements(check: ElementCheck, count: number, texts: string[], attrs: (name: string) => (string | null)[]): { passed: boolean; reason?: string } {
+function decideOnElements(check: ElementCheck, count: number, texts: string[], attrs: (name: string) => (string | null)[]): NonNullable<Decision> {
   if (check.type === "selectorExists") {
     if (check.count === undefined) return count > 0 ? { passed: true } : { passed: false, reason: reasons.notFound(check.selector) };
     if (count === check.count) return { passed: true };
-    return { passed: false, reason: count === 0 ? reasons.notFound(check.selector) : reasons.wrongCount(check.selector, count, check.count) };
+    const closeness = count > 0 && count < check.count ? count / check.count : 0;
+    return { passed: false, closeness, reason: count === 0 ? reasons.notFound(check.selector) : reasons.wrongCount(check.selector, count, check.count) };
+
   }
   if (count === 0) return { passed: false, reason: reasons.notFound(check.selector) };
   if (check.type === "textIncludes") {

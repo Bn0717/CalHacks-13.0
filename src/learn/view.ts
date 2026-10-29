@@ -54,6 +54,11 @@ export function stepView(lesson: Lesson, state: RunnerState, extras: StepExtras 
   if (!step || state.finished) return null;
   const chapter = lesson.chapters.find((c) => c.id === step.chapter);
   const hintLevel = Math.min(Math.max(state.hintLevel, 0), 3);
+  const status = stepStatus(lesson, state);
+  const judged = status === "partial" || status === "stuck";
+  // Half-typed code left alone long enough becomes "stuck": then it's not "still typing?" any more, just the problem.
+  const note = extras.note && status === "stuck" ? extras.note.replace(/^Still typing\? /, "") : extras.note;
+  const last = state.lastCheck;
   return {
     screen: "step",
     lessonTitle: lesson.title,
@@ -72,13 +77,15 @@ export function stepView(lesson: Lesson, state: RunnerState, extras: StepExtras 
       ...(step.concept ? { concept: { title: step.concept.title, explain: step.concept.explain, links: step.concept.links } } : {}),
       ...(step.video ? { video: { ...(extras.videoId ? { videoId: extras.videoId } : {}), start: step.video.start, end: step.video.end } } : {}),
     },
-    status: stepStatus(lesson, state),
+    status,
     hints: step.hints.slice(0, hintLevel),
     hintOffered: state.hintOffered && hintLevel === 0,
     canShowMe: canShowMe(lesson, state),
     doneForMe: state.doneForMe,
     pace: state.progress.pace,
-    ...(extras.note ? { note: extras.note } : {}),
+    ...(note ? { note } : {}),
+    ...(status === "partial" && state.settledWhy ? { partial: state.settledWhy } : {}),
+    ...(judged && last && last.total > 1 ? { parts: { done: last.passed, total: last.total } } : {}),
     ...(extras.open ? { open: extras.open } : {}),
   };
 }

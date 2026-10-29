@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { reasons } from "../../src/learn/check/hint.js";
 import { checkStep, type Renderer } from "../../src/learn/check/index.js";
-import { describeSelector, JARGON, propertyWords, withArticle } from "../../src/learn/check/words.js";
+import { describeSelector, hasJargon, JARGON, propertyWords, withArticle } from "../../src/learn/check/words.js";
 import { parseLesson, type Check, type Step } from "../../src/learn/lesson.js";
 
 const say = (selector: string) => withArticle(describeSelector(selector));
@@ -16,7 +16,9 @@ describe("selectors in words", () => {
     ["header nav a", "a link (<a>) inside the menu (<nav>)"],
     ["ul li", "a list item (<li>) inside the bullet list (<ul>)"],
     ["body > ul > li", "a list item (<li>) inside the bullet list (<ul>)"],
-    ["head link", "a link to a style file (<link>) inside the head part (<head>)"],
+    ["head link", "a link to a style file (<link>)"], // head-only tags skip "inside the head part"
+    ["head meta[name=description]", 'a description line (<meta name="description">)'],
+    ["div.card ul li", 'a list item (<li>) inside the bullet list (<ul>)'],
     ["title", "the page title (<title>)"],
     [".card", 'a part with class="card"'],
     ["div.card h3", 'a small heading (<h3>) inside the box (<div>) with class="card"'],
@@ -79,7 +81,7 @@ describe("checker messages", () => {
     expect(reasons.wrongText("title", "about me")).toBe('The page title (<title>) should say "about me".');
     expect(reasons.missingAttr("img", "alt")).toBe("The picture (<img>) still needs a short description of the picture (alt).");
     expect(reasons.missingAttr("head link", "href", "style.css")).toBe(
-      'The link to a style file (<link>) inside the head part (<head>) needs href="style.css".',
+      'The link to a style file (<link>) needs href="style.css".',
     );
     expect(reasons.wrongStyle("h1", "color")).toBe("The big heading (<h1>) doesn't have the right text colour yet.");
     expect(reasons.wrongStyle("body", "font-family", true)).toBe("The page body (<body>) doesn't have its own font yet.");
@@ -102,6 +104,34 @@ describe("checker messages", () => {
       const { message } = await checkStep(step, [page]);
       expect(message).not.toMatch(JARGON);
       if ("selector" in check) expect(message).not.toContain(`"${check.selector}"`);
+      expect(hasJargon(message), message).toBe(false);
     }
+  });
+});
+
+describe("the jargon finder", () => {
+  it.each([
+    "The element selector is missing from the DOM.",
+    "No match for header > nav a.active.",
+    "Add .card to the box.",
+    "The #menu part is missing.",
+    "meta[name=description] is missing.",
+    "Style a:hover in your CSS.",
+    "Your body h1 isn't red.",
+    "Write h1 { color: red; }.",
+  ])("flags %j", (text) => {
+    expect(hasJargon(text)).toBe(true);
+  });
+
+  it.each([
+    'I can\'t see a description line (<meta name="description">) yet.',
+    "I see 1 list item (<li>) inside the bullet list (<ul>), but this step needs 3.",
+    "One list item (<li>) is missing its closing </li> (line 13).",
+    'The link to a style file (<link>) needs href="style.css".',
+    "Almost there. The big heading (<h1>) doesn't have the right text colour yet.",
+    "There's no file called style.css in your project folder yet.",
+    "Your page talks about drawing, e.g. what you like.",
+  ])("lets plain words through: %j", (text) => {
+    expect(hasJargon(text)).toBe(false);
   });
 });

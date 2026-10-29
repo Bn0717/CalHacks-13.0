@@ -24,7 +24,7 @@
     "changing colours and fonts with CSS"
   ],
   "estimate": {
-    "minutes": 24,
+    "minutes": 26,
     "linesToType": 28,
     "steps": 6
   },
@@ -108,7 +108,7 @@
         "explain": "The <head> holds facts about the page, like its title, and the <body> holds everything people see.",
         "links": [
           {
-            "title": "MDN: Getting started with HTML",
+            "title": "Read more: Getting started with HTML",
             "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started"
           }
         ],
@@ -142,7 +142,17 @@
         "A big heading uses the <h1> tag.",
         "Put the <h1> and both <p> lines between <body> and </body>.",
         "<h1>Hi, I'm ...</h1>\n<p>...</p>"
-      ]
+      ],
+      "concept": {
+        "title": "Headings and paragraphs",
+        "explain": "An <h1> is the big heading at the top of a page, and each <p> is one paragraph of text.",
+        "links": [
+          {
+            "title": "Read more: Headings and paragraphs",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/HTML_text_fundamentals"
+          }
+        ]
+      }
     },
     {
       "id": "hobbies",
@@ -170,14 +180,14 @@
       "hints": [
         "A bullet list uses <ul>, and each item is an <li>.",
         "Put three <li> items inside one <ul>.",
-        "<ul>\n  <li>...</li>\n  <li>...</li>\n  <li>...</li>\n</ul>"
+        "<ul>\n  <li>...</li>\n  <li>...</li>\n</ul>"
       ],
       "concept": {
         "title": "Lists",
         "explain": "A <ul> makes a bullet list, and each thing in it goes inside its own <li> (list item).",
         "links": [
           {
-            "title": "MDN: The ul element",
+            "title": "Read more: The ul element",
             "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/ul"
           }
         ]
@@ -218,16 +228,16 @@
         }
       ],
       "hints": [
-        "Styles are connected with a <link> tag in the <head>.",
-        "The <link> needs rel=\"stylesheet\" and an href.",
-        "<link rel=\"stylesheet\" href=\"...\">"
+        "The <head> needs three new lines: two <meta> lines and a <link>.",
+        "One <meta> has name=\"description\", the other has name=\"viewport\", and the <link> needs rel=\"stylesheet\" and an href.",
+        "<meta name=\"description\" content=\"...\">\n<link rel=\"stylesheet\" href=\"...\">"
       ],
       "concept": {
         "title": "Linking CSS",
         "explain": "A <link> in the <head> connects your page to a CSS file, which says how the page looks.",
         "links": [
           {
-            "title": "MDN: CSS first steps",
+            "title": "Read more: CSS first steps",
             "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/First_steps"
           }
         ]
@@ -263,7 +273,7 @@
         }
       ],
       "hints": [
-        "CSS rules look like: selector { property: value; }",
+        "A CSS rule says which part of the page to style, then what to change, inside { and }.",
         "Write a rule for h1 that sets color.",
         "h1 {\n  color: ...;\n}"
       ],

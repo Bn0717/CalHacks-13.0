@@ -36,7 +36,7 @@ describe("finish summary", () => {
     );
     expect(summary).toMatchObject({ lessonId: "about-me", steps: 5, alone: 2, hinted: 1, shown: 1, skipped: 1, minutes: 24 });
     // "Linking CSS" was skipped, so it doesn't count as learned.
-    expect(summary.concepts).toEqual(["The parts of an HTML page", "Lists"]);
+    expect(summary.concepts).toEqual(["The parts of an HTML page", "Headings and paragraphs", "Lists"]);
   });
 
   it("handles a lesson with no progress", () => {

@@ -147,7 +147,7 @@ describe("the finish", () => {
     expect(text).toContain('🎉 You finished "A page about me"!');
     expect(text).toContain("You made: A web page about you");
     expect(text).toContain("Your steps: 5 · on your own 3 · with hints 1 · shown 1");
-    expect(text).toContain("What you learned: The parts of an HTML page, Lists, Linking CSS");
+    expect(text).toContain("What you learned: The parts of an HTML page, Headings and paragraphs, Lists, Linking CSS");
     expect(text).toContain("Time: 9 min");
   });
 

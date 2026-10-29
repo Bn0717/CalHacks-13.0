@@ -233,11 +233,11 @@ describe("level 3: the model", () => {
     if (status === "fail") expect(r.message).toBe("It talks about drawing.");
   });
 
-  it("isn't asked when the step is already partial without it", async () => {
+  it("isn't asked when something is already wrong without it", async () => {
     const judge = noJudge();
     const checks: Check[] = [{ type: "selectorExists", selector: "h1" }, { type: "selectorExists", selector: "footer" }, ai];
     const r = await checkStep(step(checks), [PAGE], { judge });
-    expect(r.status).toBe("partial");
+    expect(r.status).toBe("fail");
     expect(r.failed).toEqual([checks[1], ai]);
     expect(judge).not.toHaveBeenCalled();
   });
@@ -252,8 +252,25 @@ describe("level 3: the model", () => {
   it("a model error counts as not passing yet", async () => {
     const judge = vi.fn<Judge>(async () => Promise.reject(new Error("offline")));
     const r = await checkStep(step([{ type: "selectorExists", selector: "h1" }, ai]), [PAGE], { judge });
-    expect(r.status).toBe("partial");
+    expect(r.status).toBe("fail");
     expect(r.failed).toEqual([ai]);
+    expect(r.message).toBe("Almost there. I couldn't check this part yet. Keep going, and I'll look again in a moment.");
+  });
+
+  it("never passes the model's code words on to the student", async () => {
+    // A judge that answers in jargon: the student reads the check's own plain words instead.
+    const judge = vi.fn<Judge>(async () => ({ answer: "no" as const, reason: "The element selector is missing from the DOM." }));
+    const r = await checkStep(step([ai]), [PAGE], { judge });
+    expect(r.status).toBe("fail");
+    expect(r.message).not.toMatch(/element|selector|DOM/i);
+    expect(r.message).toBe("I couldn't check this part yet. Keep going, and I'll look again in a moment.");
+    // With the lesson's own plain words for the check, those are used.
+    const said = await checkStep(step([{ ...ai, say: "Your paragraph should say something about you." } as Check]), [PAGE], { judge });
+    expect(said.message).toBe("Your paragraph should say something about you.");
+    // A check the model answered for the browser: its own plain wording, made by code.
+    const raw = vi.fn<Judge>(async () => ({ answer: "no" as const, reason: "No match for header > nav a.active in the page." }));
+    const viaModel = await checkStep(step([{ type: "selectorExists", selector: "header > nav a.active" }]), [PAGE], { judge: raw });
+    expect(viaModel.message).toBe('I can\'t see a link (<a>) with class="active" inside the menu (<nav>) yet.');
   });
 
   it("haikuJudge uses Haiku and validates the answer with Zod", async () => {
@@ -274,7 +291,7 @@ describe("status: pass, partial, fail", () => {
 
   it.each([
     { name: "all pass", checks: [h1], files: [PAGE], status: "pass" },
-    { name: "some pass", checks: [h1, h2], files: [PAGE], status: "partial" },
+    { name: "some pass, but something's wrong", checks: [h1, h2], files: [PAGE], status: "fail" },
     { name: "none pass", checks: [h2, nav], files: [PAGE], status: "fail" },
     { name: "file missing", checks: [h1], files: [], status: "fail" },
     { name: "empty file", checks: [h1], files: [{ path: "index.html", content: "" }], status: "fail" },
@@ -284,9 +301,31 @@ describe("status: pass, partial, fail", () => {
     expect((await checkStep(step(checks), files)).status).toBe(status);
   });
 
+  it("an empty or missing file is 'untouched' (still their turn), not wrong", async () => {
+    expect((await checkStep(step([h1]), [{ path: "index.html", content: "  \n" }])).untouched).toBe(true);
+    expect((await checkStep(step([h1]), [])).untouched).toBe(true);
+    expect((await checkStep(step([h2]), [PAGE])).untouched).toBeUndefined();
+  });
+
+  it("an unclosed heading that swallowed the lines after it is a slip, not half-typed code", async () => {
+    const r = await checkStep(step([h1, { type: "selectorExists", selector: "p" }]), [html("<h1>Hi<h1>\n<p>About me</p>")]);
+    expect(r.status).toBe("fail");
+    expect(r.message).toBe("The <h1> you started still needs its closing </h1> (line 5).");
+    // While the heading is the last thing typed, it's still typing.
+    expect((await checkStep(step([h1]), [html("<p>About me</p>\n<h1>Hi")])).status).toBe("partial");
+  });
+
+  it("says how much is right and how much is left", async () => {
+    const r = await checkStep(step([h1, h2, { type: "selectorExists", selector: "li", count: 6 }]), [PAGE]);
+    expect(r).toMatchObject({ status: "fail", passed: 1, total: 3, reason: "I can't see a smaller heading (<h2>) yet." });
+    expect(r.remaining).toBe(1.5); // h2 missing (1) + half the list items there (0.5)
+  });
+
   it("messages are short and plain", async () => {
     expect((await checkStep(step([h1]), [PAGE])).message).toBe("Nice, that works!");
     expect((await checkStep(step([h1, h2]), [PAGE])).message).toBe("Almost there. I can't see a smaller heading (<h2>) yet.");
+    // "Almost there" only when at least half is right.
+    expect((await checkStep(step([h1, h2, nav]), [PAGE])).message).toBe("I can't see a smaller heading (<h2>) yet.");
     expect((await checkStep(step([h2]), [PAGE])).message).toBe("I can't see a smaller heading (<h2>) yet.");
     expect((await checkStep(step([h1]), [html("<ul>\n<li>a")])).message).toBe(
       "Still typing? The <ul> you started still needs its closing </ul> (line 5).",
@@ -300,21 +339,26 @@ describe("status: pass, partial, fail", () => {
   });
 });
 
-describe("hint selection", () => {
+describe("the message is about the first thing that's wrong", () => {
   const ok = (selector: string): Check => ({ type: "selectorExists", selector: `${selector}` });
-  const P: Check[] = [ok("h1"), ok("p"), ok("ul")]; // all present in PAGE
-  const F: Check[] = [ok("h2"), ok("nav"), ok("footer")]; // all missing
 
   it.each([
-    { name: "nothing passes yet", checks: [F[0]!, F[1]!], files: [PAGE], hint: 0 },
-    { name: "half-typed code", checks: [P[0]!, F[0]!], files: [html("<h1>x</h1><p")], hint: 0 },
-    { name: "first failing check is a missing file", checks: [P[0]!, { type: "fileExists", file: "style.css" } as Check, F[0]!], files: [PAGE], hint: 0 },
-    { name: "first failing check is 'parses'", checks: [{ type: "fileExists", file: "a.css" } as Check, { type: "parses", file: "a.css" } as Check], files: [PAGE, { path: "a.css", content: "}" }], hint: 0 },
-    { name: "some progress, two things left", checks: [P[0]!, F[0]!, F[1]!], files: [PAGE], hint: 1 },
-    { name: "nearly done, one thing left", checks: [P[0]!, P[1]!, F[0]!], files: [PAGE], hint: 2 },
-    { name: "one of two left", checks: [P[0]!, F[0]!], files: [PAGE], hint: 2 },
-  ])("$name -> hint $hint", async ({ checks, files, hint }) => {
-    expect((await checkStep(step(checks), files)).hintIndex).toBe(hint);
+    { name: "a missing heading before a missing menu", checks: [ok("h1"), ok("h2"), ok("nav")], reason: "I can't see a smaller heading (<h2>) yet." },
+    { name: "a missing file", checks: [ok("h1"), { type: "fileExists", file: "style.css" } as Check], reason: "There's no file called style.css in your project folder yet." },
+    { name: "a CSS file that isn't finished", checks: [{ type: "parses", file: "a.css" } as Check], reason: "There's an extra } (line 1)." },
+  ])("$name", async ({ checks, reason }) => {
+    const r = await checkStep(step(checks), [PAGE, { path: "a.css", content: "}" }]);
+    expect(r.reason).toBe(reason);
+    expect(r.message.endsWith(reason)).toBe(true);
+  });
+
+  it("a start tag typed instead of a closing tag is named, with its line", async () => {
+    const hobbies = lesson.steps.find((s) => s.id === "hobbies")!;
+    const typo = "<h2>Things I like</h2>\n<ul>\n<li>Drawing<li>\n<li>Basketball</li>\n<li>Cooking</li>\n</ul>";
+    const r = await checkStep(hobbies, [html(typo)]);
+    expect(r.status).toBe("fail");
+    expect(r.reason).toBe("One list item (<li>) is missing its closing </li> (line 7).");
+    expect(r.message).not.toMatch(/I see 4/);
   });
 });
 
@@ -339,12 +383,24 @@ describe("the about-me lesson", () => {
     expect(r.needsFix).toEqual([]);
   });
 
-  it("a nearly-done skeleton is partial and gets the last hint", async () => {
+  it("a nearly-done skeleton is wrong (not 'partial'), and says what's left", async () => {
     const skeleton = lesson.steps.find((s) => s.id === "skeleton")!;
     const r = await checkStep(skeleton, [{ path: "index.html", content: "<!DOCTYPE html>\n<html>\n<head>\n<title>My page</title>\n</head>\n<body>\n</body>\n</html>" }]);
-    expect(r.status).toBe("partial");
+    expect(r.status).toBe("fail");
     expect(r.failed.map((c) => c.type)).toEqual(["textIncludes"]);
-    expect(r.hintIndex).toBe(2);
     expect(r.message).toBe('Almost there. The page title (<title>) should say "about me".');
   });
+
+  it("the sim case: the message and hint 1 of 'Finish the head' are about the same thing", async () => {
+    // The pretend student typed the quiz's wrong answer. The message is about the first missing line (a <meta>), and
+    // hint 1 now talks about the <meta> lines too, so the two never point different ways.
+    const linkCss = lesson.steps.find((s) => s.id === "link-css")!;
+    const head = '<meta charset="utf-8">\n<title>About Me</title>\n<style>style.css</style>';
+    const r = await checkStep(linkCss, [html("<h1>Hi</h1>", head)]);
+    expect(r.status).toBe("fail");
+    expect(r.reason).toBe('I can\'t see a description line (<meta name="description">) yet.');
+    expect(r.message).not.toMatch(/Almost there/);
+    expect(linkCss.hints[0]).toMatch(/<meta>/);
+  });
+
 });
