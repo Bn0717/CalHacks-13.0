@@ -1,5 +1,7 @@
 // What the lesson screen is sent: runner state → LessonView (src/learn/view.ts).
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS } from "../../src/learn/stages.js";
 import { TIMING, initialState, newProgress, reduce, type RunnerEvent, type RunnerState } from "../../src/learn/runner.js";
 import { lessonSummary } from "../../src/learn/summary.js";
 import { buildingView, estimateView, finishedView, pausedView, progressView, quizView, simplerLearns, stepStatus, stepView } from "../../src/learn/view.js";
@@ -105,11 +107,18 @@ describe("lesson view: the other screens", () => {
     expect(simplerLearns({ ...core, simpler: { ...core.simpler, stepIds: undefined } })).toEqual([]);
   });
 
-  it("building: the real stages, ticked up to the one running now", () => {
-    const v = buildingView("A page about me", ["Reading what you asked for", "Making the finished page", "Trying it out"], 1);
-    expect(v).toMatchObject({ screen: "building", stage: 1, labels: ["Reading what you asked for", "Making the finished page", "Trying it out"] });
-    expect((v as { stages: { status: string }[] }).stages.map((s) => s.status)).toEqual(["done", "running", "todo"]);
-    expect((buildingView("x", ["a", "b"], 2) as { stages: { status: string }[] }).stages.map((s) => s.status)).toEqual(["done", "done"]);
+  it("building: the builder's real stages in order, ticked up to the one running now, with the honest time", () => {
+    const labels = BUILD_STAGES.idea.map((s) => STAGE_LABELS[s]);
+    const v = buildingView("A page about me", "idea", "browser");
+    expect(v).toMatchObject({ screen: "building", stage: 2, labels, time: BUILD_TIME_TEXT });
+    expect((v as { stages: { status: string }[] }).stages.map((s) => s.status)).toEqual(["done", "done", "running", "todo", "todo", "todo"]);
+    const done = buildingView("x", "video", "done") as { stages: { status: string }[]; labels: string[] };
+    expect(done.labels).toEqual(BUILD_STAGES.video.map((s) => STAGE_LABELS[s]));
+    expect(done.stages.every((s) => s.status === "done")).toBe(true);
+    // The preview page shows the same stages and time, so its screenshots match what the app will send.
+    const preview = readFileSync(new URL("../../src/app/ui/lesson-preview.js", import.meta.url), "utf8");
+    for (const label of labels) expect(preview).toContain(JSON.stringify(label));
+    expect(preview).toContain(JSON.stringify(BUILD_TIME_TEXT));
   });
 
   it("welcome back: the same step, and only this step's hints (the ones still on screen)", () => {

@@ -275,7 +275,7 @@
           { class: "lticks", "aria-label": "What I'm doing" },
           stages.map((s) => el("li", { class: "ltick " + s.status }, mark(s.status), el("span", { class: "ltick-label" }, rich(s.label), el("span", { class: "sr-only" }, ". " + statusWord[s.status])))),
         ),
-        el("p", { class: "muted small" }, icon("clock", "xs"), v.note || "This usually takes under a minute. You can leave this open."),
+        el("p", { class: "muted small" }, icon("clock", "xs"), v.note || (v.time ? "It's " + v.time + ". You can leave this open." : "You can leave this open.")),
       ],
       actions: [{ id: "stop", label: "Stop", channel: "lesson-close", kind: "quiet" }],
     };

@@ -24,14 +24,14 @@
     "changing colours and fonts with CSS"
   ],
   "estimate": {
-    "minutes": 22,
-    "linesToType": 25,
+    "minutes": 24,
+    "linesToType": 28,
     "steps": 6
   },
   "files": [
     {
       "path": "index.html",
-      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>About Me</title>\n    <link rel=\"stylesheet\" href=\"style.css\">\n  </head>\n  <body>\n    <h1>Hi, I'm Sam</h1>\n    <p>I'm learning to make websites.</p>\n    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li>Basketball</li>\n      <li>Cooking</li>\n    </ul>\n  </body>\n</html>\n"
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>About Me</title>\n    <meta name=\"description\" content=\"A page about me, Sam.\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <link rel=\"stylesheet\" href=\"style.css\">\n  </head>\n  <body>\n    <h1>Hi, I'm Sam</h1>\n    <p>I'm learning to make websites.</p>\n    <p>This page is all about me.</p>\n    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li>Basketball</li>\n      <li>Cooking</li>\n    </ul>\n  </body>\n</html>\n"
     },
     {
       "path": "style.css",
@@ -105,7 +105,7 @@
       ],
       "concept": {
         "title": "The parts of an HTML page",
-        "explain": "The <head> holds information about the page, like its title. The <body> holds what people see.",
+        "explain": "The <head> holds facts about the page, like its title, and the <body> holds everything people see.",
         "links": [
           {
             "title": "MDN: Getting started with HTML",
@@ -123,10 +123,10 @@
       "anchor": {
         "inside": "body"
       },
-      "instruction": "Inside <body>, add a big heading with your name and a short paragraph about you.",
+      "instruction": "Inside <body>, add a big heading with your name and two short paragraphs about you.",
       "why": "The heading is the first thing visitors read.",
       "who": "learner",
-      "expected": "    <h1>Hi, I'm Sam</h1>\n    <p>I'm learning to make websites.</p>\n",
+      "expected": "    <h1>Hi, I'm Sam</h1>\n    <p>I'm learning to make websites.</p>\n    <p>This page is all about me.</p>\n",
       "checks": [
         {
           "type": "selectorExists",
@@ -134,12 +134,13 @@
         },
         {
           "type": "selectorExists",
-          "selector": "body p"
+          "selector": "body p",
+          "count": 2
         }
       ],
       "hints": [
         "A big heading uses the <h1> tag.",
-        "Put the <h1> and <p> between <body> and </body>.",
+        "Put the <h1> and both <p> lines between <body> and </body>.",
         "<h1>Hi, I'm ...</h1>\n<p>...</p>"
       ]
     },
@@ -149,9 +150,9 @@
       "title": "Things you like",
       "file": "index.html",
       "anchor": {
-        "after": "</p>"
+        "inside": "body"
       },
-      "instruction": "Under your paragraph, add a smaller heading and a list of 3 things you like.",
+      "instruction": "Under your paragraphs, add a smaller heading and a list of 3 things you like.",
       "why": "Lists keep related things together and easy to scan.",
       "who": "learner",
       "expected": "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li>Basketball</li>\n      <li>Cooking</li>\n    </ul>\n",
@@ -173,7 +174,7 @@
       ],
       "concept": {
         "title": "Lists",
-        "explain": "<ul> makes a bullet list. Each thing in it goes in its own <li> (list item).",
+        "explain": "A <ul> makes a bullet list, and each thing in it goes inside its own <li> (list item).",
         "links": [
           {
             "title": "MDN: The ul element",
@@ -185,16 +186,24 @@
     {
       "id": "link-css",
       "chapter": "css",
-      "title": "Connect a style file",
+      "title": "Finish the head",
       "file": "index.html",
       "anchor": {
         "after": "</title>"
       },
-      "instruction": "In the <head>, under the <title>, add a <link> that points to style.css.",
+      "instruction": "In the <head>, under the <title>, add a short description of the page, a line that makes it fit phone screens, and a <link> that points to style.css.",
       "why": "This tells the page where its colours and fonts live.",
       "who": "learner",
-      "expected": "    <link rel=\"stylesheet\" href=\"style.css\">\n",
+      "expected": "    <meta name=\"description\" content=\"A page about me, Sam.\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <link rel=\"stylesheet\" href=\"style.css\">\n",
       "checks": [
+        {
+          "type": "selectorExists",
+          "selector": "head meta[name=description]"
+        },
+        {
+          "type": "selectorExists",
+          "selector": "head meta[name=viewport]"
+        },
         {
           "type": "attribute",
           "selector": "head link",
@@ -215,7 +224,7 @@
       ],
       "concept": {
         "title": "Linking CSS",
-        "explain": "CSS is a separate file that says how the page looks. <link> connects it to the HTML.",
+        "explain": "A <link> in the <head> connects your page to a CSS file, which says how the page looks.",
         "links": [
           {
             "title": "MDN: CSS first steps",

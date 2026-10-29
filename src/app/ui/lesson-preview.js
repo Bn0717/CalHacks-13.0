@@ -184,7 +184,7 @@
     const add = (name, def) => { S[name] = def; };
 
     // Like the app will send it from the lesson builder's stages: the labels and the one running now.
-    add("building", { view: { screen: "building", what: lesson.title, labels: BUILD_STAGES, stage: 2 } });
+    add("building", { view: { screen: "building", what: lesson.title, labels: BUILD_STAGES, stage: 2, time: BUILD_TIME } });
     add("question", { view: { screen: "question", id: "purpose", number: 1, total: 3, question: "What's it for?", options: ["Just for me", "Show my work", "For job applications", "Share with friends"], multi: false, picked: [] } });
     add("question-multi", { view: { screen: "question", id: "contents", number: 2, total: 3, question: "What should it have?", options: ["My name and a short intro", "My hobbies", "My projects", "Photos", "How to contact me"], multi: true, picked: ["My name and a short intro", "My hobbies"] } });
     add("question-look", { view: { screen: "question", id: "look", number: 3, total: 3, question: "A look you like?", options: ["Clean and simple", "Warm and friendly", "Bold and colourful", "Dark and modern"], multi: false, picked: [], extras: ["addPicture", "showStyles"] } });
@@ -240,8 +240,9 @@
     return S;
   }
 
-  // The lesson builder's stages, in plain words.
-  const BUILD_STAGES = ["Reading what you asked for", "Making the finished site", "Trying your site out to make sure it works", "Cutting it into small steps", "Working out how long it takes"];
+  // The idea builder's stages and build time, as in src/learn/stages.ts (tests/learn/view.test.ts keeps them the same).
+  const BUILD_STAGES = ["Checking how big your idea is", "Writing the finished website", "Testing it in a hidden browser", "Cutting it into small steps", "Making sure every step can be checked", "Working out how long it takes"];
+  const BUILD_TIME = "usually a minute or two";
 
   // A small drawing of a reference picture (SVG as a data: URL, so it works without files).
   function pictureMock() {
@@ -371,7 +372,7 @@
     scenes.push(() => {
       setEditor(0, null);
       const labels = BUILD_STAGES;
-      const push = (stage) => show({ screen: "building", what: lesson.title, labels, stage }); // as a builder's onStage would drive it
+      const push = (stage) => show({ screen: "building", what: lesson.title, labels, stage, time: BUILD_TIME }); // as a builder's onStage would drive it
       labels.forEach((_, i) => at(i * 650, () => push(i)));
       at(labels.length * 650, next);
     });

@@ -154,9 +154,10 @@ export type LessonView =
   /**
    * Building the lesson. Honest progress: the real stages, ticked as they finish (no made-up percentage).
    * Either send `stages` with their status, or just the stage labels plus `stage` (the 0-based one running now, or
-   * labels.length when all are done), e.g. straight from a builder's onStage callback.
+   * labels.length when all are done), e.g. straight from a builder's onStage callback. time: how long building usually
+   * takes, in words (BUILD_TIME_TEXT in src/learn/stages.ts).
    */
-  | { screen: "building"; what: string; stages?: LessonBuildStage[]; labels?: string[]; stage?: number; note?: string }
+  | { screen: "building"; what: string; stages?: LessonBuildStage[]; labels?: string[]; stage?: number; time?: string; note?: string }
   /** A starting question with big tap buttons. multi: the student can tap several, then Next. */
   | {
       screen: "question";

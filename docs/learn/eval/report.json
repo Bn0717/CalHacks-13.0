@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-10-29T05:49:18.084Z",
+  "ranAt": "2026-10-29T05:56:40.941Z",
   "claude": {
     "usable": false,
     "note": "no Claude key is set (ANTHROPIC_API_KEY / STRIDE_ANTHROPIC_API_KEY)"
@@ -31,11 +31,8 @@
           {
             "id": "stepSize",
             "title": "Every 🧑 step adds 3-10 lines",
-            "pass": false,
-            "examples": [
-              "Step link-css adds 1 line.",
-              "Step intro adds 2 lines."
-            ]
+            "pass": true,
+            "examples": []
           },
           {
             "id": "whoTypes",
@@ -52,12 +49,8 @@
           {
             "id": "concepts",
             "title": "Each concept: one plain sentence, no jargon, with a link",
-            "pass": false,
-            "examples": [
-              "skeleton \"The parts of an HTML page\": 2 sentences: \"The <head> holds information about the page, like its title. The <body> holds what people see.\"",
-              "hobbies \"Lists\": 2 sentences: \"<ul> makes a bullet list. Each thing in it goes in its own <li> (list item).\"",
-              "link-css \"Linking CSS\": 2 sentences: \"CSS is a separate file that says how the page looks. <link> connects it to the HTML.\""
-            ]
+            "pass": true,
+            "examples": []
           },
           {
             "id": "hints",
@@ -73,12 +66,12 @@
             "skipped": "Not a video lesson."
           }
         ],
-        "passed": 6,
+        "passed": 8,
         "total": 8
       },
       "estimate": {
-        "minutes": 22,
-        "linesToType": 25,
+        "minutes": 24,
+        "linesToType": 28,
         "steps": 6
       }
     },

@@ -21,9 +21,8 @@ describe("gradeLesson", () => {
   it("grades the about-me fixture on every criterion", async () => {
     const g = await gradeLesson("about me", raw, deps);
     expect(g.criteria.map((c) => c.id)).toEqual(["valid", "checks", "stepSize", "whoTypes", "estimate", "concepts", "hints", "video"]);
-    for (const id of ["valid", "checks", "whoTypes", "estimate", "hints"]) expect(crit(g, id).pass, id).toBe(true);
-    // The fixture has a 1-line and a 2-line step, below the 3-line minimum.
-    expect(crit(g, "stepSize").examples).toEqual(["Step link-css adds 1 line.", "Step intro adds 2 lines."]);
+    // Every rule but the video one passes: steps of 3-10 lines, one-sentence concepts with links.
+    for (const id of ["valid", "checks", "stepSize", "whoTypes", "estimate", "concepts", "hints"]) expect(crit(g, id).pass, id).toBe(true);
     expect(crit(g, "video").skipped).toMatch(/Not a video/);
     expect(g.passed).toBeLessThanOrEqual(g.total);
   });

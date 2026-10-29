@@ -110,7 +110,7 @@ describe("step cards", () => {
   it("says where to type in plain words", () => {
     const steps = aboutMe().steps;
     expect(whereText(steps[2]!)).toBe("In index.html, between <body> and </body>");
-    expect(whereText(steps[3]!)).toBe("In index.html, under </p>");
+    expect(whereText(steps[4]!)).toBe("In index.html, under </title>");
     expect(whereText(steps[0]!)).toBeNull();
   });
 

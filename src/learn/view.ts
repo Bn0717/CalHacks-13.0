@@ -2,6 +2,7 @@
 // Pure: no model, no files, no window. The app calls these after every runner effect and sends the result on "lesson".
 import type { LessonBuildStage, LessonProgressView, LessonStepMark, LessonStepStatus, LessonStepView, LessonView } from "../app/protocol.js";
 import type { Lesson, Progress } from "./lesson.js";
+import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "./stages.js";
 import { canShowMe, currentStep, type RunnerState } from "./runner.js";
 import type { LessonSummary } from "./summary.js";
 
@@ -111,10 +112,15 @@ export function simplerLearns(lesson: Lesson): string[] {
   return out;
 }
 
-// The building screen from the builder's stage labels and the one running now (labels.length when all are done).
-export function buildingView(what: string, labels: string[], stage: number, note?: string): LessonView {
+// The building screen, from the builder's real stages (src/learn/stages.ts): the app calls this from the builder's
+// onStage with the stage that just started, or "done" when the lesson is ready.
+export function buildingView(what: string, kind: keyof typeof BUILD_STAGES, current: BuildStage | "done", note?: string): LessonView {
+  const order: readonly BuildStage[] = BUILD_STAGES[kind];
+  const labels = order.map((s) => STAGE_LABELS[s]);
+  const found = current === "done" ? labels.length : order.indexOf(current);
+  const stage = found < 0 ? 0 : found;
   const stages: LessonBuildStage[] = labels.map((label, i) => ({ label, status: i < stage ? "done" : i === stage ? "running" : "todo" }));
-  return { screen: "building", what, stages, labels: [...labels], stage, ...(note ? { note } : {}) };
+  return { screen: "building", what, stages, labels, stage, time: BUILD_TIME_TEXT, ...(note ? { note } : {}) };
 }
 
 // "Welcome back! Step 4: Things you like." or the break screen.
