@@ -4,6 +4,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
 import { checkStep, playwrightRenderer } from "../../src/learn/check/index.js";
+import { videoPartProblems } from "../../src/learn/build-from-video.js";
 import { parseLesson } from "../../src/learn/lesson.js";
 import { rebuildProblems, rebuildSteps } from "../../src/learn/rebuild.js";
 import { lessonRuleProblems, normCode } from "../../src/learn/rules.js";
@@ -34,6 +35,9 @@ describe("real-AI lesson fixtures", () => {
       expect(lessonRuleProblems(lesson.steps)).toEqual([]);
       expect(rebuildProblems(lesson.steps, lesson.files)).toEqual([]);
       expect(rebuildSteps(lesson.steps, lesson.files).matches).toBe(true);
+      // A7: every new idea has a one-sentence explanation and a link; video steps have their part of the video.
+      for (const s of lesson.steps.filter((x) => x.concept)) expect(s.concept!.links.length, s.id).toBeGreaterThan(0);
+      if (lesson.source.kind === "video") expect(videoPartProblems(lesson.steps, 0)).toEqual([]);
     });
 
     it.skipIf(!canLaunch)(`${file}: every step passes right after it's typed, and not before`, async () => {
