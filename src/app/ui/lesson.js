@@ -705,7 +705,7 @@
 
     // The ✅ moment: a quick glow on the card, once.
     const passedNow = view.screen === "step" && view.status === "passed";
-    const passedBefore = prevRendered && prevRendered.screen === "step" && prevRendered.status === "passed" && prevRendered.step.id === view.step.id;
+    const passedBefore = passedNow && prevRendered && prevRendered.screen === "step" && prevRendered.status === "passed" && prevRendered.step.id === view.step.id;
     if (passedNow && !passedBefore) {
       card.classList.remove("cheer");
       void card.offsetWidth; // restart the animation

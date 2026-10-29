@@ -311,6 +311,11 @@
     return !!(view && view.screen === "step" && view.open && view.step.id !== prevStepId);
   }
 
+  /** Joins sentences with ". ", without doubling up punctuation ("Nice!" stays "Nice!"). */
+  function sentences(...parts) {
+    return parts.filter((p) => p && String(p).trim()).map((p) => { const t = String(p).trim(); return /[.!?…]$/.test(t) ? t : t + "."; }).join(" ");
+  }
+
   /** A short line for screen readers when the view changes, or "" when nothing worth saying changed. */
   function announce(prev, view) {
     if (!view || view.screen === "hidden") return "";
@@ -319,9 +324,9 @@
       const sameStep = prev && prev.screen === "step" && prev.step.id === view.step.id;
       if (sameStep && prev.status === view.status && prev.hints.length === view.hints.length && prev.hintOffered === view.hintOffered) return "";
       if (sameStep && view.hints.length > prev.hints.length) return "Hint " + view.hints.length + ": " + view.hints[view.hints.length - 1];
-      const head = sameStep ? "" : "Step " + view.step.number + " of " + view.step.total + ". " + whoBadge(view.step.who).text + ". " + view.step.title + ". ";
-      if (!sameStep && (view.status === "your-turn" || view.status === "watch")) return head + view.step.instruction;
-      return head + st.title + ". " + st.line;
+      const head = sameStep ? [] : ["Step " + view.step.number + " of " + view.step.total, whoBadge(view.step.who).text, view.step.title];
+      if (!sameStep && (view.status === "your-turn" || view.status === "watch")) return sentences(...head, view.step.instruction);
+      return sentences(...head, st.title, st.line);
     }
     if (prev && prev.screen === view.screen && JSON.stringify(prev) === JSON.stringify(view)) return "";
     switch (view.screen) {
@@ -335,7 +340,7 @@
       case "setup": return view.ask ? view.ask.question : "Getting things ready.";
       case "quiz": return view.picked === undefined ? "Quick question. " + view.question : view.picked === view.answer ? "That's right! " + (view.explain || "") : "Not quite. " + (view.explain || "");
       case "paused": return view.reason === "welcome-back" ? "Welcome back!" : "Taking a break.";
-      case "error": return errorCopy(view).title + ". " + errorCopy(view).line;
+      case "error": return sentences(errorCopy(view).title, errorCopy(view).line);
       case "finished": return "You made it! " + view.title + " is done.";
       default: return "";
     }

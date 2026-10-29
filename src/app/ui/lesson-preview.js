@@ -528,7 +528,8 @@
     if (params.has("still")) document.documentElement.classList.add("still");
     setTheme(params.get("theme") || "auto");
     setText(Number(params.get("text")) || 1);
-    setDock(params.get("dock") || "right");
+    // The side the student last put the card on (lesson.js remembers it), unless the address says otherwise.
+    setDock(params.get("dock") || (window.StrideLesson ? window.StrideLesson.layout.dock : "right"));
     controls();
     const start = decodeURIComponent(location.hash.slice(1));
     if (params.has("play")) playLesson();
