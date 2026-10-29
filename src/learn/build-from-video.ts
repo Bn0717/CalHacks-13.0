@@ -8,6 +8,7 @@ import { askJson } from "../ai/json.js";
 import { lessonCache, videoCacheKey, type LessonCache } from "./cache.js";
 import { readVideo, type VideoNotes } from "./gemini.js";
 import { CheckSchema, estimateFor, LESSON_VERSION, LessonError, lessonJsonSchema, parseLesson, type Lesson, type Step } from "./lesson.js";
+import { repairSteps } from "./rebuild.js";
 import { lessonRuleProblems } from "./rules.js";
 import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
@@ -102,6 +103,9 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
     lesson = assemble(await ask<Draft>({ model, system: BUILD_SYSTEM, content: retry, schema: draftJsonSchema(), maxTokens: 16000 }));
   }
 
+  // Steps typed in order must rebuild the finished project: code fixes late closing tags and works out every anchor.
+  lesson = { ...lesson, steps: repairSteps(lesson.steps, lesson.files).steps };
+
   // 2. Try every check against the finished project. Ask once to fix learner steps left with no usable check; drop the rest.
   deps.onStage?.("checks");
   let checked = await selfValidateSteps(lesson.steps, lesson.files, deps.runCheck);
@@ -187,7 +191,8 @@ const BUILD_SYSTEM = `You turn notes on a beginner coding tutorial into a hands-
    (chapter ids are short slugs). When the video types a big chunk at once, split it into several steps.
    - who: "learner" for code the student types, "watch" for parts with nothing to type (a watch step adds no code:
      expected is ""). Don't use "stride". Every line of the finished files is typed in some learner step.
-   - expected: the exact code the step adds, copied from the finished files.
+   - expected: the exact code the step adds, copied from the finished files. Each step's code closes every tag it opens:
+     a wrapper like <main> is typed with its first contents and its closing tag, and later steps add more inside it.
    - video: {start, end} in seconds from the notes' segment times, the part of the video that shows this step. Every
      learner step has one; start is before end; both are inside the video (never after the last chapter's end); in order.
    - instruction: plain English for a 14-year-old who has never coded: what to add and where, in words.

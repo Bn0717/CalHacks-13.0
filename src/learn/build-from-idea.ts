@@ -27,6 +27,7 @@ import {
   type ProjectFile,
   type Step,
 } from "./lesson.js";
+import { repairSteps } from "./rebuild.js";
 import { stepRuleProblems } from "./rules.js";
 import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckProblem, type CheckRunner } from "./validate.js";
@@ -277,6 +278,8 @@ Rules:
 - who: "learner" for every code step; "watch" only for a short look at the result, and a watch step adds no code
   (expected is ""). Don't use "stride" steps: setup is done separately.
 - file: the file the step changes. anchor: where the code goes (afterLine, after some text, or inside an element).
+- Each step's code is complete on its own: it closes every tag it opens. For a wrapper like <main> or <section>, one
+  step types the wrapper with its first contents and its closing tag; later steps add more inside it.
 - instruction: plain English: say what to add and where, in words ("under your heading, add a list of 3 hobbies").
   why: one short line on what it gives the student.
 - checks: about behaviour, never exact text. Prefer selectorExists, textIncludes, attribute, cssProperty, parses, fileExists.
@@ -377,7 +380,9 @@ async function cutIntoSteps(project: ProjectAnswer, deps: IdeaDeps): Promise<{ c
     prepare: tidySteps,
   });
   deps.onStage?.("checks");
-  const steps = await proveChecks(answer.steps, project.files, deps);
+  // Steps typed in order must rebuild the finished site: code fixes late closing tags and works out every anchor.
+  const repaired = repairSteps(answer.steps, project.files).steps;
+  const steps = await proveChecks(repaired, project.files, deps);
   return { chapters: answer.chapters, steps };
 }
 
@@ -424,9 +429,10 @@ async function revalidate(steps: Step[], files: ProjectFile[], runCheck: CheckRu
     const checks = change(s);
     return checks ? { ...s, checks } : null;
   });
-  const toCheck = changed.filter((s): s is Step => s !== null);
-  if (toCheck.length === 0) return steps;
-  const checked = new Map((await selfValidateSteps(toCheck, files, runCheck)).steps.map((s) => [s.id, s]));
+  const toCheck = new Set(changed.filter((s): s is Step => s !== null).map((s) => s.id));
+  if (toCheck.size === 0) return steps;
+  const all = steps.map((s, i) => changed[i] ?? s);
+  const checked = new Map((await selfValidateSteps(all, files, runCheck, toCheck)).steps.map((s) => [s.id, s]));
   return steps.map((s) => checked.get(s.id) ?? s);
 }
 

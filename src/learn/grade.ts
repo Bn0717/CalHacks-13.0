@@ -5,11 +5,13 @@ import type { TooBig } from "./build-from-idea.js";
 import { JARGON } from "./check/words.js";
 import { estimateFor, linesIn, parseLesson, LessonError, type Lesson, type Step } from "./lesson.js";
 import { hintGivesAway, looksLikeCode, normCode, stepRuleProblems } from "./rules.js";
+import { rebuildProblems } from "./rebuild.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
 
 export type CriterionId =
   | "valid"
   | "checks"
+  | "buildsUp"
   | "stepSize"
   | "whoTypes"
   | "estimate"
@@ -41,6 +43,7 @@ export const CONCEPT_MAX_WORDS = 30;
 const TITLES: Record<CriterionId, string> = {
   valid: "Valid lesson",
   checks: "Every check passes on the finished project; the first fails on an empty one",
+  buildsUp: "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
   stepSize: `Every 🧑 step adds ${STEP_LINES.min}-${STEP_LINES.max} lines`,
   whoTypes: "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
   estimate: "Estimate matches the steps and is in a sensible range",
@@ -74,6 +77,7 @@ export async function gradeLesson(name: string, raw: unknown, deps: GradeDeps): 
     [
       criterion("valid", []),
       await gradeChecks(lesson, deps.runCheck),
+      criterion("buildsUp", rebuildProblems(lesson.steps, lesson.files).map((text, i) => ({ score: /leaves </.test(text) ? 3 - i / 100 : 2 - i / 100, text }))),
       gradeStepSize(lesson),
       gradeWhoTypes(lesson),
       gradeEstimate(lesson),

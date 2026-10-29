@@ -33,10 +33,14 @@ function fakeModel(answers: Partial<Record<ModelJob, unknown[]>>): { ask: AskMod
 }
 
 // A fake checker: every check passes on the finished project and fails on an empty one, except the ones `bad` names.
+// True once this step's own code is in the files (the fakes treat that as "done"; an empty project never is).
+const typedIn = (step: { expected: string }, files: { content: string }[]) =>
+  files.length > 0 && (step.expected.trim() === "" || files.some((f) => f.content.replace(/\s+/g, "").includes(step.expected.replace(/\s+/g, ""))));
+
 function fakeChecker(bad: { failsOnFinished?: string[]; passesOnEmpty?: string[] } = {}): CheckRunner {
-  return async (check, _step, files) => {
+  return async (check, step, files) => {
     const key = "selector" in check ? check.selector : check.type;
-    if (files.length === 0) return (bad.passesOnEmpty ?? []).includes(key);
+    if (!typedIn(step, files)) return (bad.passesOnEmpty ?? []).includes(key);
     return !(bad.failsOnFinished ?? []).includes(key);
   };
 }
@@ -205,7 +209,7 @@ describe("buildFromIdea", () => {
     const skeleton = r.lesson.steps.find((s) => s.id === "skeleton")!;
     expect(skeleton.checks.map((c) => c.type)).toEqual(["parses", "textIncludes"]);
     const fix = model.calls.find((c) => c.job === "fixChecks")!;
-    expect(fix.prompt).toContain("fails on the finished project");
+    expect(fix.prompt).toContain("fails right after the step is typed");
   });
 
   it("fixes a step left with no working check using the model's new check", async () => {

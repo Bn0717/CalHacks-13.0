@@ -11,8 +11,9 @@ const raw = JSON.parse(readFileSync(join(import.meta.dirname, "fixtures/about-me
 const fixture = parseLesson(raw);
 const clone = (): Lesson => structuredClone(fixture);
 
-// Passes on the finished project, fails on an empty one.
-const honest: CheckRunner = async (_c, _s, files) => files.length > 0;
+// Passes once the step's own code is in the files (so on the finished project), fails before that and on an empty one.
+const honest: CheckRunner = async (_c, s, files) =>
+  files.length > 0 && (s.expected.trim() === "" || files.some((f) => f.content.replace(/\s+/g, "").includes(s.expected.replace(/\s+/g, ""))));
 const deps = { runCheck: honest };
 const crit = (g: Grade, id: string) => g.criteria.find((c) => c.id === id)!;
 const withStep = (l: Lesson, id: string, change: Partial<Step>): Lesson => ({ ...l, steps: l.steps.map((s) => (s.id === id ? { ...s, ...change } : s)) as Step[] });
@@ -20,9 +21,9 @@ const withStep = (l: Lesson, id: string, change: Partial<Step>): Lesson => ({ ..
 describe("gradeLesson", () => {
   it("grades the about-me fixture on every criterion", async () => {
     const g = await gradeLesson("about me", raw, deps);
-    expect(g.criteria.map((c) => c.id)).toEqual(["valid", "checks", "stepSize", "whoTypes", "estimate", "concepts", "hints", "video"]);
+    expect(g.criteria.map((c) => c.id)).toEqual(["valid", "checks", "buildsUp", "stepSize", "whoTypes", "estimate", "concepts", "hints", "video"]);
     // Every rule but the video one passes: steps of 3-10 lines, one-sentence concepts with links.
-    for (const id of ["valid", "checks", "stepSize", "whoTypes", "estimate", "concepts", "hints"]) expect(crit(g, id).pass, id).toBe(true);
+    for (const id of ["valid", "checks", "buildsUp", "stepSize", "whoTypes", "estimate", "concepts", "hints"]) expect(crit(g, id).pass, id).toBe(true);
     expect(crit(g, "video").skipped).toMatch(/Not a video/);
     expect(g.passed).toBeLessThanOrEqual(g.total);
   });

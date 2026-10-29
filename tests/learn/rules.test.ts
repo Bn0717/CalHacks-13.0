@@ -26,7 +26,9 @@ function fakeModel(answers: Partial<Record<ModelJob, unknown[]>>) {
   return { ask, calls };
 }
 
-const runCheck = async (_c: unknown, _s: unknown, files: unknown[]) => files.length > 0;
+// Passes once the step's own code is in the files, fails before that.
+const runCheck = async (_c: unknown, s: { expected: string }, files: { content: string }[]) =>
+  files.length > 0 && (s.expected.trim() === "" || files.some((f) => f.content.replace(/\s+/g, "").includes(s.expected.replace(/\s+/g, ""))));
 const ideaDeps = (ask: AskModel, onStage?: (s: BuildStage) => void) => ({ ask, browser: { render: async () => [] }, runCheck, ...(onStage ? { onStage } : {}) });
 const aboutMe = { request: "a page about me", answers: [] };
 

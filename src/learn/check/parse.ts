@@ -38,7 +38,8 @@ const FATAL_HTML = new Set([
 export type ParsedHtml = { doc: HtmlDocument; problem?: ParseProblem };
 
 // Parses HTML and reports the first sign of half-typed code: a tag cut off at the end, or an element never closed.
-export function readHtml(source: string): ParsedHtml {
+// `leavesOpen`: tags the lesson step itself leaves open on purpose (a later step closes them), which aren't half-typed.
+export function readHtml(source: string, leavesOpen: readonly string[] = []): ParsedHtml {
   let fatal: ParseProblem | undefined;
   const doc = parseHtml(source, {
     sourceCodeLocationInfo: true,
@@ -46,14 +47,14 @@ export function readHtml(source: string): ParsedHtml {
       if (!fatal && FATAL_HTML.has(e.code)) fatal = { message: "A tag isn't finished yet.", line: e.startLine };
     },
   });
-  return { doc, problem: fatal ?? unclosedElement(doc) };
+  return { doc, problem: fatal ?? unclosedElement(doc, leavesOpen) };
 }
 
 // The first element the student opened but never closed, e.g. a <ul> with no </ul>.
-function unclosedElement(doc: HtmlDocument): ParseProblem | undefined {
+function unclosedElement(doc: HtmlDocument, leavesOpen: readonly string[]): ParseProblem | undefined {
   for (const el of allElements(doc)) {
     const loc = el.sourceCodeLocation;
-    if (!loc?.startTag || loc.endTag || VOID.has(el.tagName) || OPTIONAL_END.has(el.tagName)) continue;
+    if (!loc?.startTag || loc.endTag || VOID.has(el.tagName) || OPTIONAL_END.has(el.tagName) || leavesOpen.includes(el.tagName)) continue;
     if (el.namespaceURI !== "http://www.w3.org/1999/xhtml") continue; // self-closing SVG bits are fine
     return { message: `The <${el.tagName}> you started still needs its closing </${el.tagName}>.`, line: loc.startTag.startLine };
   }
@@ -143,9 +144,9 @@ export function jsProblem(source: string): ParseProblem | undefined {
 }
 
 // Any file: what's wrong, or nothing if it parses. Unknown file types always "parse".
-export function parseProblem(path: string, source: string): ParseProblem | undefined {
+export function parseProblem(path: string, source: string, leavesOpen: readonly string[] = []): ParseProblem | undefined {
   const kind = fileKind(path);
-  if (kind === "html") return readHtml(source).problem;
+  if (kind === "html") return readHtml(source, leavesOpen).problem;
   if (kind === "css") return cssProblem(source);
   if (kind === "js") return jsProblem(source);
   return undefined;
