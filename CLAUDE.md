@@ -21,9 +21,13 @@ mode** (Stride Learn) is being built on the `feat/learn-mode` branch: see `docs/
 
 ## Cloud sessions (Linux)
 
-Cloud sessions run on Linux, so these can't run or be tested there — don't change them unless the task says so:
+Cloud sessions run on Linux, so these can't run or be tested there — don't change them unless the task says so (UI renderer files in `src/app/ui/` may be built and tested through their preview pages):
 `src/mac/*.swift`, `src/mac/*.ts` that call macOS tools, `src/app/main.ts`, `src/app/windows.ts`, `src/app/ui/`, and anything
 needing the Electron window, Accessibility, AppleScript or Screen Recording.
 
 - Set `ELECTRON_SKIP_BINARY_DOWNLOAD=1` before `npm ci` (the Electron binary isn't needed for tests).
 - Work on the branch named in the task brief, open the PR into `feat/learn-mode`, not `main`.
+
+## Learning mode goal
+
+`docs/learn/GOAL.md` is the definition of done. Review against it with a separate reviewer and keep `docs/learn/STATUS.md` current.

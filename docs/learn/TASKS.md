@@ -205,3 +205,24 @@ Branch: `learn/c2-quality` · PR into `feat/learn-mode` · Do after C1 is merged
   fidelity to the video. Write `docs/learn/eval/report.md` with scores, the worst examples, and cost.
 - Improve the builder prompts where scores are low, re-run, and show before/after in the report.
 - Hard cap: stop if real API spend for this task passes $8.
+
+## C3 — The Mac lesson screen (built and reviewed in the preview page)
+
+Branch: `learn/c3-lesson-ui` · PR into `feat/learn-mode` · Can run in parallel with C1.
+
+Act as a senior product engineer and senior UI/UX designer. The bar must meet section B of [GOAL.md](GOAL.md).
+
+- Build the lesson UI as renderer files like the existing ones: `src/app/ui/lesson.html`, `lesson.css`, `lesson.js`, driven only
+  by messages (add the message types to `src/app/protocol.ts`, the same way `bar.js` is driven). Reuse the bar/buddy look and
+  the buddy itself; don't restyle fix-my-Mac screens.
+- Screens and states: every state listed in GOAL.md B4. Layout: a compact step card docked beside the code (never over it),
+  expandable to show the concept card / hints / mini video; a slim progress strip with chapter marks; the buddy reacts
+  (watching while typing, cheer on ✅, thinking while checking, pointing toward the line).
+- Questions and offers use big tap buttons; the estimate screen makes "Start simple (recommended)" the obvious choice.
+- `src/app/ui/lesson-preview.html` + `lesson-preview.js`: a fake app (like `bar-preview.js`) with a state picker and a
+  "play a whole lesson" demo driven by `tests/learn/fixtures/about-me.lesson.json`.
+- `scripts/lesson-screens.mjs`: opens the preview in headless Chromium (Playwright), captures every state in light and dark
+  mode at 1x and 2x text size into `docs/learn/ui/`, and checks contrast and that no interactive element lacks a label.
+- Do not change `src/app/main.ts` / `windows.ts` here; write `docs/learn/WIRING.md` with the exact small changes needed to
+  open this screen from the app on the Mac (done locally later).
+- Run the GOAL.md review loop on section B with screenshots as evidence.
