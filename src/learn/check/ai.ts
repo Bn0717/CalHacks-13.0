@@ -25,7 +25,8 @@ export type Judge = (request: JudgeRequest) => Promise<Verdict>;
 const SYSTEM = `You check a beginner's code for one step of a coding lesson.
 Answer the yes/no question about the student's code. The reference shows one correct way to do the step, but the
 student's code doesn't need to match it exactly: different names, text, spacing or order are fine if it does the same job.
-Give one short, friendly reason a beginner understands. Never include the full answer code.`;
+Give one short, friendly reason a 14-year-old who has never coded understands: say what is missing in plain words
+(e.g. "I can't see your big heading yet"), never code words like DOM, selector, element or parse. Never include the full answer code.`;
 
 const VERDICT_JSON_SCHEMA = {
   type: "object",

@@ -19,6 +19,7 @@
     "voice:heart:setup": "python3 -m venv .kokoro && .kokoro/bin/pip install kokoro-onnx==0.6.1 soundfile && .kokoro/bin/python scripts/kokoro-setup.py",
     "agent:sim": "tsx src/cli/agent-sim.ts",
     "pointer:compare": "tsx src/cli/pointer-compare.ts",
+    "learn:eval": "tsx src/cli/learn-eval.ts",
     "learn:screens": "node scripts/lesson-screens.mjs",
     "learn:preview": "node scripts/lesson-screens.mjs --serve"
   },

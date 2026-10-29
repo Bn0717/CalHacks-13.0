@@ -11,6 +11,7 @@ import { failMessage, passMessage, pickHint, reasons, type CheckOutcome, type Hi
 import { fileKind, parseProblem, readHtml, type ParsedHtml, type ParseProblem } from "./parse.js";
 import { playwrightRenderer, type Probe, type ProbeAnswer, type Renderer, type StyleAnswer } from "./render.js";
 import { attributeOf, querySelectorAll, textOf, UnsupportedSelector } from "./selector.js";
+import { JARGON } from "./words.js";
 
 export { haikuJudge, type Judge, type JudgeRequest, type Verdict } from "./ai.js";
 export { pickHint, type HintIndex } from "./hint.js";
@@ -114,11 +115,13 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
     );
   }
 
-  const outcomes: CheckOutcome[] = states.map((s, i) => ({
-    check: step.checks[i]!,
-    passed: s.kind === "done" && s.passed,
-    reason: s.kind === "done" ? s.reason : reasons.unknown(),
-  }));
+  const outcomes: CheckOutcome[] = states.map((s, i) => {
+    const check = step.checks[i]!;
+    const passed = s.kind === "done" && s.passed;
+    // The lesson's own plain wording wins, unless it slipped in code words.
+    const own = !passed && check.say && !JARGON.test(check.say) ? check.say : undefined;
+    return { check, passed, reason: own ?? (s.kind === "done" ? s.reason : reasons.unknown()) };
+  });
   const passed = outcomes.filter((o) => o.passed).length;
   const failed = outcomes.filter((o) => !o.passed).map((o) => o.check);
 
@@ -220,7 +223,7 @@ function judgeStyle(check: Extract<Check, { type: "cssProperty" }>, a: ProbeAnsw
     check.value === undefined
       ? values.some((v) => v.value !== v.base)
       : values.some((v) => same(v.value, check.value!) || (want !== undefined && want !== "" && same(v.value, want)));
-  return ok ? { passed: true } : { passed: false, reason: reasons.wrongStyle(check.selector, check.property) };
+  return ok ? { passed: true } : { passed: false, reason: reasons.wrongStyle(check.selector, check.property, check.value === undefined) };
 }
 
 // ---------- Helpers ----------

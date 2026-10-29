@@ -8,6 +8,8 @@ import { askJson } from "../ai/json.js";
 import { lessonCache, videoCacheKey, type LessonCache } from "./cache.js";
 import { readVideo, type VideoNotes } from "./gemini.js";
 import { CheckSchema, estimateFor, LESSON_VERSION, LessonError, lessonJsonSchema, parseLesson, type Lesson, type Step } from "./lesson.js";
+import { lessonRuleProblems } from "./rules.js";
+import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
 
 export const LEARN_MODEL = () => process.env.CALHACK_LEARN_MODEL || "claude-opus-5-5";
@@ -28,6 +30,7 @@ export type VideoBuildDeps = {
   cache?: LessonCache | null; // defaults to the lessons folder; null turns caching off
   model?: string;
   now?: () => Date;
+  onStage?: OnStage; // told as each real phase of the build starts (see stages.ts)
 };
 
 export class VideoUrlError extends Error {
@@ -79,14 +82,16 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
   const cached = await cache?.load(key);
   if (cached) return cached;
 
+  deps.onStage?.("video");
   const notes = await (deps.readVideo ?? ((u: string) => readVideo(u)))(watchUrl);
   const ask: AskJson = deps.ask ?? askJson;
   const model = deps.model ?? LEARN_MODEL();
   const now = deps.now ?? (() => new Date());
   const source = { kind: "video" as const, url: watchUrl, videoId, title: notes.title };
-  const assemble = (draft: Draft) => draftToLesson(draft, `video-${videoId}`, source, now());
+  const assemble = (draft: Draft) => draftToLesson(draft, `video-${videoId}`, source, now(), notesEnd(notes));
 
   // 1. Notes -> finished project + steps. One retry if the answer isn't a valid lesson.
+  deps.onStage?.("steps");
   const firstAsk = `Here are notes on a YouTube tutorial (${watchUrl}).\n\n${JSON.stringify(notes, null, 2)}`;
   let lesson: Lesson;
   try {
@@ -98,6 +103,7 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
   }
 
   // 2. Try every check against the finished project. Ask once to fix learner steps left with no usable check; drop the rest.
+  deps.onStage?.("checks");
   let checked = await selfValidateSteps(lesson.steps, lesson.files, deps.runCheck);
   if (checked.needsFix.length > 0) {
     const broken = checked.steps.filter((s) => checked.needsFix.includes(s.id));
@@ -120,6 +126,7 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
   }
 
   // 3. Final lesson: fresh estimate, only chapters that still have steps.
+  deps.onStage?.("estimate");
   const used = new Set(steps.map((s) => s.chapter));
   const final = parseLesson({
     ...lesson,
@@ -134,9 +141,10 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
 }
 
 // Turns Claude's draft into a full lesson and validates it (throws a LessonError listing problems).
-function draftToLesson(draft: Draft, id: string, source: Lesson["source"], at: Date): Lesson {
+// The lesson rules code enforces (see rules.ts), plus video parts that must sit inside the video, are checked here too.
+function draftToLesson(draft: Draft, id: string, source: Lesson["source"], at: Date, videoEnd: number): Lesson {
   const rawSteps = Array.isArray(draft?.steps) ? draft.steps.map(fixHints) : [];
-  return parseLesson({
+  const lesson = parseLesson({
     ...draft,
     id,
     source,
@@ -145,6 +153,28 @@ function draftToLesson(draft: Draft, id: string, source: Lesson["source"], at: D
     createdAt: at.toISOString(),
     version: LESSON_VERSION,
   });
+  const problems = [...lessonRuleProblems(lesson.steps), ...videoPartProblems(lesson.steps, videoEnd)];
+  if (problems.length > 0) throw new LessonError("The lesson breaks Stride's step rules.", problems);
+  return lesson;
+}
+
+// Every learner step links to its part of the video: start before end, and inside the video.
+export function videoPartProblems(steps: Step[], videoEnd: number): string[] {
+  const problems: string[] = [];
+  for (const s of steps) {
+    if (!s.video) {
+      if (s.who === "learner") problems.push(`Step ${s.id} needs a video part (start and end in seconds).`);
+      continue;
+    }
+    if (s.video.start >= s.video.end) problems.push(`Step ${s.id}: the video part must end after it starts.`);
+    if (videoEnd > 0 && s.video.end > videoEnd + 5) problems.push(`Step ${s.id}: the video part ends at ${s.video.end} s, after the video ends (${videoEnd} s).`);
+  }
+  return problems;
+}
+
+// The last second the notes mention, a stand-in for the video's length.
+export function notesEnd(notes: VideoNotes): number {
+  return Math.max(0, ...notes.chapters.map((c) => c.end), ...notes.segments.map((s) => s.end));
 }
 
 // ---------- Prompts and answer shapes ----------
@@ -152,14 +182,23 @@ function draftToLesson(draft: Draft, id: string, source: Lesson["source"], at: D
 const BUILD_SYSTEM = `You turn notes on a beginner coding tutorial into a hands-on Stride lesson.
 1. Rebuild the finished project from the code segments: the full final content of every file (files). Use the last version
    of each file shown in the video. Fill obvious gaps so it works, but don't add features the video doesn't build.
-2. Cut it into steps of 3-10 lines each, in the video's order, grouped into chapters (chapter ids are short slugs).
-   - who: "learner" for code the student types, "watch" for parts with nothing to type. Don't use "stride".
+   No code comments the video doesn't type.
+2. Cut it into steps that each add 3-10 non-blank lines (never more than 10), in the video's order, grouped into chapters
+   (chapter ids are short slugs). When the video types a big chunk at once, split it into several steps.
+   - who: "learner" for code the student types, "watch" for parts with nothing to type (a watch step adds no code:
+     expected is ""). Don't use "stride". Every line of the finished files is typed in some learner step.
    - expected: the exact code the step adds, copied from the finished files.
-   - video: {start, end} in seconds, the part of the video that shows this step.
+   - video: {start, end} in seconds from the notes' segment times, the part of the video that shows this step. Every
+     learner step has one; start is before end; both are inside the video (never after the last chapter's end); in order.
+   - instruction: plain English for a 14-year-old who has never coded: what to add and where, in words.
    - checks: behaviour checks that pass on the finished project; the first must fail on an empty project.
      Prefer selectorExists, textIncludes, attribute and cssProperty. Never compare exact text. Use "ai" only as a last resort.
-   - hints: exactly 3, gentlest first (a nudge, then pointing at the spot, then part of the code).
-   - why: one plain-English line. Add a concept card when a new idea comes up for the first time.
+     A check may have "say": what Stride tells the student while it isn't done, in plain words, never code words.
+   - hints: exactly 3, each stronger than the last: (1) a nudge in words, no code; (2) point at the exact spot and name the
+     tag or property; (3) part of the code with the rest left as … to fill in. Hint 3 never contains the whole "expected".
+   - why: one plain-English line. Add a concept card when a new idea comes up for the first time: explain is ONE short
+     plain sentence (under 25 words), no jargon ("DOM", "selector", "parse", "element", "render", "syntax"), and links
+     has at least one MDN page.
 3. title, summary, outcome and learns are short and plain English, for someone who has never coded.`;
 
 const FIX_SYSTEM = `Some steps in a Stride lesson have checks that don't work on the finished project, or pass before the student

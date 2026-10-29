@@ -14,8 +14,9 @@ import { lessonCache, ideaCacheKey, videoCacheKey } from "../learn/cache.js";
 import { buildFromIdea, playwrightReference, scopeCheck, type AskModel } from "../learn/build-from-idea.js";
 import { buildFromVideo, parseYouTubeId, VideoUrlError } from "../learn/build-from-video.js";
 import { checkRunner, checkStep, haikuJudge, playwrightRenderer, type Judge, type Renderer } from "../learn/check/index.js";
-import { CostLog, meteredAskJson, meteredLearnModel } from "../learn/cost.js";
-import { hasGeminiKey, MISSING_KEY_MESSAGE } from "../learn/gemini.js";
+import { CostLog, geminiUsage, meteredAskJson, meteredLearnModel } from "../learn/cost.js";
+import { hasGeminiKey, MISSING_KEY_MESSAGE, readVideo } from "../learn/gemini.js";
+import { BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "../learn/stages.js";
 import { LessonError, parseLesson, smallerLesson, type Lesson } from "../learn/lesson.js";
 import { applyCorrection, describeForStudent, readPicture, type PictureReading } from "../learn/picture.js";
 import { createProgressStore } from "../learn/progress.js";
@@ -212,10 +213,15 @@ async function ideaLesson(args: Extract<CliArgs, { mode: "idea" }>, input: Input
   }
   if (!hasApiKey()) return missing(NO_CLAUDE_KEY);
 
-  say("\n🛠  Building your lesson. I make the finished website first, test it, then cut it into small steps. This takes a minute or two…");
+  say(`\n🛠  Building your lesson. I make the finished website first, test it, then cut it into small steps. This takes ${BUILD_TIME_TEXT}.`);
   const result = await buildFromIdea(
     { request, answers, ...(picture ? { picture } : {}) },
-    { ask: tools.learnAsk, browser: playwrightReference, runCheck: checkRunner({ renderer: tools.renderer, ...(tools.judge ? { judge: tools.judge } : {}) }) },
+    {
+      ask: tools.learnAsk,
+      browser: playwrightReference,
+      runCheck: checkRunner({ renderer: tools.renderer, ...(tools.judge ? { judge: tools.judge } : {}) }),
+      onStage: sayStage,
+    },
   );
   if (result.kind === "tooBig") {
     say(`🤔 ${result.smaller.say}`);
@@ -240,11 +246,18 @@ async function videoLesson(url: string, tools: Tools): Promise<Lesson | null> {
   }
   if (!hasApiKey()) return missing(NO_CLAUDE_KEY);
   if (!hasGeminiKey()) return missing(MISSING_KEY_MESSAGE);
-  say("🎬 Watching the video and turning it into small steps. This takes a minute or two…");
+  say(`🎬 Watching the video and turning it into small steps. This takes ${BUILD_TIME_TEXT}.`);
   return buildFromVideo(url, {
     runCheck: checkRunner({ renderer: tools.renderer, ...(tools.judge ? { judge: tools.judge } : {}) }),
     ask: meteredAskJson(tools.log, "video", askJson),
+    readVideo: (u) => readVideo(u, { onUsage: (usage) => tools.log.record("video-notes", geminiUsage(usage)) }),
+    onStage: sayStage,
   });
+}
+
+// Each real phase of the build, as it starts: "  · Writing the finished website…"
+function sayStage(stage: BuildStage): void {
+  say(`  · ${STAGE_LABELS[stage]}…`);
 }
 
 function missing(message: string): null {
