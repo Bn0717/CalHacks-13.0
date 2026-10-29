@@ -2,7 +2,7 @@
 
 Legend: ✅ passes (with evidence) · ❌ fails / not done · ⏳ Mac-only (needs the real app on a Mac) · 🔒 blocked (missing key / blocked site)
 
-_Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22) merged; review round 1 done; fixing._
+_Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22), C2 (PR #23, without Claude) merged; round-1 UI fixes in progress._
 
 ## Blockers in this cloud environment
 
@@ -11,6 +11,7 @@ _Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22) merged; review round 1 do
   name, but a fresh session found the stored value is **not a valid Claude API key** (401 from api.anthropic.com both as
   `x-api-key` and as a bearer token; it doesn't start with `sk-ant-api`). Real-AI runs wait for a valid key.
 - ✅ `GEMINI_API_KEY` is set and Google's Gemini API is reachable.
+- Real Gemini video notes for the 3 eval videos cost ≈ $0.74 total (upper bound; `docs/learn/eval/report.md`).
 - 🔒 `youtube.com` is blocked by the network proxy (Gemini reads YouTube videos on Google's side, so that path may still work).
 
 ## A. The student can learn, start to finish (review round 1 on b185cc9)
@@ -20,10 +21,10 @@ _Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22) merged; review round 1 do
 | A1 | 🔒 | No valid Claude key. Only the hand-written fixture ran end to end (`docs/learn/runs/about-me.md`). |
 | A2 | ✅ | `build-from-idea.test.ts › answers 'make me Instagram' with a small alternative…`; CLI offers "a profile page with a grid of photos". |
 | A3 | ✅ (terminal) | Transcript "⏱ About 22 minutes · you'll type about 25 lines · 6 steps". On screen at 200% the numbers were hidden → fixing (r1 #3). |
-| A4 | 🔒 | Step-size / 🤖-only-setup rules were prompt-only → being enforced in code (C2); needs a real-AI lesson. |
+| A4 | 🔒 | Now enforced in code (`src/learn/rules.ts`, `tests/learn/rules.test.ts`); still needs a real-AI lesson. |
 | A5 | ❌ | ✅ came 2.4–3.6 s after the last edit → fixing (r1 #5). |
-| A6 | 🔒 | Half-typed → "Still typing?", hints 1→2 escalate. Hint 3 never-the-full-answer not enforced in code → C2. |
-| A7 | 🔒 | Concept links not required by schema → C2; video timestamp link tested (`terminal.test`). |
+| A6 | 🔒 | Half-typed → "Still typing?", hints 1→2 escalate; hint 3 ≠ whole answer enforced (`rules.test.ts`). Needs a real-AI lesson. |
+| A7 | 🔒 | Concept links required (`ConceptSchema.links.min(1)`); video timestamp link tested (`terminal.test`). Needs a real-AI lesson. |
 | A8 | ✅ | `session.test › q saves, and the next session opens the same step with the same hints`. |
 | A9 | ✅ | `terminal.test › shows what they made, the counts and what they learned`; `docs/learn/ui/light-1x-finished.png`. |
 
@@ -46,11 +47,12 @@ _Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22) merged; review round 1 do
 | --- | --- | --- |
 | C1 | ✅ | typecheck passes; 977 pass, only the 4 Mac-only fail. |
 | C2 | ✅ | `lesson-ui.test.ts`, `view.test`, `lesson-model.test` + ~300 learn tests. |
-| C3 | 🔒 | Cost log built and tested (`cost.test`), no real build/hint cost measured yet (no key). |
+| C3 | 🔒 | Cost log built and tested (`cost.test`); `npm run learn:eval` meters every call. Gemini notes ≈ $0.25/video (real). Claude build/hint cost not measured (no key). |
 | C4 | ✅ | Bridge 127.0.0.1-only + timing-safe token (`bridge.test`, 18); Gemini key in header; `cost.test › never anything but tokens and prices`. |
 | C5 | ✅ | Fix-my-Mac tests pass. |
 
 ## Review log
 
 - **Round 1** (fresh reviewer, b185cc9): 5 ✅, 7 ❌, 6 🔒, 4 ⏳. Fixes in progress on `learn/r1-fixes` (screen ↔ session, 200% text, ✅ timing,
-  estimate, dark buddy, polish) and `learn/c2-quality` (plain checker messages, AI rules in code, real build stages).
+  estimate, dark buddy, polish). `learn/c2-quality` merged (PR #23): plain checker messages (`check/words.ts`), AI rules in code
+  (`rules.ts`), real build stages (`stages.ts`), eval harness + grader (`docs/learn/eval/report.md`).
