@@ -1,0 +1,275 @@
+{
+  "id": "about-me",
+  "source": {
+    "kind": "idea",
+    "request": "I want to make a page about me",
+    "answers": [
+      {
+        "question": "What's it for?",
+        "answer": "Just for me"
+      },
+      {
+        "question": "What should it have?",
+        "answer": "My name and my hobbies"
+      }
+    ]
+  },
+  "title": "A page about me",
+  "summary": "Build a one-page website with your name, a short intro and a list of things you like, then add a splash of colour.",
+  "outcome": "A web page about you that opens in any browser.",
+  "learns": [
+    "the parts of an HTML page",
+    "headings, paragraphs and lists",
+    "linking a CSS file",
+    "changing colours and fonts with CSS"
+  ],
+  "estimate": {
+    "minutes": 22,
+    "linesToType": 25,
+    "steps": 6
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>About Me</title>\n    <link rel=\"stylesheet\" href=\"style.css\">\n  </head>\n  <body>\n    <h1>Hi, I'm Sam</h1>\n    <p>I'm learning to make websites.</p>\n    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li>Basketball</li>\n      <li>Cooking</li>\n    </ul>\n  </body>\n</html>\n"
+    },
+    {
+      "path": "style.css",
+      "content": "body {\n  font-family: Arial, sans-serif;\n  margin: 40px;\n}\n\nh1 {\n  color: tomato;\n}\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "setup",
+      "title": "Get ready"
+    },
+    {
+      "id": "html",
+      "title": "Write the page"
+    },
+    {
+      "id": "css",
+      "title": "Make it look nice"
+    }
+  ],
+  "steps": [
+    {
+      "id": "open-editor",
+      "chapter": "setup",
+      "title": "Open VS Code",
+      "instruction": "Stride opens VS Code, where you'll write your page.",
+      "why": "VS Code is where you type code and see mistakes underlined.",
+      "who": "stride",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Stride is opening VS Code for you.",
+        "Look for the VS Code window.",
+        "If it didn't open, open it from your Applications folder."
+      ],
+      "strideAction": {
+        "tool": "open_app",
+        "input": "{\"app_name\":\"Visual Studio Code\"}"
+      }
+    },
+    {
+      "id": "skeleton",
+      "chapter": "html",
+      "title": "The page skeleton",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "instruction": "In index.html, type the basic parts every web page has: the doctype, <html>, <head> with a <title>, and an empty <body>.",
+      "why": "Browsers need this skeleton to know it's a web page.",
+      "who": "learner",
+      "expected": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>About Me</title>\n  </head>\n  <body>\n  </body>\n</html>\n",
+      "checks": [
+        {
+          "type": "parses"
+        },
+        {
+          "type": "selectorExists",
+          "selector": "head title"
+        },
+        {
+          "type": "textIncludes",
+          "selector": "title",
+          "text": "about me"
+        }
+      ],
+      "hints": [
+        "Every page starts with <!DOCTYPE html>.",
+        "Inside <html>, put a <head> first, then a <body>.",
+        "<head>\n  <title>About Me</title>\n</head>"
+      ],
+      "concept": {
+        "title": "The parts of an HTML page",
+        "explain": "The <head> holds information about the page, like its title. The <body> holds what people see.",
+        "links": [
+          {
+            "title": "MDN: Getting started with HTML",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started"
+          }
+        ],
+        "imageQuery": "html page structure head body diagram"
+      }
+    },
+    {
+      "id": "intro",
+      "chapter": "html",
+      "title": "Say hi",
+      "file": "index.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "instruction": "Inside <body>, add a big heading with your name and a short paragraph about you.",
+      "why": "The heading is the first thing visitors read.",
+      "who": "learner",
+      "expected": "    <h1>Hi, I'm Sam</h1>\n    <p>I'm learning to make websites.</p>\n",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "selector": "body h1"
+        },
+        {
+          "type": "selectorExists",
+          "selector": "body p"
+        }
+      ],
+      "hints": [
+        "A big heading uses the <h1> tag.",
+        "Put the <h1> and <p> between <body> and </body>.",
+        "<h1>Hi, I'm ...</h1>\n<p>...</p>"
+      ]
+    },
+    {
+      "id": "hobbies",
+      "chapter": "html",
+      "title": "Things you like",
+      "file": "index.html",
+      "anchor": {
+        "after": "</p>"
+      },
+      "instruction": "Under your paragraph, add a smaller heading and a list of 3 things you like.",
+      "why": "Lists keep related things together and easy to scan.",
+      "who": "learner",
+      "expected": "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li>Basketball</li>\n      <li>Cooking</li>\n    </ul>\n",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "selector": "body h2"
+        },
+        {
+          "type": "selectorExists",
+          "selector": "ul li",
+          "count": 3
+        }
+      ],
+      "hints": [
+        "A bullet list uses <ul>, and each item is an <li>.",
+        "Put three <li> items inside one <ul>.",
+        "<ul>\n  <li>...</li>\n  <li>...</li>\n  <li>...</li>\n</ul>"
+      ],
+      "concept": {
+        "title": "Lists",
+        "explain": "<ul> makes a bullet list. Each thing in it goes in its own <li> (list item).",
+        "links": [
+          {
+            "title": "MDN: The ul element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/ul"
+          }
+        ]
+      }
+    },
+    {
+      "id": "link-css",
+      "chapter": "css",
+      "title": "Connect a style file",
+      "file": "index.html",
+      "anchor": {
+        "after": "</title>"
+      },
+      "instruction": "In the <head>, under the <title>, add a <link> that points to style.css.",
+      "why": "This tells the page where its colours and fonts live.",
+      "who": "learner",
+      "expected": "    <link rel=\"stylesheet\" href=\"style.css\">\n",
+      "checks": [
+        {
+          "type": "attribute",
+          "selector": "head link",
+          "name": "rel",
+          "value": "stylesheet"
+        },
+        {
+          "type": "attribute",
+          "selector": "head link",
+          "name": "href",
+          "value": "style.css"
+        }
+      ],
+      "hints": [
+        "Styles are connected with a <link> tag in the <head>.",
+        "The <link> needs rel=\"stylesheet\" and an href.",
+        "<link rel=\"stylesheet\" href=\"...\">"
+      ],
+      "concept": {
+        "title": "Linking CSS",
+        "explain": "CSS is a separate file that says how the page looks. <link> connects it to the HTML.",
+        "links": [
+          {
+            "title": "MDN: CSS first steps",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/First_steps"
+          }
+        ]
+      }
+    },
+    {
+      "id": "style",
+      "chapter": "css",
+      "title": "Add some colour",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 0
+      },
+      "instruction": "In style.css, give the page a clean font and some space, and make your heading tomato red.",
+      "why": "A few lines of CSS make the page feel like yours.",
+      "who": "learner",
+      "expected": "body {\n  font-family: Arial, sans-serif;\n  margin: 40px;\n}\n\nh1 {\n  color: tomato;\n}\n",
+      "checks": [
+        {
+          "type": "fileExists",
+          "file": "style.css"
+        },
+        {
+          "type": "parses",
+          "file": "style.css"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "selector": "h1",
+          "property": "color",
+          "value": "rgb(255, 99, 71)"
+        }
+      ],
+      "hints": [
+        "CSS rules look like: selector { property: value; }",
+        "Write a rule for h1 that sets color.",
+        "h1 {\n  color: ...;\n}"
+      ],
+      "quiz": {
+        "question": "Which tag connects a CSS file to your page?",
+        "options": [
+          "<style>",
+          "<link>",
+          "<css>"
+        ],
+        "answer": 1,
+        "explain": "<link rel=\"stylesheet\"> loads a separate CSS file."
+      }
+    }
+  ],
+  "createdAt": "2026-10-29T12:00:00.000Z",
+  "version": 1
+}
