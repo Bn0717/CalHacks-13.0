@@ -84,7 +84,10 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
   if (cached) return cached;
 
   deps.onStage?.("video");
-  const notes = await (deps.readVideo ?? ((u: string) => readVideo(u)))(watchUrl);
+  const all = await (deps.readVideo ?? ((u: string) => readVideo(u)))(watchUrl);
+  // A long video becomes a lesson on its first part: a whole 300-line tutorial doesn't fit in one answer or one sitting.
+  const part = firstPart(all);
+  const notes = part.notes;
   const ask: AskJson = deps.ask ?? askJson;
   const model = deps.model ?? LEARN_MODEL();
   const now = deps.now ?? (() => new Date());
@@ -93,7 +96,13 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
 
   // 1. Notes -> finished project + steps. One retry if the answer isn't a valid lesson.
   deps.onStage?.("steps");
-  const firstAsk = `Here are notes on a YouTube tutorial (${watchUrl}).\n\n${JSON.stringify(notes, null, 2)}`;
+  const firstAsk =
+    `Here are notes on a YouTube tutorial (${watchUrl}).` +
+    (part.trimmed
+      ? ` The video is long, so this lesson covers only its first part, up to ${clock(part.until)} (the chapters below). ` +
+        `Build the project as it is at that point, and say in the summary that the lesson covers the video up to ${clock(part.until)}.`
+      : "") +
+    `\n\n${JSON.stringify(notes, null, 2)}`;
   let lesson: Lesson;
   try {
     lesson = assemble(await ask<Draft>({ model, system: BUILD_SYSTEM, content: firstAsk, schema: draftJsonSchema(), maxTokens: 32000 }));
@@ -147,7 +156,7 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
 // Turns Claude's draft into a full lesson and validates it (throws a LessonError listing problems).
 // The lesson rules code enforces (see rules.ts), plus video parts that must sit inside the video, are checked here too.
 function draftToLesson(draft: Draft, id: string, source: Lesson["source"], at: Date, videoEnd: number): Lesson {
-  const rawSteps = Array.isArray(draft?.steps) ? draft.steps.map(fixHints).map((st) => clampPart(st, videoEnd)) : [];
+  const rawSteps = fillParts(Array.isArray(draft?.steps) ? draft.steps.map(fixHints).map((st) => clampPart(st, videoEnd)) : [], videoEnd);
   const lesson = parseLesson({
     ...draft,
     id,
@@ -250,6 +259,55 @@ function clampPart(step: unknown, videoEnd: number): unknown {
   if (!v || videoEnd <= 0 || typeof v.start !== "number" || typeof v.end !== "number") return step;
   if (v.end <= videoEnd || v.start >= videoEnd) return step;
   return { ...(step as object), video: { start: v.start, end: videoEnd } };
+}
+
+// A learner step the model left without its part of the video gets the stretch between its neighbours' parts (steps
+// follow the video in order), so the whole lesson isn't sent back for one missing timestamp.
+function fillParts(steps: unknown[], videoEnd: number): unknown[] {
+  type Part = { start: number; end: number };
+  const partOf = (st: unknown): Part | null => {
+    const v = (st as { video?: Partial<Part> } | null)?.video;
+    return v && typeof v.start === "number" && typeof v.end === "number" ? (v as Part) : null;
+  };
+  return steps.map((st, i) => {
+    if ((st as { who?: unknown } | null)?.who !== "learner" || partOf(st)) return st;
+    const prev = steps.slice(0, i).reverse().map(partOf).find((p) => p !== null) ?? null;
+    const next = steps.slice(i + 1).map(partOf).find((p) => p !== null) ?? null;
+    const start = prev ? prev.end : 0;
+    const end = next ? next.start : videoEnd > 0 ? videoEnd : start + 60;
+    const video = start < end ? { start, end } : prev ? { ...prev } : next ? { ...next } : null;
+    return video ? { ...(st as object), video } : st;
+  });
+}
+
+// "4:05"
+function clock(seconds: number): string {
+  const s = Math.round(seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// About how much on-screen code one video lesson can cover (one answer, one sitting): the lines of code the notes show,
+// added up over the parts. Real runs: 145 lines built well; 284 lines ran past 32,000 tokens without finishing.
+export const VIDEO_LINES_LIMIT = 150;
+
+// The notes for the video's first chapters, as many as keep the code shown within VIDEO_LINES_LIMIT (at least one
+// chapter). `until` is where the lesson stops in the video.
+export function firstPart(notes: VideoNotes, limit = VIDEO_LINES_LIMIT): { notes: VideoNotes; trimmed: boolean; until: number } {
+  const lines = (code: string) => code.split("\n").filter((l) => l.trim() !== "").length;
+  const inChapter = (sg: VideoNotes["segments"][number], ch: VideoNotes["chapters"][number]) =>
+    sg.chapter === ch.title || (!notes.chapters.some((c) => c.title === sg.chapter) && sg.start >= ch.start && sg.start < ch.end);
+  let total = 0;
+  let kept = 0;
+  for (const [i, ch] of notes.chapters.entries()) {
+    total += notes.segments.filter((sg) => inChapter(sg, ch)).reduce((n, sg) => n + lines(sg.code), 0);
+    if (i > 0 && total > limit) break;
+    kept = i + 1;
+  }
+  if (kept >= notes.chapters.length) return { notes, trimmed: false, until: notesEnd(notes) };
+  const chapters = notes.chapters.slice(0, kept);
+  const until = chapters[chapters.length - 1]!.end;
+  const segments = notes.segments.filter((sg) => chapters.some((ch) => inChapter(sg, ch)));
+  return { notes: { ...notes, chapters, segments }, trimmed: true, until };
 }
 
 // Swaps in fixed steps by id, keeping the original when a fix is missing or doesn't fit the step format.

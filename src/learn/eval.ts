@@ -161,6 +161,12 @@ export const PROMPT_CHANGES: EvalReport["promptChanges"] = [
   { where: "idea + video: checks", change: "Optional plain 'say' wording per check, no code words.", why: "B1: the student never sees a CSS selector. The checker words one itself when it's missing." },
   { where: "video: timestamps", change: "Every learner step has a video part from the notes' times, start < end, inside the video, in order.", why: "A7 'video steps link to the right timestamp'. Enforced in code: parts past the video's end are sent back." },
   { where: "checker: Haiku judge", change: "Reasons in plain words for a 14-year-old, never DOM/selector/element/parse.", why: "B1." },
+  // Round 2: from the first real run (report-before.json).
+  { where: "idea: project (round 2)", change: "First projects of 30-70 lines (up to ~120 for big asks); only what the student asked for, no surprise JavaScript or extras; few common tags/properties; the <head> is just charset, title and the CSS link.", why: "Run 1: 'a page about me' came back at 116 lines / 102 min with a face-switcher nobody asked for; the picture page at 139 lines / 113 min; bakery so big its steps were cut off." },
+  { where: "idea + video: steps (round 2)", change: "At most 2 new tags or CSS properties per step, each named and explained in plain words; long CSS rules split over steps; say exactly what to type when a beginner can't guess it.", why: "Run 1 Opus review: 'faces: arrays, let, if, functions, addEventListener… all at once', 'flex, vh, line-height never explained', 'viewport would mean nothing'." },
+  { where: "idea + video: hints (round 2)", change: "Hints about the whole step; hint 2 names every tag/property with values a beginner can't guess; hint 3 is the outline with the student's own parts as …", why: "Run 1 review: 'hints only cover the <link>', 'hint 3 is basically the full answer'." },
+  { where: "idea + video: steps (round 2)", change: "Each step closes every tag it opens; an idea lesson gets a 'look at your page' step after the HTML.", why: "The real C1 run: a step opened <main> whose </main> came later, so the right answer stayed 'Still typing?'. Also fixed in code (rebuild.ts)." },
+  { where: "code, not prompt (round 2)", change: "Late closing tags, drifting anchors, a give-away hint 3 and a video part past the end are repaired in code; checks are proven on the files as they are right after each step.", why: "Asking Opus again costs $0.20-0.50 a time; run 1 lost $1.06 on three failed builds." },
 ];
 
 // What a set of video notes holds, for the report.

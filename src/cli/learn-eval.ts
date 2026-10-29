@@ -5,6 +5,7 @@
 //   npm run learn:eval -- --lesson a.json   grade extra lesson files too
 //   npm run learn:eval -- --rebuild "a page about me"   build that case again instead of using the saved lesson (or --rebuild all)
 //   npm run learn:eval -- --before old-report.json      show before/after scores against an earlier run
+//   npm run learn:eval -- --render          write report.md again from report.json (no model calls, nothing spent)
 // Every call is metered, and the run stops once real spend for this test passes $8 (see SPEND_CAP_USD).
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
@@ -13,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { askJson } from "../ai/json.js";
 import { buildFromIdea, playwrightReference, type AskModel } from "../learn/build-from-idea.js";
-import { buildFromVideo, notesEnd } from "../learn/build-from-video.js";
+import { buildFromVideo, firstPart, notesEnd } from "../learn/build-from-video.js";
 import { lessonCache } from "../learn/cache.js";
 import { checkRunner, haikuJudge, playwrightRenderer } from "../learn/check/index.js";
 import { reasons } from "../learn/check/hint.js";
@@ -48,10 +49,10 @@ loadEnv(ROOT);
 
 const say = (text: string): void => void process.stdout.write(`${text}\n`);
 
-type Args = { videoNotes: boolean; refreshNotes: boolean; lessons: string[]; out: string; rebuild: string[]; before?: string };
+type Args = { videoNotes: boolean; refreshNotes: boolean; lessons: string[]; out: string; rebuild: string[]; before?: string; render: boolean };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { videoNotes: false, refreshNotes: false, lessons: [], out: join(ROOT, "docs/learn/eval"), rebuild: [] };
+  const a: Args = { videoNotes: false, refreshNotes: false, lessons: [], out: join(ROOT, "docs/learn/eval"), rebuild: [], render: false };
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i]!;
     if (x === "--video-notes") a.videoNotes = true;
@@ -60,6 +61,7 @@ function parseArgs(argv: string[]): Args {
     else if (x === "--out" && argv[i + 1]) a.out = resolve(argv[++i]!);
     else if (x === "--rebuild" && argv[i + 1]) a.rebuild.push(argv[++i]!);
     else if (x === "--before" && argv[i + 1]) a.before = resolve(argv[++i]!);
+    else if (x === "--render") a.render = true;
     else throw new Error(`I don't know "${x}". Try: --video-notes, --refresh-notes, --lesson <file>, --out <folder>, --rebuild <name|all>, --before <report.json>`);
   }
   return a;
@@ -187,6 +189,20 @@ function messageExamples(): EvalReport["messageExamples"] {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   await mkdir(args.out, { recursive: true });
+  if (args.render) {
+    // The saved results with today's wording (prompt-change list, findings); the numbers are the saved ones.
+    const saved = JSON.parse(await readFile(join(args.out, "report.json"), "utf8")) as EvalReport;
+    const report: EvalReport = {
+      ...saved,
+      promptChanges: PROMPT_CHANGES,
+      findings: [...findingsFor({ ...saved, hintChecks: saved.hintChecks ?? [] }), ...VIDEO_NOTES_CAVEATS],
+      ...(args.before ? { before: beforeRunFrom(JSON.parse(await readFile(args.before, "utf8")) as EvalReport) } : {}),
+    };
+    await writeFile(join(args.out, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    await writeFile(join(args.out, "report.md"), reportMarkdown(report), "utf8");
+    say(`📄 ${join(args.out, "report.md")} (from the saved results)`);
+    return;
+  }
   const costFile = join(args.out, "cost.json");
   const log = new CostLog();
   await log.attach(costFile);
@@ -231,7 +247,9 @@ async function main(): Promise<void> {
     if (saved.judgement) result.judgement = saved.judgement;
     else if (claudeUsable && !stopped) {
       try {
-        result.judgement = await judgeLesson(lesson, { ask: capped(log, meteredAskJson(log, `judge:${name}`, askJson)), ...(notes ? { notes } : {}) });
+        // A long video's lesson covers its first part only (firstPart): judge its fidelity against that part.
+        const seen = notes ? firstPart(notes).notes : undefined;
+        result.judgement = await judgeLesson(lesson, { ask: capped(log, meteredAskJson(log, `judge:${name}`, askJson)), ...(seen ? { notes: seen } : {}) });
         saved.judgement = result.judgement;
       } catch (e) {
         if (e instanceof BudgetError) stopped = e.message;

@@ -121,5 +121,110 @@
       ],
       "summary": "The lesson follows the video's project closely, with friendly 'why' lines and a clear split between watching and typing. Its biggest weakness is front-loading the link tag and the class/id names into the HTML steps, which breaks the video's order and asks beginners to type things before they mean anything."
     }
+  },
+  "idea-a-page-about-me-f542fedb@2026-10-29T06:45:54.658Z": {
+    "usd": 0.506019,
+    "judgement": {
+      "scores": {
+        "wording": 4,
+        "stepSize": 4,
+        "order": 3,
+        "hints": 2,
+        "fidelity": 4
+      },
+      "worst": [
+        {
+          "stepId": "head",
+          "problem": "Hint 2 gives the exact full code, and hint 3 is a blanked skeleton that reveals less. The hints get weaker, not stronger, and this happens in nearly every step."
+        },
+        {
+          "stepId": "list-style",
+          "problem": "text-align: left on ul does nothing visible yet, because centering only arrives later in body-more. The learner adds a fix for a problem they have never seen."
+        },
+        {
+          "stepId": "footer",
+          "problem": "The footer is built before the header, so the learner signs the bottom of an empty page and then has to insert content above it."
+        },
+        {
+          "stepId": "section-card",
+          "problem": "Several CSS steps (section-card, photo-style) say to insert rules between existing ones instead of adding to the end. That jumping around is confusing for a first-timer."
+        },
+        {
+          "stepId": "body-style",
+          "problem": "There is no look/refresh step during the 9 CSS steps, so the learner never sees each style change take effect. Jargon like 'sans-serif' and the '#fdf3e7' code also goes unexplained when first used."
+        }
+      ],
+      "summary": "The lesson matches the request closely (name, likes, photo spot), with clear plain-language explanations and small, even steps. Its biggest weakness is hints that get weaker instead of stronger, with hint 2 giving the full answer and hint 3 a vaguer skeleton, plus an odd build order and no chance to see the CSS changes along the way."
+    }
+  },
+  "idea-a-website-for-your-bakery-c5abbaf0@2026-10-29T06:49:28.524Z": {
+    "usd": 0.45783599999999997,
+    "judgement": {
+      "scores": {
+        "wording": 4,
+        "stepSize": 4,
+        "order": 4,
+        "hints": 4,
+        "fidelity": 5
+      },
+      "worst": [
+        {
+          "stepId": "head-info",
+          "problem": "Three new tags and jargon (charset, utf-8, rel, href) arrive in one step with no plain explanation of what href or rel mean."
+        },
+        {
+          "stepId": "header",
+          "problem": "Too many new ideas at once: header, h1, the a tag, href and links nested inside a paragraph, plus a link to contact.html, a page that doesn't exist yet."
+        },
+        {
+          "stepId": "footer",
+          "problem": "Building the footer before the header is backwards. The learner then has to insert code above existing code, which is confusing for a first-timer."
+        },
+        {
+          "stepId": "body-style",
+          "problem": "Hex colour codes like #fff5e6 and the word serif are used without saying what they are, though the step briefly mentions 'a warm cream'."
+        },
+        {
+          "stepId": "contact-skel",
+          "problem": "An 11-line step whose third hint is almost the full answer. Copying could be suggested, but the hint ladder adds little."
+        }
+      ],
+      "summary": "It follows the student's request closely (cakes with prices, hours, address and a contact page) and steadily builds a real two-page site with satisfying browser checkpoints. Its weakest spots are a few overloaded early steps (head-info, header) with unexplained jargon, and the odd footer-before-header order."
+    }
+  },
+  "idea-a-warm-one-page-website-cdb1300f@2026-10-29T06:53:12.013Z": {
+    "usd": 0.47351249999999995,
+    "judgement": {
+      "scores": {
+        "wording": 4,
+        "stepSize": 4,
+        "order": 4,
+        "hints": 3,
+        "fidelity": 5
+      },
+      "worst": [
+        {
+          "stepId": "card-title",
+          "problem": "Hint 2 ('Write .card h3 { } with color #3d3030') is the entire answer, so hint 3's blanked template is weaker than hint 2. This backwards order repeats in nav-hover, banner-title, footer-css and most CSS steps."
+        },
+        {
+          "stepId": "banner-css",
+          "problem": "Hint 3 starts with '….banner', which wrongly suggests something must be typed before the dot."
+        },
+        {
+          "stepId": "header-css",
+          "problem": "Uses 'px' and the two-value 'padding: 10px 30px' without explaining either. px is only explained later, in banner-title."
+        },
+        {
+          "stepId": "body-css",
+          "problem": "Hex colours like #f9f6f1 are used throughout but never explained, and 'sans-serif' is left unexplained."
+        },
+        {
+          "stepId": "skeleton",
+          "problem": "The first step packs in DOCTYPE, html, head and body (seven lines and four new tags) for someone who has never coded."
+        }
+      ],
+      "summary": "The lesson matches the picture very closely, building every section with sensible, well-explained HTML and CSS in a clear order. Its weakest point is the hints: hint 2 usually dictates the full answer while hint 3 is a vaguer template, so they get weaker instead of stronger, and a few terms (hex colours, px, two-value padding) are never or only belatedly explained."
+    }
   }
 }

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildFromIdea, type AskModel, type ModelJob } from "../../src/learn/build-from-idea.js";
-import { buildFromVideo, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
+import { buildFromVideo, firstPart, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
 import { readVideo, type VideoNotes } from "../../src/learn/gemini.js";
 import { ConceptSchema, LessonError, parseLesson, type Lesson, type Step } from "../../src/learn/lesson.js";
 import { hintGivesAway, lessonRuleProblems, looksLikeCode, outlineHint, stepRuleProblems } from "../../src/learn/rules.js";
@@ -165,5 +165,60 @@ describe("stages", () => {
   it("have a plain label each, and one honest build time phrase", () => {
     for (const s of [...BUILD_STAGES.idea, ...BUILD_STAGES.video]) expect(STAGE_LABELS[s]).toMatch(/^[A-Z][a-z]/);
     expect(BUILD_TIME_TEXT).toBe("usually a minute or two");
+  });
+});
+
+describe("long videos and missing video parts", () => {
+  const recorded = readFileSync(new URL("./fixtures/gemini-video.response.json", import.meta.url), "utf8");
+  const draft = () => JSON.parse(readFileSync(new URL("./fixtures/video-lesson.draft.json", import.meta.url), "utf8")) as { steps: Record<string, unknown>[] };
+  const notes = (url: string): Promise<VideoNotes> =>
+    readVideo(url, { env: { GEMINI_API_KEY: "k" }, fetch: (async () => new Response(recorded, { status: 200 })) as typeof fetch });
+
+  it("gives a learner step with no video part the stretch between its neighbours, without asking again", async () => {
+    let calls = 0;
+    let gap: { before: { end: number }; after: { start: number } } | undefined;
+    const ask = (async () => {
+      calls++;
+      const d = draft();
+      const learners = d.steps.filter((s) => s.who === "learner");
+      const i = d.steps.indexOf(learners[1]!);
+      delete d.steps[i]!.video;
+      const prev = d.steps.slice(0, i).reverse().find((s) => s.video)!.video as { end: number };
+      const next = d.steps.slice(i + 1).find((s) => s.video)!.video as { start: number };
+      gap = { before: prev, after: next };
+      return d;
+    }) as AskJson;
+    const lesson = await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: notes, ask, cache: null });
+    expect(calls).toBe(1);
+    const filled = lesson.steps.filter((s) => s.who === "learner")[1]!;
+    expect(filled.video).toBeDefined();
+    if (gap!.before.end < gap!.after.start) expect(filled.video).toEqual({ start: gap!.before.end, end: gap!.after.start });
+    expect(lessonRuleProblems(lesson.steps)).toEqual([]);
+  });
+
+  it("builds a long video's lesson from its first chapters, and says where it stops", async () => {
+    const seg = (start: number, chapter: string, lines: number) => ({ start, end: start + 30, chapter, action: "types", file: "index.html", code: Array.from({ length: lines }, (_, i) => `<p>${i}</p>`).join("\n") });
+    const long: VideoNotes = {
+      title: "Long",
+      summary: "s",
+      chapters: [
+        { title: "One", start: 0, end: 300 },
+        { title: "Two", start: 300, end: 600 },
+        { title: "Three", start: 600, end: 900 },
+      ],
+      segments: [seg(10, "One", 60), seg(100, "One", 60), seg(320, "Two", 20), seg(620, "Three", 80)],
+    };
+    const part = firstPart(long);
+    expect(part.trimmed).toBe(true);
+    expect(part.until).toBe(600);
+    expect(part.notes.chapters.map((c) => c.title)).toEqual(["One", "Two"]);
+    expect(part.notes.segments).toHaveLength(3);
+    expect(firstPart({ ...long, segments: long.segments.slice(0, 1) }).trimmed).toBe(false);
+
+    let prompt = "";
+    const ask = (async (req: { content: unknown }) => ((prompt = String(req.content)), draft())) as AskJson;
+    await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: async () => long, ask, cache: null }).catch(() => {});
+    expect(prompt).toMatch(/covers only its first part, up to 10:00/);
+    expect(prompt).not.toContain('"Three"');
   });
 });

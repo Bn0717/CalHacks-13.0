@@ -1,15 +1,15 @@
 {
-  "id": "idea-a-warm-one-page-site-with-cards-d867b900",
+  "id": "idea-a-warm-one-page-website-cdb1300f",
   "source": {
     "kind": "idea",
     "request": "a page like this picture",
     "answers": [],
     "picture": {
-      "summary": "A simple one-page site with a dark top menu, a warm coral banner with a big centered title, a row of three matching cards on a cream background, and a dark footer.",
+      "summary": "A simple one-page site with a dark top bar, a big coral welcome banner, a row of three matching picture cards on a cream background, and a dark footer.",
       "sections": [
         {
-          "name": "a top menu",
-          "description": "A dark brown bar with the bold white site name 'My Site' on the left and four white links (Home, About, Work, Contact) on the right."
+          "name": "a top bar",
+          "description": "A dark brown strip with the bold site name 'My Site' on the left and four white menu links (Home, About, Work, Contact) toward the right."
         },
         {
           "name": "a big banner",
@@ -17,81 +17,85 @@
         },
         {
           "name": "3 cards",
-          "description": "Three white cards with rounded corners and a thin gray border sitting side by side on a cream background, each with a peach picture placeholder, a bold dark title, and two gray bars standing in for text."
+          "description": "Three white cards with rounded corners and thin gray borders sitting side by side on a cream background, each with a peach picture placeholder, a bold dark title, and two gray placeholder text lines."
         },
         {
           "name": "a footer",
-          "description": "A dark brown bar at the bottom with centered white text reading 'Footer · made by me'."
+          "description": "A dark brown strip at the bottom with centered white text reading 'Footer · made by me'."
         }
       ]
     }
   },
-  "title": "A warm one-page site with cards",
-  "summary": "You will build a friendly one-page website with a dark top menu, a coral banner with a big title, three matching cards on a cream background and a dark footer. A few lines of JavaScript let visitors pick a favourite card.",
-  "outcome": "A finished, offline website (index.html, style.css and script.js) that looks like your picture and highlights a card when you click it.",
+  "title": "A warm one-page website",
+  "summary": "You'll build a simple one-page site with a dark top bar and menu, a big coral banner, three matching picture cards on a cream background, and a dark footer.",
+  "outcome": "A finished, friendly-looking home page that opens in any browser straight from your project folder.",
   "learns": [
-    "Page structure with HTML",
-    "Header, main and footer",
-    "Flexbox for menus and rows",
-    "Colors and rounded corners",
-    "Linking to page sections",
-    "Clicking with JavaScript"
+    "Structuring a page with HTML",
+    "Header, section and footer tags",
+    "Linking a CSS file",
+    "Colors and fonts",
+    "Padding, margins and borders",
+    "Rounded corners",
+    "Placing items side by side with flex",
+    "Menu links that jump down the page"
   ],
   "estimate": {
-    "minutes": 113,
-    "linesToType": 139,
+    "minutes": 100,
+    "linesToType": 104,
     "steps": 24
   },
   "simpler": {
-    "title": "Just a banner and one card",
+    "title": "Just the heart of the page",
     "estimate": {
-      "minutes": 44,
-      "linesToType": 51,
-      "steps": 9
+      "minutes": 63,
+      "linesToType": 62,
+      "steps": 15
     },
-    "why": "You'll build a real styled page with a warm banner and a card in well under an hour, and you can add the menu, more cards and the click fun later.",
+    "why": "A top bar, a banner, one card and a footer give you a real, styled page in about 40 minutes — you can add the rest later!",
     "stepIds": [
       "skeleton",
+      "head-info",
+      "header",
       "banner",
       "card-one",
-      "look-plain",
-      "base",
-      "banner-style",
+      "footer",
+      "look-html",
+      "body-css",
+      "header-css",
+      "banner-css",
+      "banner-title",
       "card-box",
-      "card-text",
-      "look-styled"
+      "card-border",
+      "footer-css",
+      "look-final"
     ]
   },
   "files": [
     {
       "path": "index.html",
-      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>My Site</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <header class=\"menu\" id=\"home\">\n    <a class=\"logo\" href=\"#home\">My Site</a>\n    <nav>\n      <a href=\"#home\">Home</a>\n      <a href=\"#about\">About</a>\n      <a href=\"#work\">Work</a>\n      <a href=\"#contact\">Contact</a>\n    </nav>\n  </header>\n\n  <section class=\"banner\" id=\"about\">\n    <h1>Big Title Here</h1>\n    <p>A small line of friendly text about my site.</p>\n  </section>\n\n  <main class=\"cards\" id=\"work\">\n    <article class=\"card\">\n      <div class=\"picture\">🌻</div>\n      <h2>First Card</h2>\n      <p>A short note about this first thing.</p>\n    </article>\n    <article class=\"card\">\n      <div class=\"picture\">🎨</div>\n      <h2>Second Card</h2>\n      <p>A short note about this second thing.</p>\n    </article>\n    <article class=\"card\">\n      <div class=\"picture\">📚</div>\n      <h2>Third Card</h2>\n      <p>A short note about this third thing.</p>\n    </article>\n  </main>\n\n  <footer class=\"footer\" id=\"contact\">\n    <p>Footer · made by me</p>\n  </footer>\n\n  <script src=\"script.js\"></script>\n</body>\n</html>\n"
+      "content": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>My Site</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <header>\n    <h1>My Site</h1>\n    <nav>\n      <a href=\"index.html\">Home</a>\n      <a href=\"#about\">About</a>\n      <a href=\"#work\">Work</a>\n      <a href=\"#contact\">Contact</a>\n    </nav>\n  </header>\n\n  <section class=\"banner\" id=\"about\">\n    <h2>Big Title Here</h2>\n    <p>A smaller line of welcome text goes here.</p>\n  </section>\n\n  <section class=\"cards\" id=\"work\">\n    <div class=\"card\">\n      <div class=\"picture\"></div>\n      <h3>Card One</h3>\n      <p>Some text about this card.</p>\n      <p>A little more text here.</p>\n    </div>\n    <div class=\"card\">\n      <div class=\"picture\"></div>\n      <h3>Card Two</h3>\n      <p>Some text about this card.</p>\n      <p>A little more text here.</p>\n    </div>\n    <div class=\"card\">\n      <div class=\"picture\"></div>\n      <h3>Card Three</h3>\n      <p>Some text about this card.</p>\n      <p>A little more text here.</p>\n    </div>\n  </section>\n\n  <footer id=\"contact\">\n    <p>Footer · made by me</p>\n  </footer>\n</body>\n</html>\n"
     },
     {
       "path": "style.css",
-      "content": "* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  font-family: Arial, Helvetica, sans-serif;\n  background: #f9f6f1;\n  color: #3c3031;\n}\n\n.menu {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 16px 32px;\n  background: #3c3031;\n}\n\n.menu a {\n  color: #ffffff;\n  text-decoration: none;\n}\n\n.logo {\n  font-size: 22px;\n  font-weight: bold;\n}\n\nnav a {\n  margin-left: 20px;\n}\n\nnav a:hover {\n  color: #f2c6a5;\n}\n\n.banner {\n  padding: 80px 20px;\n  background: #e07b60;\n  color: #ffffff;\n  text-align: center;\n}\n\n.banner h1 {\n  margin: 0 0 12px;\n  font-size: 48px;\n}\n\n.banner p {\n  margin: 0;\n  font-size: 18px;\n}\n\n.cards {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: 24px;\n  padding: 48px 20px;\n}\n\n.card {\n  width: 260px;\n  padding: 16px;\n  background: #ffffff;\n  border: 1px solid #dad5ce;\n  border-radius: 12px;\n  cursor: pointer;\n}\n\n.card.picked {\n  border: 3px solid #e07b60;\n}\n\n.picture {\n  height: 140px;\n  border-radius: 8px;\n  background: #f2c6a5;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  font-size: 56px;\n}\n\n.card h2 {\n  margin: 16px 0 8px;\n  font-size: 20px;\n}\n\n.card p {\n  margin: 0;\n  color: #8a817c;\n}\n\n.footer {\n  padding: 20px;\n  background: #3c3031;\n  color: #ffffff;\n  text-align: center;\n}\n"
-    },
-    {
-      "path": "script.js",
-      "content": "const cards = document.querySelectorAll(\".card\");\n\ncards.forEach(function (card) {\n  card.addEventListener(\"click\", function () {\n    cards.forEach(function (other) {\n      other.classList.remove(\"picked\");\n    });\n    card.classList.add(\"picked\");\n  });\n});\n"
+      "content": "body {\n  margin: 0;\n  font-family: Arial, sans-serif;\n  background: #f9f6f1;\n}\n\nheader {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  background: #3d3030;\n  color: #ffffff;\n  padding: 10px 30px;\n}\n\nnav a {\n  color: #ffffff;\n  margin-left: 20px;\n  text-decoration: none;\n}\n\nnav a:hover {\n  color: #f2c6a5;\n}\n\n.banner {\n  background: #e07b60;\n  color: #ffffff;\n  text-align: center;\n  padding: 60px 20px;\n}\n\n.banner h2 {\n  font-size: 44px;\n  margin: 0;\n}\n\n.cards {\n  display: flex;\n  gap: 20px;\n  padding: 40px 30px;\n}\n\n.card {\n  flex: 1;\n  background: #ffffff;\n  border: 1px solid #d9d4cd;\n  border-radius: 12px;\n  padding: 15px;\n  color: gray;\n}\n\n.card h3 {\n  color: #3d3030;\n}\n\n.picture {\n  background: #f2c6a5;\n  height: 120px;\n  border-radius: 8px;\n}\n\nfooter {\n  background: #3d3030;\n  color: #ffffff;\n  text-align: center;\n  padding: 15px;\n}\n"
     }
   ],
   "chapters": [
     {
       "id": "page",
-      "title": "Write the page"
+      "title": "Build the page skeleton"
+    },
+    {
+      "id": "content",
+      "title": "Write the content"
     },
     {
       "id": "look",
-      "title": "Add colour"
+      "title": "Colour the top bar and banner"
     },
     {
       "id": "cards",
-      "title": "Style the cards"
-    },
-    {
-      "id": "click",
-      "title": "Make it clickable"
+      "title": "Style the cards and footer"
     }
   ],
   "steps": [
@@ -99,355 +103,453 @@
       "id": "skeleton",
       "chapter": "page",
       "title": "Start the page",
-      "instruction": "In index.html, type the basic page frame: the doctype line, the html tag, and a head with the character set, the screen-size line, a title saying My Site and a link to style.css. Close the head and the html.",
-      "why": "Every web page needs this frame so the browser knows what it is reading.",
+      "instruction": "Create a file called index.html. Type the first line <!DOCTYPE html>. Under it, open <html> and close it with </html>. Inside, add a <head> part and a <body> part, each with its own closing tag.",
+      "why": "Every web page needs this frame. The head holds behind-the-scenes info and the body holds what people see.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
         "afterLine": 0
       },
-      "expected": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>My Site</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n</html>",
+      "expected": "<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n</body>\n</html>",
       "checks": [
         {
-          "type": "textIncludes",
-          "say": "I can't see your page title yet.",
-          "selector": "head title",
-          "text": "My Site"
-        },
-        {
-          "type": "attribute",
-          "say": "Your page isn't linked to the style file yet.",
-          "selector": "link[rel='stylesheet']",
-          "name": "href",
-          "value": "style.css"
-        },
-        {
-          "type": "attribute",
-          "say": "The line that fits the page to phone screens is missing.",
-          "selector": "meta[name='viewport']",
-          "name": "content"
+          "type": "fileExists",
+          "file": "index.html",
+          "say": "I can't find your page file yet. Make a file called index.html."
         },
         {
           "type": "parses",
-          "say": "Something in the page frame looks broken."
+          "file": "index.html",
+          "say": "Something in your page looks unfinished. Check every opening tag has a closing one."
+        },
+        {
+          "type": "ai",
+          "file": "index.html",
+          "say": "I can't see the head and body parts of your page yet.",
+          "question": "Does the file start with <!DOCTYPE html> and contain an <html> tag with a <head> and a <body> inside it?"
         }
       ],
       "hints": [
-        "A page starts with a line saying it is HTML, then an html tag holding a head section.",
-        "Inside <head> you need <meta charset>, <meta name=\"viewport\">, <title> and <link rel=\"stylesheet\">.",
-        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  …\n  <title>…</title>\n  <link rel=\"stylesheet\" href=\"…\">\n</head>\n</html>"
+        "A page is like a box with two rooms: one for hidden info and one for what you see.",
+        "First line: <!DOCTYPE html>. Then <html> ... </html>. Inside it: <head></head> and then <body></body>, each tag on its own line.",
+        "<!DOCTYPE …>\n<html>\n<…>\n</head>\n…\n</html>"
       ],
       "concept": {
-        "title": "Tags",
-        "explain": "HTML uses tags in angle brackets, like <title>, and most come in pairs that open and close around something.",
+        "title": "The page frame",
+        "explain": "A web page is wrapped in html tags, with a head for hidden info and a body for what you see.",
         "links": [
           {
-            "title": "MDN: Getting started with HTML",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started"
+            "title": "MDN: The html tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/html"
+          },
+          {
+            "title": "MDN: The body tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/body"
           }
         ],
-        "imageQuery": "html page structure diagram head body",
-        "videoQuery": "html basic page structure for beginners"
+        "imageQuery": "html page structure head body diagram",
+        "videoQuery": "html page structure for beginners"
       }
     },
     {
-      "id": "menu",
+      "id": "head-info",
       "chapter": "page",
-      "title": "Add the top bar",
-      "instruction": "Under the closing head tag, add a body. Inside it, add a header with the class menu and id home, holding a link with the class logo that says My Site and goes to #home.",
-      "why": "The body holds everything visitors see, starting with your top bar.",
+      "title": "Fill in the head",
+      "instruction": "Inside the head, add three lines: a <meta> tag with charset=\"utf-8\" so letters show correctly, a <title> that says My Site, and a <link> tag with rel=\"stylesheet\" and href=\"style.css\" to connect your style file later.",
+      "why": "The title shows on the browser tab, and the link will bring in your colours later.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
-        "after": "</head>"
+        "inside": "head"
       },
-      "expected": "<body>\n  <header class=\"menu\" id=\"home\">\n    <a class=\"logo\" href=\"#home\">My Site</a>\n  </header>\n</body>",
+      "expected": "  <meta charset=\"utf-8\">\n  <title>My Site</title>\n  <link rel=\"stylesheet\" href=\"style.css\">",
       "checks": [
         {
-          "type": "selectorExists",
-          "say": "I can't see your top bar yet.",
-          "selector": "header.menu#home"
+          "type": "attribute",
+          "file": "index.html",
+          "say": "I can't see the line that sets the letter type yet.",
+          "selector": "meta",
+          "name": "charset",
+          "value": "utf-8"
         },
         {
           "type": "textIncludes",
-          "say": "Your logo link should say My Site.",
-          "selector": "header a.logo",
+          "file": "index.html",
+          "say": "Your page doesn't have a tab title yet.",
+          "selector": "title",
           "text": "My Site"
         },
         {
           "type": "attribute",
-          "say": "Your logo link should jump to the top of the page.",
-          "selector": "a.logo",
+          "file": "index.html",
+          "say": "I can't see the line that connects your style file yet.",
+          "selector": "link[rel=stylesheet]",
           "name": "href",
-          "value": "#home"
+          "value": "style.css"
         }
       ],
       "hints": [
-        "Everything you can see goes inside a body, and the top bar is a header.",
-        "After </head>, write <body>, then a <header class=\"menu\" id=\"home\"> with an <a class=\"logo\"> inside.",
-        "<body>\n  <header class=\"menu\" id=\"…\">\n    <a class=\"…\" href=\"#home\">…</a>\n  </header>\n</body>"
+        "The head needs three small lines: one about letters, one for the tab name, one to connect a style file.",
+        "Between <head> and </head>: <meta charset=\"utf-8\">, then <title>My Site</title>, then <link rel=\"stylesheet\" href=\"style.css\">.",
+        "<meta charset=\"…\">\n<title>…</title>\n<link rel=\"…\" href=\"…\">"
       ],
       "concept": {
-        "title": "Classes and ids",
-        "explain": "A class is a name tag we can style later; an id is a unique name a link can jump to.",
+        "title": "Page info",
+        "explain": "The head holds info for the browser, like the tab name and which style file to use.",
         "links": [
           {
-            "title": "MDN: class",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/class"
+            "title": "MDN: The title tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/title"
           },
           {
-            "title": "MDN: id",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/id"
+            "title": "MDN: The link tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/link"
           }
         ]
       }
     },
     {
-      "id": "nav",
-      "chapter": "page",
-      "title": "Add the menu links",
-      "instruction": "Inside the header, under the logo link, add a nav with four links: Home to #home, About to #about, Work to #work and Contact to #contact.",
-      "why": "These links let visitors jump to each part of your page.",
+      "id": "header",
+      "chapter": "content",
+      "title": "Add the top bar",
+      "instruction": "Inside the body, add a <header> (the top bar of your page). Inside it put an <h1>, the biggest heading, that says My Site.",
+      "why": "Now your page has a name at the very top.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
-        "after": "My Site</a>"
+        "inside": "body"
       },
-      "expected": "    <nav>\n      <a href=\"#home\">Home</a>\n      <a href=\"#about\">About</a>\n      <a href=\"#work\">Work</a>\n      <a href=\"#contact\">Contact</a>\n    </nav>",
+      "expected": "  <header>\n    <h1>My Site</h1>\n  </header>",
       "checks": [
         {
           "type": "selectorExists",
-          "say": "I can't see your four menu links yet.",
-          "selector": "header nav a",
-          "count": 4
-        },
-        {
-          "type": "attribute",
-          "say": "Your Contact link should go to #contact.",
-          "selector": "nav a[href='#contact']",
-          "name": "href",
-          "value": "#contact"
+          "file": "index.html",
+          "say": "I can't see your big heading in a top bar yet.",
+          "selector": "header h1"
         },
         {
           "type": "textIncludes",
-          "say": "One of your menu links should say About.",
-          "selector": "nav",
-          "text": "About"
+          "file": "index.html",
+          "say": "Your big heading should say My Site.",
+          "selector": "header h1",
+          "text": "My Site"
         }
       ],
       "hints": [
-        "A group of menu links lives in its own little box inside the header.",
-        "Under the logo link, add <nav> and put four <a href=\"#…\"> links inside it.",
-        "<nav>\n  <a href=\"#home\">Home</a>\n  <a href=\"#about\">…</a>\n  …\n</nav>"
+        "Make a top bar, and put the name of your site inside it as a big heading.",
+        "Between <body> and </body>, type <header> and </header>. Inside, add <h1>My Site</h1>.",
+        "<header>\n  <h1>…</h1>\n</…>"
       ],
       "concept": {
-        "title": "Links",
-        "explain": "An a tag makes a link; its href says where clicking it takes you, and # means a spot on this page.",
+        "title": "Headers and headings",
+        "explain": "A header is the top strip of a page, and h1 is the biggest, most important heading.",
         "links": [
           {
-            "title": "MDN: The a element",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a"
-          }
-        ]
-      }
-    },
-    {
-      "id": "banner",
-      "chapter": "page",
-      "title": "Add the banner",
-      "instruction": "Under the header, add a section with the class banner and id about. Inside it, put a big heading saying Big Title Here and a short line of friendly text.",
-      "why": "The banner is the first big message visitors read.",
-      "who": "learner",
-      "file": "index.html",
-      "anchor": {
-        "after": "</header>"
-      },
-      "expected": "  <section class=\"banner\" id=\"about\">\n    <h1>Big Title Here</h1>\n    <p>A small line of friendly text about my site.</p>\n  </section>",
-      "checks": [
-        {
-          "type": "selectorExists",
-          "say": "I can't see your banner yet.",
-          "selector": "section.banner#about"
-        },
-        {
-          "type": "selectorExists",
-          "say": "Your banner needs a big heading.",
-          "selector": ".banner h1"
-        },
-        {
-          "type": "selectorExists",
-          "say": "Your banner needs a short line of text under the heading.",
-          "selector": ".banner p"
-        }
-      ],
-      "hints": [
-        "Make a new part of the page for a big title and a sentence.",
-        "After </header>, add <section class=\"banner\" id=\"about\"> with an <h1> and a <p> inside.",
-        "<section class=\"banner\" id=\"about\">\n  <h1>…</h1>\n  <p>…</p>\n</section>"
-      ],
-      "concept": {
-        "title": "Headings and paragraphs",
-        "explain": "h1 is the biggest heading on a page, and p holds a normal paragraph of text.",
-        "links": [
+            "title": "MDN: The header tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/header"
+          },
           {
-            "title": "MDN: Heading elements",
+            "title": "MDN: Heading tags",
             "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements"
           }
         ]
       }
     },
     {
-      "id": "card-one",
-      "chapter": "page",
-      "title": "Add the first card",
-      "instruction": "Under the banner, add a main with the class cards and id work. Inside it, add an article with the class card holding a div with the class picture and a 🌻, a smaller heading First Card, and a short note.",
-      "why": "Cards are neat boxes that show one thing each.",
+      "id": "nav",
+      "chapter": "content",
+      "title": "Add the menu",
+      "instruction": "Under your h1, still inside the header, add a <nav> (a menu). Inside it add four <a> links: Home going to index.html, About going to #about, Work going to #work, and Contact going to #contact.",
+      "why": "A menu lets visitors jump around your page.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
-        "after": "</section>"
+        "after": "</h1>"
       },
-      "expected": "  <main class=\"cards\" id=\"work\">\n    <article class=\"card\">\n      <div class=\"picture\">🌻</div>\n      <h2>First Card</h2>\n      <p>A short note about this first thing.</p>\n    </article>\n  </main>",
+      "expected": "    <nav>\n      <a href=\"index.html\">Home</a>\n      <a href=\"#about\">About</a>\n      <a href=\"#work\">Work</a>\n      <a href=\"#contact\">Contact</a>\n    </nav>",
       "checks": [
         {
           "type": "selectorExists",
-          "say": "I can't see your first card yet.",
-          "selector": "main.cards#work article.card"
+          "file": "index.html",
+          "say": "I can't see four menu links in your top bar yet.",
+          "selector": "header nav a",
+          "count": 4
         },
         {
-          "type": "selectorExists",
-          "say": "Your card needs a picture box.",
-          "selector": ".card .picture"
-        },
-        {
-          "type": "selectorExists",
-          "say": "Your card needs a heading.",
-          "selector": ".card h2"
+          "type": "attribute",
+          "file": "index.html",
+          "say": "Your About link should go to #about.",
+          "selector": "nav a[href='#about']",
+          "name": "href",
+          "value": "#about"
         }
       ],
       "hints": [
-        "You need a box for all the cards, and the first card inside it.",
-        "After the banner's </section>, add <main class=\"cards\" id=\"work\"> with an <article class=\"card\"> inside.",
-        "<main class=\"cards\" id=\"work\">\n  <article class=\"card\">\n    <div class=\"picture\">🌻</div>\n    <h2>…</h2>\n    <p>…</p>\n  </article>\n</main>"
+        "Add a menu under the heading with four clickable words.",
+        "After </h1>, type <nav> and </nav>. Inside, four <a href=\"...\"> links: index.html, #about, #work, #contact.",
+        "<nav>\n  <a href=\"index.html\">…</a>\n  <a href=\"…\">About</a>\n  <a href=\"#work\">…</a>\n  …\n</nav>"
       ],
       "concept": {
-        "title": "Boxes inside boxes",
-        "explain": "Tags can sit inside other tags, like a card inside a group of cards, building the page from boxes.",
+        "title": "Links and menus",
+        "explain": "An a tag makes clickable text, and href says where the click takes you; nav groups the menu links.",
         "links": [
           {
-            "title": "MDN: The article element",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/article"
+            "title": "MDN: The a tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a"
+          },
+          {
+            "title": "MDN: The nav tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/nav"
           }
         ]
       }
     },
     {
-      "id": "card-more",
-      "chapter": "page",
-      "title": "Add two more cards",
-      "instruction": "Inside the cards box, under the first card, add two more cards the same way: one with 🎨 and Second Card, one with 📚 and Third Card.",
-      "why": "Three matching cards make the page look full and tidy.",
+      "id": "banner",
+      "chapter": "content",
+      "title": "Add the banner",
+      "instruction": "Under the header, add a <section> with class=\"banner\" and id=\"about\". Inside, put an <h2> (a second-level heading) that says Big Title Here and a <p> (a paragraph) with a short welcome line.",
+      "why": "This is the big welcome area people see first.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
-        "after": "</article>"
+        "after": "</header>"
       },
-      "expected": "    <article class=\"card\">\n      <div class=\"picture\">🎨</div>\n      <h2>Second Card</h2>\n      <p>A short note about this second thing.</p>\n    </article>\n    <article class=\"card\">\n      <div class=\"picture\">📚</div>\n      <h2>Third Card</h2>\n      <p>A short note about this third thing.</p>\n    </article>",
+      "expected": "  <section class=\"banner\" id=\"about\">\n    <h2>Big Title Here</h2>\n    <p>A smaller line of welcome text goes here.</p>\n  </section>",
       "checks": [
         {
           "type": "selectorExists",
-          "say": "I can only see one card so far; you need three.",
-          "selector": "main.cards article.card",
-          "count": 3
+          "file": "index.html",
+          "say": "I can't see your banner with its title yet.",
+          "selector": "section.banner#about h2"
         },
         {
           "type": "selectorExists",
-          "say": "Every card needs its own picture box.",
-          "selector": ".card .picture",
-          "count": 3
+          "file": "index.html",
+          "say": "Your banner needs a welcome sentence under the title.",
+          "selector": "section.banner p"
         }
       ],
       "hints": [
-        "Copy the shape of your first card twice and change the words.",
-        "Under the first </article>, add two more <article class=\"card\"> blocks, each with a picture, h2 and p.",
-        "<article class=\"card\">\n  <div class=\"picture\">🎨</div>\n  <h2>Second Card</h2>\n  …\n</article>\n…"
+        "Make a new part of the page under the top bar with a title and a sentence.",
+        "After </header>, type <section class=\"banner\" id=\"about\"> and </section>. Inside: an <h2> and a <p>.",
+        "<section class=\"…\" id=\"…\">\n  <h2>…</h2>\n  <p>…</p>\n</…>"
+      ],
+      "concept": {
+        "title": "Sections, class and id",
+        "explain": "A section is a chunk of the page; class is a name for styling, and id lets menu links jump to it.",
+        "links": [
+          {
+            "title": "MDN: The section tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/section"
+          },
+          {
+            "title": "MDN: The p tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p"
+          }
+        ]
+      }
+    },
+    {
+      "id": "card-one",
+      "chapter": "content",
+      "title": "Add the first card",
+      "instruction": "Under the banner, add a <section> with class=\"cards\" and id=\"work\". Inside it add a <div> (a plain box) with class=\"card\". In the card put an empty <div class=\"picture\"></div>, an <h3> (a small heading) saying Card One, and two short paragraphs.",
+      "why": "Cards are neat boxes that show off your work.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</section>"
+      },
+      "expected": "  <section class=\"cards\" id=\"work\">\n    <div class=\"card\">\n      <div class=\"picture\"></div>\n      <h3>Card One</h3>\n      <p>Some text about this card.</p>\n      <p>A little more text here.</p>\n    </div>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your first card yet.",
+          "selector": "section.cards#work .card"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "Your card needs a picture box, a small heading and two sentences.",
+          "selector": ".card .picture"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "Your card needs a small heading.",
+          "selector": ".card h3"
+        }
+      ],
+      "hints": [
+        "Make a new part for the cards, and put one box inside it with a picture spot, a title and two lines of text.",
+        "After the banner's </section>: <section class=\"cards\" id=\"work\">. Inside: <div class=\"card\"> holding <div class=\"picture\"></div>, an <h3>, and two <p> tags. Close everything.",
+        "<section class=\"…\" id=\"…\">\n  <div class=\"card\">\n    <div class=\"…\"></div>\n    <h3>…</h3>\n    <p>…</p>\n    …\n  </div>\n</section>"
+      ],
+      "concept": {
+        "title": "Boxes with div",
+        "explain": "A div is an empty box you can fill and style however you like.",
+        "links": [
+          {
+            "title": "MDN: The div tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/div"
+          },
+          {
+            "title": "MDN: Heading tags",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements"
+          }
+        ]
+      }
+    },
+    {
+      "id": "card-two",
+      "chapter": "content",
+      "title": "Add the second card",
+      "instruction": "Inside the cards section, under the first card, add a second card just like it, but with the heading Card Two.",
+      "why": "Repeating the same pattern is how real sites are built.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 28
+      },
+      "expected": "    <div class=\"card\">\n      <div class=\"picture\"></div>\n      <h3>Card Two</h3>\n      <p>Some text about this card.</p>\n      <p>A little more text here.</p>\n    </div>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can only see one card so far.",
+          "selector": ".cards .card:nth-of-type(2)"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "The second card's heading should say Card Two.",
+          "selector": ".cards .card:nth-of-type(2) h3",
+          "text": "Card Two"
+        }
+      ],
+      "hints": [
+        "Copy the pattern of your first card, just change its title.",
+        "After the first card's closing </div>, still inside the cards section, add another <div class=\"card\"> with a picture box, an <h3> saying Card Two, and two <p>.",
+        "<div class=\"…\">\n  <div class=\"…\"></div>\n  <h3>…</h3>\n  <p>…</p>\n  <p>…</p>\n</div>"
+      ]
+    },
+    {
+      "id": "card-three",
+      "chapter": "content",
+      "title": "Add the third card",
+      "instruction": "Under the second card, add a third card the same way, with the heading Card Three.",
+      "why": "Three cards make a nice row.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 34
+      },
+      "expected": "    <div class=\"card\">\n      <div class=\"picture\"></div>\n      <h3>Card Three</h3>\n      <p>Some text about this card.</p>\n      <p>A little more text here.</p>\n    </div>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see three cards yet.",
+          "selector": ".cards .card",
+          "count": 3
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "The third card's heading should say Card Three.",
+          "selector": ".cards .card:nth-of-type(3) h3",
+          "text": "Card Three"
+        }
+      ],
+      "hints": [
+        "One more card, same pattern, new title.",
+        "After the second card's closing </div>, add a <div class=\"card\"> with a picture box, an <h3> saying Card Three and two <p>.",
+        "<div class=\"…\">\n  <div class=\"…\"></div>\n  <h3>…</h3>\n  …\n</div>"
       ]
     },
     {
       "id": "footer",
-      "chapter": "page",
-      "title": "Add the footer and script",
-      "instruction": "Under the cards box, add a footer with the class footer and id contact holding a line saying Footer · made by me. Below it, add a script tag that loads script.js.",
-      "why": "The footer closes the page, and the script tag gets it ready for clicks later.",
+      "chapter": "content",
+      "title": "Add the footer",
+      "instruction": "At the bottom of the body, under the cards section, add a <footer> (the bottom strip of the page) with id=\"contact\". Inside it put a paragraph saying Footer · made by me.",
+      "why": "A footer closes off the page and says who made it.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
-        "after": "</main>"
+        "inside": "body"
       },
-      "expected": "  <footer class=\"footer\" id=\"contact\">\n    <p>Footer · made by me</p>\n  </footer>\n\n  <script src=\"script.js\"></script>",
+      "expected": "  <footer id=\"contact\">\n    <p>Footer · made by me</p>\n  </footer>",
       "checks": [
         {
           "type": "selectorExists",
-          "say": "I can't see your footer yet.",
-          "selector": "footer.footer#contact"
+          "file": "index.html",
+          "say": "I can't see a bottom strip on your page yet.",
+          "selector": "footer#contact p"
         },
         {
           "type": "textIncludes",
-          "say": "Your footer should say who made the page.",
+          "file": "index.html",
+          "say": "Your bottom strip should say who made the page.",
           "selector": "footer",
           "text": "made by me"
-        },
-        {
-          "type": "attribute",
-          "say": "Your page isn't loading script.js yet.",
-          "selector": "script",
-          "name": "src",
-          "value": "script.js"
         }
       ],
       "hints": [
-        "The bottom strip of a page has its own tag, and there's one more line to load your code file.",
-        "After </main>, add <footer class=\"footer\" id=\"contact\"> with a <p>, then <script src=\"script.js\">.",
-        "<footer class=\"footer\" id=\"contact\">\n  <p>…</p>\n</footer>\n<script src=\"…\"></script>"
-      ]
+        "Every page needs a bottom strip that says who made it.",
+        "Just before </body>: <footer id=\"contact\"> and </footer>, with a <p> inside.",
+        "<footer id=\"…\">\n  <p>…</p>\n</…>"
+      ],
+      "concept": {
+        "title": "Footers",
+        "explain": "A footer is the strip at the bottom of a page, often with contact info or the maker's name.",
+        "links": [
+          {
+            "title": "MDN: The footer tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/footer"
+          }
+        ]
+      }
     },
     {
-      "id": "look-plain",
-      "chapter": "page",
-      "title": "Look at your page",
-      "instruction": "Open index.html in the browser. All your words are there, but it's plain black and white for now.",
-      "why": "Seeing the plain page shows how much the styling will change.",
+      "id": "look-html",
+      "chapter": "content",
+      "title": "See your page",
+      "instruction": "Open index.html in your web browser (double-click it). You'll see all your words, but plain and black on white. Next we'll add colour!",
+      "why": "Seeing your work helps you notice what's there and what's missing.",
       "who": "watch",
       "expected": "",
       "checks": [],
       "hints": [
-        "Just open the page in your browser and look.",
-        "Find index.html and open it in the browser.",
-        "Scroll down: menu, banner, three cards, footer."
+        "Find index.html in your folder.",
+        "Double-click it, or drag it into a browser window.",
+        "If it opens in a text editor, right-click and choose Open With, then your browser."
       ],
       "quiz": {
-        "question": "Which tag holds everything visitors see on the page?",
+        "question": "Which tag makes a clickable link?",
         "options": [
-          "head",
-          "body",
-          "title"
+          "<p>",
+          "<a>",
+          "<div>",
+          "<h1>"
         ],
         "answer": 1,
-        "explain": "The body holds all the visible content; the head holds information about the page."
+        "explain": "The a tag makes a link, and href says where it goes."
       }
     },
     {
-      "id": "base",
+      "id": "body-css",
       "chapter": "look",
-      "title": "Set the page colours",
-      "instruction": "In style.css, add a rule for everything that sets box-sizing to border-box, then a body rule with no margin, the Arial font, a cream background #f9f6f1 and dark text #3c3031.",
-      "why": "This gives the whole page its warm cream look and a clean font.",
+      "title": "Style the whole page",
+      "instruction": "Make a new file called style.css. Write a rule for body with margin: 0; (removes the gap around the page edge), font-family: Arial, sans-serif; (the letter style) and background: #f9f6f1; (a cream colour).",
+      "why": "Your whole page gets a warm cream background and cleaner letters.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
         "afterLine": 0
       },
-      "expected": "* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  font-family: Arial, Helvetica, sans-serif;\n  background: #f9f6f1;\n  color: #3c3031;\n}",
+      "expected": "body {\n  margin: 0;\n  font-family: Arial, sans-serif;\n  background: #f9f6f1;\n}",
       "checks": [
         {
           "type": "cssProperty",
@@ -460,36 +562,33 @@
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "The page still has a gap around its edges.",
+          "say": "There's still a gap around the edge of your page.",
           "selector": "body",
           "property": "margin-top",
           "value": "0px"
         },
         {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Boxes should count their padding inside their size.",
-          "selector": "body",
-          "property": "box-sizing",
-          "value": "border-box"
-        },
-        {
           "type": "parses",
-          "say": "Something in your style file looks broken."
+          "file": "style.css",
+          "say": "Something in your style file looks unfinished. Check your curly brackets and semicolons."
         }
       ],
       "hints": [
-        "Write one rule for every box, then one for the body.",
-        "Use * { box-sizing: … } and body { margin, font-family, background, color }.",
-        "* {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  font-family: …;\n  background: #f9f6f1;\n  color: …;\n}"
+        "A style rule names a part of the page, then lists how it should look inside curly brackets.",
+        "Write body { } and inside put margin with 0, font-family with Arial, sans-serif, and background with #f9f6f1. End each line with a semicolon.",
+        "body {\n  margin: …;\n  font-family: …;\n  …\n}"
       ],
       "concept": {
-        "title": "CSS rules",
-        "explain": "A CSS rule names what to style, then lists changes inside curly brackets, each like property: value;.",
+        "title": "Style rules",
+        "explain": "A style rule picks a part of the page and lists how it should look, like its colour or spacing.",
         "links": [
           {
             "title": "MDN: CSS basics",
             "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/CSS_basics"
+          },
+          {
+            "title": "MDN: margin",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/margin"
           }
         ],
         "imageQuery": "css rule anatomy diagram",
@@ -497,140 +596,208 @@
       }
     },
     {
-      "id": "menu-bar",
+      "id": "header-css",
       "chapter": "look",
-      "title": "Make the menu a dark bar",
-      "instruction": "Below the body rule, add a .menu rule that lines things up in a row with flex, pushes them to each end, centres them up and down, adds padding 16px 32px and a dark background #3c3031.",
-      "why": "Your logo and links now sit side by side on a dark bar.",
+      "title": "Colour the top bar",
+      "instruction": "Under the body rule (leave a blank line), add a rule for header with background: #3d3030; (dark brown), color: #ffffff; (white text) and padding: 10px 30px; (padding is the space inside the box).",
+      "why": "Your top bar becomes a dark strip with white writing.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 10
+        "afterLine": 5
       },
-      "expected": ".menu {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 16px 32px;\n  background: #3c3031;\n}",
+      "expected": "header {\n  background: #3d3030;\n  color: #ffffff;\n  padding: 10px 30px;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your menu items aren't side by side yet.",
-          "selector": ".menu",
-          "property": "display",
-          "value": "flex"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your logo and links should be pushed to opposite ends.",
-          "selector": ".menu",
-          "property": "justify-content",
-          "value": "space-between"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your menu bar isn't dark yet.",
-          "selector": ".menu",
+          "say": "Your top bar isn't dark yet.",
+          "selector": "header",
           "property": "background-color",
-          "value": "rgb(60, 48, 49)"
-        }
-      ],
-      "hints": [
-        "Make the menu line its contents up in a row and give it a dark colour.",
-        "Add .menu { … } with display: flex, justify-content, align-items, padding and background.",
-        ".menu {\n  display: flex;\n  justify-content: space-between;\n  …\n  background: #3c3031;\n}"
-      ],
-      "concept": {
-        "title": "Flexbox",
-        "explain": "display: flex puts the things inside a box in a row and lets you space them out easily.",
-        "links": [
-          {
-            "title": "MDN: Flexbox",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout/Flexbox"
-          }
-        ],
-        "imageQuery": "flexbox justify-content diagram",
-        "videoQuery": "flexbox in 5 minutes"
-      }
-    },
-    {
-      "id": "menu-text",
-      "chapter": "look",
-      "title": "White menu text and a bold logo",
-      "instruction": "Add a rule for links in the menu that makes them white with no underline, then a .logo rule with size 22px and bold text.",
-      "why": "White text stands out on the dark bar, and the logo looks like a logo.",
-      "who": "learner",
-      "file": "style.css",
-      "anchor": {
-        "afterLine": 17
-      },
-      "expected": ".menu a {\n  color: #ffffff;\n  text-decoration: none;\n}\n\n.logo {\n  font-size: 22px;\n  font-weight: bold;\n}",
-      "checks": [
+          "value": "rgb(61, 48, 48)"
+        },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your menu links aren't white yet.",
-          "selector": ".menu nav a",
+          "say": "The writing in your top bar should be white.",
+          "selector": "header",
           "property": "color",
           "value": "rgb(255, 255, 255)"
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your logo should be bigger.",
-          "selector": ".logo",
-          "property": "font-size",
-          "value": "22px"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your logo should be bold.",
-          "selector": ".logo",
-          "property": "font-weight",
-          "value": "700"
+          "say": "Your top bar needs some space inside its edges.",
+          "selector": "header",
+          "property": "padding-left",
+          "value": "30px"
         }
       ],
       "hints": [
-        "Style the links inside the menu, then the logo on its own.",
-        "Write .menu a { color, text-decoration } and .logo { font-size, font-weight }.",
-        ".menu a {\n  color: #ffffff;\n  text-decoration: …;\n}\n\n.logo {\n  …\n}"
-      ]
+        "Give the top bar a dark colour, white text and some breathing room.",
+        "Write header { } with background #3d3030, color #ffffff and padding 10px 30px.",
+        "header {\n  background: …;\n  color: …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "Colour and padding",
+        "explain": "color changes the text colour, and padding is the space between the edge of a box and what's inside.",
+        "links": [
+          {
+            "title": "MDN: color",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/color"
+          },
+          {
+            "title": "MDN: padding",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/padding"
+          }
+        ]
+      }
     },
     {
-      "id": "nav-hover",
+      "id": "header-flex",
       "chapter": "look",
-      "title": "Space the links and add hover",
-      "instruction": "Add a nav a rule with a left margin of 20px, then a nav a:hover rule that turns the link peach #f2c6a5.",
-      "why": "Links get room to breathe and light up when the mouse is over them.",
+      "title": "Put the title and menu side by side",
+      "instruction": "At the top of the header rule, right after header {, add display: flex; (lines things up in a row), justify-content: space-between; (pushes them to opposite ends) and align-items: center; (centres them up and down).",
+      "why": "Your site name sits on the left and the menu on the right, on one line.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 26
+        "after": "header {"
       },
-      "expected": "nav a {\n  margin-left: 20px;\n}\n\nnav a:hover {\n  color: #f2c6a5;\n}",
+      "expected": "  display: flex;\n  justify-content: space-between;\n  align-items: center;",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your menu links still sit too close together.",
+          "say": "Your title and menu aren't in one row yet.",
+          "selector": "header",
+          "property": "display",
+          "value": "flex"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The menu should be pushed to the right side.",
+          "selector": "header",
+          "property": "justify-content",
+          "value": "space-between"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your title and menu should be lined up in the middle.",
+          "selector": "header",
+          "property": "align-items",
+          "value": "center"
+        }
+      ],
+      "hints": [
+        "Three lines will put things in a row, spread them apart and line them up.",
+        "Right after header {, add display: flex, justify-content: space-between and align-items: center.",
+        "  display: …;\n  justify-content: …;\n  align-items: …;"
+      ],
+      "concept": {
+        "title": "Flexbox",
+        "explain": "display: flex puts the things inside a box in a row, and other lines decide how they spread out.",
+        "links": [
+          {
+            "title": "MDN: Flexbox",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout/Flexbox"
+          }
+        ],
+        "imageQuery": "flexbox justify-content space-between diagram",
+        "videoQuery": "flexbox in 5 minutes"
+      }
+    },
+    {
+      "id": "nav-css",
+      "chapter": "look",
+      "title": "Style the menu links",
+      "instruction": "Under the header rule, add a rule for nav a with color: #ffffff;, margin-left: 20px; (space on the left of each link) and text-decoration: none; (removes the underline).",
+      "why": "Your menu links turn white, spaced out, without underlines.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 14
+      },
+      "expected": "nav a {\n  color: #ffffff;\n  margin-left: 20px;\n  text-decoration: none;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your menu links still have space missing between them.",
           "selector": "nav a",
           "property": "margin-left",
           "value": "20px"
         },
         {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your menu links should be white.",
+          "selector": "nav a",
+          "property": "color",
+          "value": "rgb(255, 255, 255)"
+        },
+        {
           "type": "ai",
-          "say": "Your links don't change colour when the mouse is over them yet.",
-          "question": "Does style.css have a nav a:hover rule that changes the link colour?"
+          "file": "style.css",
+          "say": "Your menu links still have underlines.",
+          "question": "Does the nav a rule set text-decoration to none?"
         }
       ],
       "hints": [
-        "Give each link some space on its left, then a colour for when the mouse touches it.",
-        "Use nav a { margin-left } and nav a:hover { color }.",
-        "nav a {\n  margin-left: …;\n}\n\nnav a:hover {\n  color: …;\n}"
+        "Make the links white, add space between them, and remove the underline.",
+        "Write nav a { } with color #ffffff, margin-left 20px and text-decoration none.",
+        "nav a {\n  color: …;\n  margin-left: …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "Spacing and underlines",
+        "explain": "margin is space outside a box, and text-decoration: none takes away the line under links.",
+        "links": [
+          {
+            "title": "MDN: text-decoration",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/text-decoration"
+          },
+          {
+            "title": "MDN: margin-left",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/margin-left"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nav-hover",
+      "chapter": "look",
+      "title": "Make links glow on hover",
+      "instruction": "Under the nav a rule, add a rule for nav a:hover with color: #f2c6a5; (a peach colour). :hover means 'when the mouse is over it'.",
+      "why": "Links change colour when you point at them, so people know they can click.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 20
+      },
+      "expected": "nav a:hover {\n  color: #f2c6a5;\n}",
+      "checks": [
+        {
+          "type": "ai",
+          "file": "style.css",
+          "say": "Your links don't change colour when the mouse is over them yet.",
+          "question": "Does style.css have a nav a:hover rule that sets color to #f2c6a5?"
+        },
+        {
+          "type": "parses",
+          "file": "style.css",
+          "say": "Something in your style file looks unfinished. Check your curly brackets."
+        }
+      ],
+      "hints": [
+        "You can give links a different colour just for when the mouse is on top.",
+        "Write nav a:hover { } with color #f2c6a5 inside.",
+        "nav a:… {\n  color: …;\n}"
       ],
       "concept": {
         "title": "Hover",
-        "explain": "Adding :hover to a rule makes its style apply only while the mouse is on top of it.",
+        "explain": ":hover gives something a different look only while the mouse pointer is on it.",
         "links": [
           {
             "title": "MDN: :hover",
@@ -640,17 +807,17 @@
       }
     },
     {
-      "id": "banner-style",
+      "id": "banner-css",
       "chapter": "look",
       "title": "Colour the banner",
-      "instruction": "Add a .banner rule with padding 80px 20px, a coral background #e07b60, white text and centred text.",
-      "why": "The banner becomes a big, warm coral block that grabs attention.",
+      "instruction": "Under the hover rule, add a rule for .banner (the dot means 'the thing with class banner') with background: #e07b60; (coral), color: #ffffff;, text-align: center; (centres the text) and padding: 60px 20px;.",
+      "why": "Your welcome area turns into a big, bright coral banner.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 33
+        "afterLine": 24
       },
-      "expected": ".banner {\n  padding: 80px 20px;\n  background: #e07b60;\n  color: #ffffff;\n  text-align: center;\n}",
+      "expected": ".banner {\n  background: #e07b60;\n  color: #ffffff;\n  text-align: center;\n  padding: 60px 20px;\n}",
       "checks": [
         {
           "type": "cssProperty",
@@ -663,7 +830,7 @@
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your banner text should be in the middle.",
+          "say": "The banner text should be in the middle.",
           "selector": ".banner",
           "property": "text-align",
           "value": "center"
@@ -671,86 +838,101 @@
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your banner needs more space inside it.",
+          "say": "Your banner needs more room above and below the text.",
           "selector": ".banner",
           "property": "padding-top",
-          "value": "80px"
+          "value": "60px"
         }
       ],
       "hints": [
-        "Give the banner space, a coral colour and centred white words.",
-        "Write .banner { padding, background, color, text-align }.",
-        ".banner {\n  padding: 80px 20px;\n  background: …;\n  …\n}"
+        "Give the banner a coral colour, white centred text and lots of space.",
+        "Write .banner { } with background #e07b60, color #ffffff, text-align center and padding 60px 20px.",
+        "….banner {\n  background: …;\n  color: …;\n  text-align: …;\n  …\n}"
       ],
       "concept": {
-        "title": "Padding",
-        "explain": "Padding is the empty space inside a box, between its edge and what's inside.",
+        "title": "Centring text",
+        "explain": "text-align: center puts lines of text in the middle of their box.",
         "links": [
           {
-            "title": "MDN: padding",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/padding"
+            "title": "MDN: text-align",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/text-align"
+          },
+          {
+            "title": "MDN: Class selectors",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Class_selectors"
           }
         ]
       }
     },
     {
-      "id": "banner-text",
+      "id": "banner-title",
       "chapter": "look",
-      "title": "Size the banner words",
-      "instruction": "Add a .banner h1 rule with margin 0 0 12px and size 48px, then a .banner p rule with no margin and size 18px.",
-      "why": "The title becomes big and bold while the line under it stays gentle.",
+      "title": "Make the banner title huge",
+      "instruction": "Under the .banner rule, add a rule for .banner h2 with font-size: 44px; (how big the letters are) and margin: 0;.",
+      "why": "Your banner title becomes big and bold.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 39
+        "afterLine": 31
       },
-      "expected": ".banner h1 {\n  margin: 0 0 12px;\n  font-size: 48px;\n}\n\n.banner p {\n  margin: 0;\n  font-size: 18px;\n}",
+      "expected": ".banner h2 {\n  font-size: 44px;\n  margin: 0;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your big title isn't big enough yet.",
-          "selector": ".banner h1",
+          "say": "Your banner title isn't bigger yet.",
+          "selector": ".banner h2",
           "property": "font-size",
-          "value": "48px"
+          "value": "44px"
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "The line under your title should be a little bigger.",
-          "selector": ".banner p",
-          "property": "font-size",
-          "value": "18px"
+          "say": "Your banner title still has extra space around it.",
+          "selector": ".banner h2",
+          "property": "margin-top",
+          "value": "0px"
         }
       ],
       "hints": [
-        "Style the heading inside the banner, then the paragraph inside it.",
-        "Write .banner h1 { margin, font-size } and .banner p { margin, font-size }.",
-        ".banner h1 {\n  margin: 0 0 12px;\n  font-size: …;\n}\n\n.banner p {\n  …\n}"
+        "Make the letters of the banner title much bigger.",
+        "Write .banner h2 { } with font-size 44px and margin 0.",
+        ".banner h2 {\n  font-size: …;\n  …\n}"
       ],
+      "concept": {
+        "title": "Text size",
+        "explain": "font-size sets how big the letters are, often in px (tiny dots on the screen).",
+        "links": [
+          {
+            "title": "MDN: font-size",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/font-size"
+          }
+        ]
+      },
       "quiz": {
-        "question": "What does nav a:hover change?",
+        "question": "What does padding do?",
         "options": [
-          "How links look all the time",
-          "How links look while the mouse is over them",
-          "How big the menu is"
+          "Changes the text colour",
+          "Adds space inside a box, around its content",
+          "Removes underlines",
+          "Makes letters bigger"
         ],
         "answer": 1,
-        "explain": ":hover only applies while the mouse is on the link."
+        "explain": "Padding is the space between a box's edge and what's inside it."
       }
     },
     {
       "id": "cards-row",
       "chapter": "cards",
-      "title": "Line up the cards",
-      "instruction": "Add a .cards rule that uses flex, lets cards wrap to a new line, centres them, puts a 24px gap between them and adds padding 48px 20px.",
-      "why": "Your three cards now sit side by side and wrap nicely on small screens.",
+      "title": "Put the cards in a row",
+      "instruction": "Under the .banner h2 rule, add a rule for .cards with display: flex;, gap: 20px; (the space between the cards) and padding: 40px 30px;.",
+      "why": "Your three cards line up side by side with space between.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 48
+        "afterLine": 36
       },
-      "expected": ".cards {\n  display: flex;\n  flex-wrap: wrap;\n  justify-content: center;\n  gap: 24px;\n  padding: 48px 20px;\n}",
+      "expected": ".cards {\n  display: flex;\n  gap: 20px;\n  padding: 40px 30px;\n}",
       "checks": [
         {
           "type": "cssProperty",
@@ -763,28 +945,20 @@
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your cards should be able to move to a new line.",
-          "selector": ".cards",
-          "property": "flex-wrap",
-          "value": "wrap"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
           "say": "Your cards need some space between them.",
           "selector": ".cards",
           "property": "column-gap",
-          "value": "24px"
+          "value": "20px"
         }
       ],
       "hints": [
-        "Use the same row trick as the menu, but let the cards wrap and keep a gap.",
-        "Write .cards { display: flex; flex-wrap; justify-content; gap; padding }.",
-        ".cards {\n  display: flex;\n  flex-wrap: wrap;\n  …\n  padding: 48px 20px;\n}"
+        "Use the same row trick as the top bar, plus space between cards.",
+        "Write .cards { } with display flex, gap 20px and padding 40px 30px.",
+        ".cards {\n  display: …;\n  gap: …;\n  …\n}"
       ],
       "concept": {
-        "title": "Gap and wrap",
-        "explain": "gap puts equal space between items in a row, and flex-wrap lets them move to a new line when there's no room.",
+        "title": "Gap",
+        "explain": "gap adds equal space between the things lined up in a row.",
         "links": [
           {
             "title": "MDN: gap",
@@ -796,28 +970,66 @@
     {
       "id": "card-box",
       "chapter": "cards",
-      "title": "Shape each card",
-      "instruction": "Add a .card rule with width 260px, padding 16px, a white background, a thin border 1px solid #dad5ce, rounded corners of 12px and a pointer cursor.",
-      "why": "Each card becomes a white rounded box that looks clickable.",
+      "title": "Make each card a white box",
+      "instruction": "Under the .cards rule, add a rule for .card with flex: 1; (each card takes an equal share of the row) and background: #ffffff;.",
+      "why": "All three cards become the same width and white.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 55
+        "afterLine": 42
       },
-      "expected": ".card {\n  width: 260px;\n  padding: 16px;\n  background: #ffffff;\n  border: 1px solid #dad5ce;\n  border-radius: 12px;\n  cursor: pointer;\n}",
+      "expected": ".card {\n  flex: 1;\n  background: #ffffff;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your cards aren't the right width yet.",
+          "say": "Your cards aren't sharing the row equally yet.",
           "selector": ".card",
-          "property": "width",
-          "value": "260px"
+          "property": "flex-grow",
+          "value": "1"
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your cards need rounded corners.",
+          "say": "Your cards should be white.",
+          "selector": ".card",
+          "property": "background-color",
+          "value": "rgb(255, 255, 255)"
+        }
+      ],
+      "hints": [
+        "Make the cards equal width and white.",
+        "Write .card { } with flex 1 and background #ffffff.",
+        ".card {\n  flex: …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "Equal shares",
+        "explain": "flex: 1 tells each box in a row to grow and take the same share of space.",
+        "links": [
+          {
+            "title": "MDN: flex",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/flex"
+          }
+        ]
+      }
+    },
+    {
+      "id": "card-border",
+      "chapter": "cards",
+      "title": "Round the cards",
+      "instruction": "Inside the .card rule, under the background line, add border: 1px solid #d9d4cd; (a thin line around the card), border-radius: 12px; (rounds the corners), padding: 15px; and color: gray;.",
+      "why": "Your cards get soft rounded edges, a thin outline and grey text.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "after": "  background: #ffffff;"
+      },
+      "expected": "  border: 1px solid #d9d4cd;\n  border-radius: 12px;\n  padding: 15px;\n  color: gray;",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your cards' corners aren't rounded yet.",
           "selector": ".card",
           "property": "border-top-left-radius",
           "value": "12px"
@@ -825,21 +1037,33 @@
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "The mouse should turn into a pointing hand over a card.",
+          "say": "Your cards need a thin line around them.",
           "selector": ".card",
-          "property": "cursor",
-          "value": "pointer"
+          "property": "border-top-style",
+          "value": "solid"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The text in your cards should be grey.",
+          "selector": ".card",
+          "property": "color",
+          "value": "rgb(128, 128, 128)"
         }
       ],
       "hints": [
-        "Give each card a size, white colour, a thin edge and soft corners.",
-        "Write .card { width, padding, background, border, border-radius, cursor }.",
-        ".card {\n  width: 260px;\n  padding: 16px;\n  background: #ffffff;\n  border: …;\n  …\n}"
+        "Add an outline, round the corners, add inside space and make the text grey.",
+        "Under background in .card, add border 1px solid #d9d4cd, border-radius 12px, padding 15px, color gray.",
+        "  border: 1px … …;\n  border-radius: …;\n  padding: …;\n  …"
       ],
       "concept": {
         "title": "Borders and round corners",
         "explain": "border draws a line around a box, and border-radius rounds its corners.",
         "links": [
+          {
+            "title": "MDN: border",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border"
+          },
           {
             "title": "MDN: border-radius",
             "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius"
@@ -848,303 +1072,142 @@
       }
     },
     {
-      "id": "picture",
+      "id": "card-title",
       "chapter": "cards",
-      "title": "Style the picture box",
-      "instruction": "Add a .picture rule: height 140px, corners 8px, a peach background #f2c6a5, flex with the emoji centred both ways, and size 56px.",
-      "why": "Each emoji sits big and centred in a soft peach box.",
+      "title": "Darken the card titles",
+      "instruction": "Under the .card rule, add a rule for .card h3 with color: #3d3030;.",
+      "why": "Card titles stand out in dark brown above the grey text.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 63
+        "afterLine": 51
       },
-      "expected": ".picture {\n  height: 140px;\n  border-radius: 8px;\n  background: #f2c6a5;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  font-size: 56px;\n}",
+      "expected": ".card h3 {\n  color: #3d3030;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your picture boxes aren't peach yet.",
+          "say": "Your card titles aren't dark brown yet.",
+          "selector": ".card h3",
+          "property": "color",
+          "value": "rgb(61, 48, 48)"
+        }
+      ],
+      "hints": [
+        "Give just the card titles a darker colour.",
+        "Write .card h3 { } with color #3d3030.",
+        ".card h3 {\n  color: …;\n}"
+      ]
+    },
+    {
+      "id": "picture-css",
+      "chapter": "cards",
+      "title": "Fill the picture boxes",
+      "instruction": "Under the .card h3 rule, add a rule for .picture with background: #f2c6a5;, height: 120px; (how tall the box is) and border-radius: 8px;.",
+      "why": "Each card gets a soft peach picture area at the top.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 55
+      },
+      "expected": ".picture {\n  background: #f2c6a5;\n  height: 120px;\n  border-radius: 8px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your picture boxes are still empty and flat.",
+          "selector": ".picture",
+          "property": "height",
+          "value": "120px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your picture boxes should be peach.",
           "selector": ".picture",
           "property": "background-color",
           "value": "rgb(242, 198, 165)"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your picture boxes should be taller.",
-          "selector": ".picture",
-          "property": "height",
-          "value": "140px"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "The emoji should be centred in its box.",
-          "selector": ".picture",
-          "property": "align-items",
-          "value": "center"
         }
       ],
       "hints": [
-        "Make a tall peach box and put the emoji right in the middle.",
-        "Write .picture { height, border-radius, background, display: flex, justify-content, align-items, font-size }.",
-        ".picture {\n  height: 140px;\n  …\n  display: flex;\n  justify-content: center;\n  align-items: …;\n  font-size: 56px;\n}"
-      ]
-    },
-    {
-      "id": "card-text",
-      "chapter": "cards",
-      "title": "Style the card words",
-      "instruction": "Add a .card h2 rule with margin 16px 0 8px and size 20px, then a .card p rule with no margin and a soft grey colour #8a817c.",
-      "why": "The card titles stand out and the notes look calm and readable.",
-      "who": "learner",
-      "file": "style.css",
-      "anchor": {
-        "afterLine": 72
-      },
-      "expected": ".card h2 {\n  margin: 16px 0 8px;\n  font-size: 20px;\n}\n\n.card p {\n  margin: 0;\n  color: #8a817c;\n}",
-      "checks": [
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your card titles aren't the right size yet.",
-          "selector": ".card h2",
-          "property": "font-size",
-          "value": "20px"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your card notes should be soft grey.",
-          "selector": ".card p",
-          "property": "color",
-          "value": "rgb(138, 129, 124)"
-        }
+        "The picture box is empty, so give it a colour and a height so you can see it.",
+        "Write .picture { } with background #f2c6a5, height 120px and border-radius 8px.",
+        ".picture {\n  background: …;\n  height: …;\n  …\n}"
       ],
-      "hints": [
-        "Style the heading in a card, then the paragraph in a card.",
-        "Write .card h2 { margin, font-size } and .card p { margin, color }.",
-        ".card h2 {\n  margin: 16px 0 8px;\n  …\n}\n\n.card p {\n  margin: 0;\n  color: …;\n}"
-      ]
+      "concept": {
+        "title": "Height",
+        "explain": "height sets how tall a box is, so even an empty box can show up.",
+        "links": [
+          {
+            "title": "MDN: height",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/height"
+          }
+        ]
+      }
     },
     {
-      "id": "footer-style",
+      "id": "footer-css",
       "chapter": "cards",
       "title": "Style the footer",
-      "instruction": "At the end of the file, add a .footer rule with padding 20px, a dark background #3c3031, white text and centred text.",
-      "why": "A dark footer matches the menu and neatly closes the page.",
+      "instruction": "Under the .picture rule, add a rule for footer with background: #3d3030;, color: #ffffff;, text-align: center; and padding: 15px;.",
+      "why": "The footer matches the top bar and finishes the page.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 81
+        "afterLine": 61
       },
-      "expected": ".footer {\n  padding: 20px;\n  background: #3c3031;\n  color: #ffffff;\n  text-align: center;\n}",
+      "expected": "footer {\n  background: #3d3030;\n  color: #ffffff;\n  text-align: center;\n  padding: 15px;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your footer isn't dark yet.",
-          "selector": ".footer",
+          "say": "Your bottom strip isn't dark yet.",
+          "selector": "footer",
           "property": "background-color",
-          "value": "rgb(60, 48, 49)"
+          "value": "rgb(61, 48, 48)"
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your footer text should be white.",
-          "selector": ".footer",
-          "property": "color",
-          "value": "rgb(255, 255, 255)"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your footer text should be centred.",
-          "selector": ".footer",
+          "say": "The bottom strip's text should be centred.",
+          "selector": "footer",
           "property": "text-align",
           "value": "center"
         }
       ],
       "hints": [
-        "It looks a lot like the banner rule, just darker.",
-        "Write .footer { padding, background, color, text-align }.",
-        ".footer {\n  padding: 20px;\n  background: …;\n  color: #ffffff;\n  …\n}"
-      ]
-    },
-    {
-      "id": "look-styled",
-      "chapter": "cards",
-      "title": "Admire your styled page",
-      "instruction": "Refresh the browser. You should see a dark menu, a coral banner, three white cards on cream and a dark footer.",
-      "why": "You can see how CSS turned plain text into a real website.",
-      "who": "watch",
-      "expected": "",
-      "checks": [],
-      "hints": [
-        "Refresh the page in your browser.",
-        "Press the refresh button or Ctrl+R.",
-        "Try making the window narrow and watch the cards wrap."
+        "Make the footer look like the top bar, with centred text.",
+        "Write footer { } with background #3d3030, color #ffffff, text-align center and padding 15px.",
+        "footer {\n  background: …;\n  color: …;\n  …\n}"
       ],
       "quiz": {
-        "question": "Which line lets the cards move to a new row on a small screen?",
+        "question": "What does border-radius do?",
         "options": [
-          "gap: 24px;",
-          "flex-wrap: wrap;",
-          "width: 260px;"
+          "Makes text bigger",
+          "Rounds the corners of a box",
+          "Puts things in a row",
+          "Changes the background colour"
         ],
         "answer": 1,
-        "explain": "flex-wrap: wrap lets items move onto a new line when there's no room."
+        "explain": "border-radius curves the corners of a box."
       }
     },
     {
-      "id": "picked-style",
-      "chapter": "click",
-      "title": "Get a highlight ready",
-      "instruction": "In style.css, under the .card rule, add a .card.picked rule with a thicker coral border: 3px solid #e07b60.",
-      "why": "This is the look a card will get once a visitor picks it.",
-      "who": "learner",
-      "file": "style.css",
-      "anchor": {
-        "afterLine": 63
-      },
-      "expected": ".card.picked {\n  border: 3px solid #e07b60;\n}",
-      "checks": [
-        {
-          "type": "ai",
-          "say": "I can't see the coral highlight for a picked card yet.",
-          "question": "Does style.css have a .card.picked rule that sets a 3px solid coral (#e07b60) border?"
-        },
-        {
-          "type": "parses",
-          "say": "Something in your style file looks broken."
-        }
-      ],
-      "hints": [
-        "Write a style for a card that also has the name picked.",
-        "Use .card.picked with no space, and set a border.",
-        ".card.picked {\n  border: …;\n}"
-      ],
-      "concept": {
-        "title": "Two class names together",
-        "explain": "Writing .card.picked styles only cards that also carry the extra name picked.",
-        "links": [
-          {
-            "title": "MDN: Class selectors",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Class_selectors"
-          }
-        ]
-      }
-    },
-    {
-      "id": "click-card",
-      "chapter": "click",
-      "title": "Pick a card on click",
-      "instruction": "In script.js, find all the cards and save them as cards. Then for each card, listen for a click and add the picked name to that card.",
-      "why": "Clicking a card now gives it the coral highlight.",
-      "who": "learner",
-      "file": "script.js",
-      "anchor": {
-        "afterLine": 0
-      },
-      "expected": "const cards = document.querySelectorAll(\".card\");\n\ncards.forEach(function (card) {\n  card.addEventListener(\"click\", function () {\n    card.classList.add(\"picked\");\n  });\n});",
-      "checks": [
-        {
-          "type": "ai",
-          "say": "Clicking a card doesn't highlight it yet.",
-          "question": "Does script.js select all .card elements and add a click listener to each one that adds the class \"picked\"?"
-        },
-        {
-          "type": "fileExists",
-          "file": "script.js",
-          "say": "I can't find your script.js file."
-        },
-        {
-          "type": "parses",
-          "say": "Something in your code file looks broken."
-        }
-      ],
-      "hints": [
-        "First grab every card, then go through them one by one and tell each to react to a click.",
-        "Use document.querySelectorAll(\".card\"), then cards.forEach, card.addEventListener(\"click\", …) and classList.add.",
-        "const cards = document.querySelectorAll(\".card\");\n\ncards.forEach(function (card) {\n  card.addEventListener(\"click\", function () {\n    …\n  });\n});"
-      ],
-      "concept": {
-        "title": "Listening for clicks",
-        "explain": "JavaScript can wait for a click on something and then run your instructions, like adding a highlight.",
-        "links": [
-          {
-            "title": "MDN: addEventListener",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener"
-          }
-        ],
-        "videoQuery": "javascript click event for beginners"
-      }
-    },
-    {
-      "id": "one-pick",
-      "chapter": "click",
-      "title": "Only one favourite",
-      "instruction": "Inside the click part, just above the line that adds picked, go through all the cards and remove picked from each one.",
-      "why": "Now only one card can be the favourite at a time.",
-      "who": "learner",
-      "file": "script.js",
-      "anchor": {
-        "after": "card.addEventListener(\"click\", function () {"
-      },
-      "expected": "    cards.forEach(function (other) {\n      other.classList.remove(\"picked\");\n    });",
-      "checks": [
-        {
-          "type": "ai",
-          "say": "More than one card can still be picked at once.",
-          "question": "Inside the click handler, does script.js loop over all cards and remove the class \"picked\" before adding it to the clicked card?"
-        },
-        {
-          "type": "parses",
-          "say": "Something in your code file looks broken."
-        }
-      ],
-      "hints": [
-        "Before highlighting the clicked card, clear the highlight from all the others.",
-        "Above card.classList.add, use cards.forEach with classList.remove(\"picked\").",
-        "cards.forEach(function (other) {\n  other.classList.…(\"picked\");\n});"
-      ],
-      "concept": {
-        "title": "Removing a class",
-        "explain": "classList.remove takes a name off something, so its special style goes away.",
-        "links": [
-          {
-            "title": "MDN: classList",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/API/Element/classList"
-          }
-        ]
-      }
-    },
-    {
-      "id": "try-it",
-      "chapter": "click",
-      "title": "Pick your favourite",
-      "instruction": "Refresh the browser and click different cards. Only the last one you clicked gets the coral border.",
-      "why": "You made your page react to visitors.",
+      "id": "look-final",
+      "chapter": "cards",
+      "title": "Admire your site",
+      "instruction": "Refresh index.html in your browser. You should see a dark top bar with a menu, a coral banner, three rounded cards on cream, and a dark footer. Point at a menu link to see it change colour!",
+      "why": "You built a whole website from an empty folder.",
       "who": "watch",
       "expected": "",
       "checks": [],
       "hints": [
-        "Refresh and click a card.",
-        "Click one card, then another, and watch the border move.",
-        "If nothing happens, check the script tag at the bottom of index.html."
-      ],
-      "quiz": {
-        "question": "Why do we remove picked from every card before adding it?",
-        "options": [
-          "So only the clicked card is highlighted",
-          "To make the page load faster",
-          "To change the card's text"
-        ],
-        "answer": 0,
-        "explain": "Clearing all highlights first means just one card stays picked."
-      }
+        "Go back to the browser tab showing your page.",
+        "Press the refresh button or F5.",
+        "If nothing changes, check that style.css is in the same folder as index.html."
+      ]
     }
   ],
-  "createdAt": "2026-10-29T06:32:21.522Z",
+  "createdAt": "2026-10-29T06:53:12.013Z",
   "version": 1
 }

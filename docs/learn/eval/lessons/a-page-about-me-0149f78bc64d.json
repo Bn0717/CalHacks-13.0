@@ -15,106 +15,113 @@
     ]
   },
   "title": "A page about me",
-  "summary": "You'll build a friendly one-page website that shows your name, a round photo spot, and a list of things you like. A little JavaScript adds a button that shows a random fun fact about you.",
-  "outcome": "A colourful 'about me' page you can open from your project folder and show to friends, with a clickable photo spot and a fun-fact button.",
+  "summary": "You'll build a simple personal page with your name, a spot for your photo, and a list of things you like, ready to show your friends.",
+  "outcome": "A colorful one-page website about you that opens in any browser straight from your project folder.",
   "learns": [
-    "Structuring a page with HTML",
-    "Headings, paragraphs and lists",
-    "Styling with colours and gradients",
-    "Making a round photo spot with CSS",
-    "Centering content with flexbox",
-    "Reacting to clicks with JavaScript",
-    "Changing text on the page"
+    "Basic HTML page structure",
+    "Headings and paragraphs",
+    "Making a list",
+    "Linking a CSS file",
+    "Colors and fonts",
+    "Rounded shapes with CSS"
   ],
   "estimate": {
-    "minutes": 102,
-    "linesToType": 116,
-    "steps": 20
+    "minutes": 68,
+    "linesToType": 65,
+    "steps": 17
   },
   "simpler": {
-    "title": "Just your styled card",
+    "title": "Just the hello and your likes list",
     "estimate": {
-      "minutes": 60,
-      "linesToType": 67,
-      "steps": 11
+      "minutes": 40,
+      "linesToType": 37,
+      "steps": 10
     },
-    "why": "Build a simple card about you and give it some colour first, then add the clicky extras later.",
+    "why": "You'll build a real page that says hi and lists what you love, then give it a font, a coloured name, and a tidy list. Footer, card and photo can come later.",
     "stepIds": [
       "skeleton",
-      "head-info",
-      "card",
-      "likes",
-      "look-plain",
-      "css-body",
-      "css-card",
-      "photo-circle",
-      "css-text",
-      "css-likes",
-      "look-styled"
+      "head",
+      "header",
+      "section",
+      "likes-list",
+      "look-html",
+      "body-style",
+      "h1-colour",
+      "list-style",
+      "look-final"
     ]
   },
   "files": [
     {
       "path": "index.html",
-      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>About Me</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <main class=\"card\">\n    <div class=\"photo\" id=\"photo\">🙂</div>\n    <h1>Hi, I'm Sam!</h1>\n    <p class=\"intro\">Welcome to my little corner of the internet.</p>\n\n    <h2>Things I like</h2>\n    <ul class=\"likes\">\n      <li>🎮 Video games</li>\n      <li>🍕 Pizza on Fridays</li>\n      <li>🎵 Loud music</li>\n      <li>🐶 Dogs, all of them</li>\n      <li>⚽ Playing football</li>\n    </ul>\n\n    <button id=\"fact-button\">Tell me a fun fact</button>\n    <p class=\"fact\" id=\"fact\"></p>\n  </main>\n  <script src=\"script.js\"></script>\n</body>\n</html>\n"
+      "content": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>About Me</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <header>\n    <div class=\"photo\">🙂</div>\n    <h1>Hi, I'm Sam!</h1>\n    <p>Welcome to my little corner of the internet.</p>\n  </header>\n  <section>\n    <h2>Things I like</h2>\n    <ul>\n      <li>🍕 Pizza on Fridays</li>\n      <li>🎮 Video games with friends</li>\n      <li>🐶 My dog, Biscuit</li>\n      <li>🎵 Loud music in the car</li>\n    </ul>\n  </section>\n  <footer>\n    <p>Made by me, 2024</p>\n  </footer>\n</body>\n</html>\n"
     },
     {
       "path": "style.css",
-      "content": "body {\n  margin: 0;\n  min-height: 100vh;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  font-family: Arial, sans-serif;\n  background: linear-gradient(135deg, #ff9a9e, #a18cd1);\n}\n\n.card {\n  background: white;\n  width: 320px;\n  padding: 30px;\n  border-radius: 20px;\n  text-align: center;\n  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);\n}\n\n.photo {\n  width: 120px;\n  height: 120px;\n  margin: 0 auto;\n  border-radius: 50%;\n  background: linear-gradient(135deg, #fbc2eb, #a6c1ee);\n  border: 5px solid #a18cd1;\n  font-size: 64px;\n  line-height: 120px;\n  cursor: pointer;\n}\n\nh1 {\n  color: #6a4c93;\n}\n\n.intro {\n  color: #555;\n}\n\nh2 {\n  color: #ff6f91;\n  font-size: 20px;\n}\n\n.likes {\n  list-style: none;\n  padding: 0;\n}\n\n.likes li {\n  background: #f3eaff;\n  margin: 6px 0;\n  padding: 8px;\n  border-radius: 10px;\n}\n\nbutton {\n  margin-top: 15px;\n  padding: 10px 20px;\n  border: none;\n  border-radius: 20px;\n  background: #6a4c93;\n  color: white;\n  font-size: 16px;\n  cursor: pointer;\n}\n\nbutton:hover {\n  background: #ff6f91;\n}\n\n.fact {\n  min-height: 20px;\n  color: #6a4c93;\n  font-style: italic;\n}\n"
-    },
-    {
-      "path": "script.js",
-      "content": "const photo = document.getElementById(\"photo\");\nconst factButton = document.getElementById(\"fact-button\");\nconst fact = document.getElementById(\"fact\");\n\nconst faces = [\"🙂\", \"😎\", \"🤪\", \"😄\", \"🥳\"];\nlet faceNumber = 0;\n\nconst facts = [\n  \"I can eat a whole pizza by myself.\",\n  \"My favourite colour is purple.\",\n  \"I once scored a goal from the halfway line.\",\n  \"I have watched my favourite film ten times.\",\n  \"I want a dog called Biscuit.\"\n];\n\nphoto.addEventListener(\"click\", function () {\n  faceNumber = faceNumber + 1;\n  if (faceNumber >= faces.length) {\n    faceNumber = 0;\n  }\n  photo.textContent = faces[faceNumber];\n});\n\nfactButton.addEventListener(\"click\", function () {\n  const randomNumber = Math.floor(Math.random() * facts.length);\n  fact.textContent = facts[randomNumber];\n});\n"
+      "content": "body {\n  font-family: Arial, sans-serif;\n  background: #fdf3e7;\n  color: #333;\n  text-align: center;\n  margin: 0;\n  padding: 20px;\n}\n\n.photo {\n  font-size: 80px;\n  background: #ffcf8a;\n  border: 5px solid white;\n  border-radius: 50%;\n  width: 140px;\n  height: 140px;\n  line-height: 140px;\n  margin: 20px auto;\n}\n\nh1 {\n  color: #e8613c;\n}\n\nsection {\n  background: white;\n  border-radius: 12px;\n  padding: 20px;\n  margin: 20px auto;\n  max-width: 400px;\n}\n\nul {\n  text-align: left;\n}\n\nli {\n  margin: 10px 0;\n}\n\nfooter {\n  color: #999;\n  font-size: 14px;\n}\n"
     }
   ],
   "chapters": [
     {
-      "id": "page",
-      "title": "Write the page"
+      "id": "start",
+      "title": "Set up the page"
     },
     {
-      "id": "look",
+      "id": "write",
+      "title": "Write about you"
+    },
+    {
+      "id": "colour",
       "title": "Add colour"
     },
     {
-      "id": "js",
-      "title": "Make it move"
+      "id": "boxes",
+      "title": "Shape the boxes"
+    },
+    {
+      "id": "photo",
+      "title": "Make the photo circle"
     }
   ],
   "steps": [
     {
       "id": "skeleton",
-      "chapter": "page",
+      "chapter": "start",
       "title": "Build the page skeleton",
-      "instruction": "In index.html, type the basic frame every web page needs: the first line that says it's a web page, then an html part holding an empty head part and an empty body part.",
-      "why": "Every web page starts with this frame, so the browser knows what it's reading.",
+      "instruction": "Make a new file called index.html. On the first line type <!DOCTYPE html>, which tells the browser this is a modern web page. Then add an <html> tag that wraps the whole page. Inside it, add an empty <head> (hidden info about the page) and an empty <body> (everything people see). Close each tag you open.",
+      "why": "Every web page in the world starts with this same frame.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
         "afterLine": 0
       },
-      "expected": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n</head>\n<body>\n</body>\n</html>",
+      "expected": "<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n</body>\n</html>",
       "checks": [
         {
-          "type": "selectorExists",
+          "type": "fileExists",
           "file": "index.html",
-          "say": "I can't see the frame of your page yet.",
-          "selector": "html[lang] body"
+          "say": "I can't find a file called index.html yet."
         },
         {
           "type": "parses",
           "file": "index.html",
-          "say": "Something in your page frame looks unfinished. Check every opening tag has its closing partner."
+          "say": "Something in your page looks broken. Check that every opening has a matching closing."
+        },
+        {
+          "type": "ai",
+          "file": "index.html",
+          "say": "Your page frame isn't complete yet. Check you have the first line, the hidden part and the visible part.",
+          "question": "Does the file start with <!DOCTYPE html> and contain opening and closing html, head and body tags?"
         }
       ],
       "hints": [
-        "A page has a hidden part with information (the head) and a visible part (the body), both wrapped inside one big part.",
-        "Start with <!DOCTYPE html>, then open <html lang=\"en\">. Inside it, put <head></head> and then <body></body>.",
-        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n</head>\n<body>\n…\n</html>"
+        "A page has an outer wrapper, a hidden part for info, and a visible part for content.",
+        "Start with <!DOCTYPE html>, then <html>. Inside it put <head></head> and then <body></body>. End with </html>. Put each on its own line.",
+        "<!DOCTYPE …>\n<html>\n<head>\n</…>\n<…>\n</body>\n</…>"
       ],
       "concept": {
         "title": "Tags",
-        "explain": "HTML uses tags in angle brackets, like <body>, and most come in pairs: one opens, one with a slash closes.",
+        "explain": "Tags are words in angle brackets that tell the browser what each part is; most come in an opening and closing pair.",
         "links": [
           {
             "title": "MDN: Getting started with HTML",
@@ -122,60 +129,54 @@
           }
         ],
         "imageQuery": "basic html page structure diagram",
-        "videoQuery": "html basics for beginners"
+        "videoQuery": "html page structure for beginners"
       }
     },
     {
-      "id": "head-info",
-      "chapter": "page",
-      "title": "Fill in the head",
-      "instruction": "Inside the head part, add four lines: one for the letter set (UTF-8), one so the page fits phone screens, a title that says About Me, and a link to a file called style.css.",
-      "why": "This gives your tab a name and connects the page to the styling file you'll write later.",
+      "id": "head",
+      "chapter": "start",
+      "title": "Fill in the hidden info",
+      "instruction": "Inside <head>, add three lines. First <meta charset=\"utf-8\">, which lets the page show every letter and emoji. Then a <title> with the text About Me: this is the name on the browser tab. Last, <link rel=\"stylesheet\" href=\"style.css\">, which connects a style file you'll make later.",
+      "why": "Your emoji will show properly and your tab gets a name.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
         "inside": "head"
       },
-      "expected": "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>About Me</title>\n  <link rel=\"stylesheet\" href=\"style.css\">",
+      "expected": "  <meta charset=\"utf-8\">\n  <title>About Me</title>\n  <link rel=\"stylesheet\" href=\"style.css\">",
       "checks": [
+        {
+          "type": "attribute",
+          "file": "index.html",
+          "say": "I can't see the line that lets your page show emoji yet.",
+          "selector": "meta",
+          "name": "charset",
+          "value": "utf-8"
+        },
         {
           "type": "textIncludes",
           "file": "index.html",
-          "say": "Your page doesn't have a tab title yet.",
+          "say": "Your page doesn't have a tab name yet.",
           "selector": "title",
           "text": "About Me"
         },
         {
           "type": "attribute",
           "file": "index.html",
-          "say": "Your page isn't connected to the style file yet.",
-          "selector": "link[rel=stylesheet]",
+          "say": "Your page isn't connected to style.css yet.",
+          "selector": "link[rel=\"stylesheet\"]",
           "name": "href",
           "value": "style.css"
-        },
-        {
-          "type": "attribute",
-          "file": "index.html",
-          "say": "I can't find the line that sets the letters to UTF-8.",
-          "selector": "meta[charset]",
-          "name": "charset",
-          "value": "UTF-8"
-        },
-        {
-          "type": "selectorExists",
-          "file": "index.html",
-          "say": "I can't find the line that helps your page fit phone screens.",
-          "selector": "meta[name=viewport]"
         }
       ],
       "hints": [
-        "The head holds information about the page that doesn't show up in the page itself.",
-        "Between <head> and </head>, add two <meta> lines, a <title>, and a <link> pointing to style.css.",
-        "<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"…\">\n<title>…</title>\n<link rel=\"stylesheet\" href=\"…\">"
+        "The hidden part needs three things: a letter setting, a tab name and a link to your style file.",
+        "Between <head> and </head>, add <meta charset=\"utf-8\">, then <title>About Me</title>, then <link rel=\"stylesheet\" href=\"style.css\">.",
+        "  <meta charset=\"…\">\n  <title>…</title>\n  <link rel=\"…\" href=\"…\">"
       ],
       "concept": {
         "title": "The head",
-        "explain": "The head holds behind-the-scenes info, like the tab's name and which style file to use.",
+        "explain": "The head holds info about your page, like its tab name, that visitors don't see on the page itself.",
         "links": [
           {
             "title": "MDN: What's in the head?",
@@ -185,411 +186,276 @@
       }
     },
     {
-      "id": "card",
-      "chapter": "page",
-      "title": "Make your card",
-      "instruction": "Inside the body, add a main part with the class card. Inside it, put a box with class photo and id photo holding a 🙂, a big heading saying hi with your name, and a short welcome sentence with class intro.",
-      "why": "This is the heart of your page: your face, your name and a hello.",
+      "id": "footer",
+      "chapter": "write",
+      "title": "Sign the bottom",
+      "instruction": "Inside <body>, add a <footer>: the strip at the bottom of a page. Inside it, add a <p> (a paragraph of text) that says Made by me, 2024.",
+      "why": "Every good page is signed at the bottom.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
         "inside": "body"
       },
-      "expected": "  <main class=\"card\">\n    <div class=\"photo\" id=\"photo\">🙂</div>\n    <h1>Hi, I'm Sam!</h1>\n    <p class=\"intro\">Welcome to my little corner of the internet.</p>\n  </main>",
+      "expected": "  <footer>\n    <p>Made by me, 2024</p>\n  </footer>",
       "checks": [
         {
           "type": "selectorExists",
           "file": "index.html",
-          "say": "I can't see your card with your name in it yet.",
-          "selector": "main.card h1"
-        },
-        {
-          "type": "selectorExists",
-          "file": "index.html",
-          "say": "I can't find your photo spot yet.",
-          "selector": "main.card #photo.photo"
-        },
-        {
-          "type": "selectorExists",
-          "file": "index.html",
-          "say": "I can't see your welcome sentence yet.",
-          "selector": "main.card p.intro"
+          "say": "I can't see the bottom strip with your signature yet.",
+          "selector": "footer p"
         }
       ],
       "hints": [
-        "Wrap everything in one main part, then add a face, your name as a big heading, and a hello sentence.",
-        "Use <main class=\"card\">, then a <div> with class and id photo, an <h1>, and a <p class=\"intro\">. Close with </main>.",
-        "<main class=\"card\">\n  <div class=\"photo\" id=\"photo\">🙂</div>\n  <h1>Hi, I'm …!</h1>\n  <p class=\"intro\">…</p>\n…"
+        "Add a bottom section to your page with a short sentence in it.",
+        "Inside <body>, type <footer>, then a <p> with your sentence, then </footer>.",
+        "  <footer>\n    <p>…</p>\n  </…>"
       ],
       "concept": {
-        "title": "Class and id",
-        "explain": "A class is a name tag you can give many things; an id is a name tag for exactly one thing.",
+        "title": "Paragraphs and footers",
+        "explain": "A p tag holds a paragraph of text, and a footer holds the stuff at the very bottom of a page.",
         "links": [
           {
-            "title": "MDN: The class attribute",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/class"
+            "title": "MDN: The p tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p"
           },
           {
-            "title": "MDN: The id attribute",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/id"
+            "title": "MDN: The footer tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/footer"
           }
         ]
       }
     },
     {
-      "id": "likes",
-      "chapter": "page",
-      "title": "List things you like",
-      "instruction": "Under your welcome sentence, add a smaller heading saying Things I like, then a bullet list with class likes holding 5 things you like.",
-      "why": "Lists are perfect for showing lots of small things neatly.",
+      "id": "header",
+      "chapter": "write",
+      "title": "Say hi at the top",
+      "instruction": "Right after <body> (above your footer), add a <header>: the top part of the page. Inside it, add a <div class=\"photo\"> with a 🙂 emoji (a div is a plain box; the class is a name we'll use to style it). Under it, add an <h1> (the biggest heading) saying Hi, I'm Sam! (use your own name), then a <p> saying Welcome to my little corner of the internet.",
+      "why": "Visitors see your name and photo first.",
       "who": "learner",
       "file": "index.html",
       "anchor": {
-        "after": "<p class=\"intro\">Welcome to my little corner of the internet.</p>"
+        "after": "<body>"
       },
-      "expected": "\n    <h2>Things I like</h2>\n    <ul class=\"likes\">\n      <li>🎮 Video games</li>\n      <li>🍕 Pizza on Fridays</li>\n      <li>🎵 Loud music</li>\n      <li>🐶 Dogs, all of them</li>\n      <li>⚽ Playing football</li>\n    </ul>",
+      "expected": "  <header>\n    <div class=\"photo\">🙂</div>\n    <h1>Hi, I'm Sam!</h1>\n    <p>Welcome to my little corner of the internet.</p>\n  </header>",
       "checks": [
         {
           "type": "selectorExists",
           "file": "index.html",
-          "say": "I can't see your list of 5 things you like yet.",
-          "selector": "ul.likes li",
-          "count": 5
+          "say": "I can't see your big hello heading at the top yet.",
+          "selector": "header h1"
         },
         {
-          "type": "textIncludes",
+          "type": "selectorExists",
           "file": "index.html",
-          "say": "Add a small heading above your list saying Things I like.",
-          "selector": "h2",
-          "text": "Things I like"
+          "say": "I can't see the box for your photo yet.",
+          "selector": "header div.photo"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your welcome sentence under your name yet.",
+          "selector": "header p"
         }
       ],
       "hints": [
-        "Give your list a little title first, then write each thing you like as its own bullet.",
-        "Use an <h2> for the title, then a <ul class=\"likes\"> with five <li> items inside.",
-        "<h2>Things I like</h2>\n<ul class=\"likes\">\n  <li>🎮 Video games</li>\n  <li>…</li>\n…"
+        "The top of your page needs a photo spot, your name in big letters and a welcome line.",
+        "Just under <body>, type <header>. Inside: <div class=\"photo\"> with an emoji, an <h1> with your name, a <p> with a welcome. Close with </header>.",
+        "  <header>\n    <div class=\"…\">…</div>\n    <h1>…</h1>\n    <p>…</p>\n  </…>"
+      ],
+      "concept": {
+        "title": "Headings and boxes",
+        "explain": "h1 is the biggest heading on a page, and a div is a plain box you can name with a class and style later.",
+        "links": [
+          {
+            "title": "MDN: Heading tags",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements"
+          },
+          {
+            "title": "MDN: The div tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/div"
+          }
+        ]
+      }
+    },
+    {
+      "id": "section",
+      "chapter": "write",
+      "title": "Start your likes section",
+      "instruction": "Under </header>, add a <section>: a group of related content. Inside it, put an <h2> (a smaller heading) that says Things I like.",
+      "why": "Your page gets a clear second part.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</header>"
+      },
+      "expected": "  <section>\n    <h2>Things I like</h2>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see the part with the smaller heading for things you like.",
+          "selector": "section h2"
+        }
+      ],
+      "hints": [
+        "Make a new part of the page with its own smaller heading.",
+        "After </header>, type <section>, then an <h2> with Things I like, then </section>.",
+        "  <section>\n    <h2>…</h2>\n  </…>"
+      ],
+      "concept": {
+        "title": "Sections",
+        "explain": "A section groups content that belongs together, like a chapter in a book.",
+        "links": [
+          {
+            "title": "MDN: The section tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/section"
+          }
+        ]
+      }
+    },
+    {
+      "id": "likes-list",
+      "chapter": "write",
+      "title": "List the things you like",
+      "instruction": "Under your h2, add a <ul>: a bulleted list. Inside it, add 4 <li> lines, one for each thing you like, each starting with an emoji: 🍕 Pizza on Fridays, 🎮 Video games with friends, 🐶 My dog, Biscuit, 🎵 Loud music in the car.",
+      "why": "Your favourite things appear as a neat list.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "<h2>Things I like</h2>"
+      },
+      "expected": "    <ul>\n      <li>🍕 Pizza on Fridays</li>\n      <li>🎮 Video games with friends</li>\n      <li>🐶 My dog, Biscuit</li>\n      <li>🎵 Loud music in the car</li>\n    </ul>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your list of 4 things you like yet.",
+          "selector": "section ul li",
+          "count": 4
+        }
+      ],
+      "hints": [
+        "Make a bulleted list with four things you love.",
+        "Under the h2, type <ul>. Put each thing inside its own <li>...</li>, four times. Close with </ul>.",
+        "    <ul>\n      <li>…</li>\n      <li>…</li>\n      …\n    </…>"
       ],
       "concept": {
         "title": "Lists",
-        "explain": "A <ul> is a bullet list, and each <li> inside it is one bullet.",
+        "explain": "ul makes a bulleted list, and each li inside it is one bullet point.",
         "links": [
           {
-            "title": "MDN: The ul element",
+            "title": "MDN: The ul tag",
             "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/ul"
-          }
-        ]
-      }
-    },
-    {
-      "id": "button",
-      "chapter": "page",
-      "title": "Add a button and connect the script",
-      "instruction": "Under your list, add a button with id fact-button that says Tell me a fun fact, and an empty paragraph with class fact and id fact. Then, just below the closing main tag, add a line that loads script.js.",
-      "why": "The button and empty spot are ready for the fun facts your code will show later.",
-      "who": "learner",
-      "file": "index.html",
-      "anchor": {
-        "after": "</ul>"
-      },
-      "expected": "\n    <button id=\"fact-button\">Tell me a fun fact</button>\n    <p class=\"fact\" id=\"fact\"></p>\n  <script src=\"script.js\"></script>",
-      "checks": [
-        {
-          "type": "selectorExists",
-          "file": "index.html",
-          "say": "I can't see your fun fact button yet.",
-          "selector": "button#fact-button"
-        },
-        {
-          "type": "selectorExists",
-          "file": "index.html",
-          "say": "Add an empty paragraph under the button where the fact will appear.",
-          "selector": "p#fact.fact"
-        },
-        {
-          "type": "attribute",
-          "file": "index.html",
-          "say": "Your page isn't loading the code file yet.",
-          "selector": "script",
-          "name": "src",
-          "value": "script.js"
-        }
-      ],
-      "hints": [
-        "You need three things: a button, an empty spot for the fact, and a line that loads your code file.",
-        "Use <button id=\"fact-button\">, an empty <p class=\"fact\" id=\"fact\"></p>, and after </main> a <script> with src set to script.js.",
-        "<button id=\"fact-button\">…</button>\n<p class=\"fact\" id=\"…\"></p>\n…\n<script src=\"…\"></script>"
-      ],
-      "concept": {
-        "title": "Buttons",
-        "explain": "A <button> is something people can click, and later your code decides what happens.",
-        "links": [
-          {
-            "title": "MDN: The button element",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/button"
           }
         ]
       },
       "quiz": {
-        "question": "Which tag makes one bullet in a list?",
+        "question": "Which tag makes one bullet point in a list?",
         "options": [
           "<ul>",
           "<li>",
           "<h2>"
         ],
         "answer": 1,
-        "explain": "<li> is one list item; <ul> is the whole list."
+        "explain": "Each <li> is one item; <ul> wraps the whole list."
       }
     },
     {
-      "id": "look-plain",
-      "chapter": "page",
-      "title": "Look at your plain page",
-      "instruction": "Open index.html in your browser. Everything is there, but it looks plain. Next you'll add colour!",
-      "why": "Seeing the plain version shows how much styling changes.",
+      "id": "look-html",
+      "chapter": "write",
+      "title": "Look at your page",
+      "instruction": "Open index.html in your browser (double-click the file). You should see your name, your list and your footer, still plain black and white.",
+      "why": "Seeing your page for real is the fun part!",
       "who": "watch",
       "file": "index.html",
       "expected": "",
       "checks": [],
       "hints": [
-        "Open your index.html file in a browser.",
-        "Double-click index.html or use your editor's preview.",
-        "Look at your name, list and button."
+        "Find index.html in your folder.",
+        "Double-click it, or drag it onto a browser window.",
+        "If it opens in a text editor, right-click it and choose to open it with your browser."
       ]
     },
     {
-      "id": "css-body",
-      "chapter": "look",
-      "title": "Colour the background",
-      "instruction": "In style.css, add a rule for body: no margin, full screen height, everything centred with flex, the Arial font, and a pink-to-purple gradient background.",
-      "why": "This gives your whole page a colourful background and puts your card in the middle.",
+      "id": "body-style",
+      "chapter": "colour",
+      "title": "Pick a font and background",
+      "instruction": "Make a new file called style.css. Write a rule for body with font-family: Arial, sans-serif; (font-family picks the letter style) and background: #fdf3e7; (background is the colour behind everything, here a soft cream).",
+      "why": "Your whole page gets a friendly font and a warm colour.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
         "afterLine": 0
       },
-      "expected": "body {\n  margin: 0;\n  min-height: 100vh;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  font-family: Arial, sans-serif;\n  background: linear-gradient(135deg, #ff9a9e, #a18cd1);\n}",
+      "expected": "body {\n  font-family: Arial, sans-serif;\n  background: #fdf3e7;\n}",
       "checks": [
         {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your page isn't centred yet.",
-          "selector": "body",
-          "property": "display",
-          "value": "flex"
+          "type": "fileExists",
+          "file": "style.css",
+          "say": "I can't find a file called style.css yet."
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your items aren't centred side to side yet.",
+          "say": "Your page background isn't cream yet.",
           "selector": "body",
-          "property": "justify-content",
-          "value": "center"
+          "property": "background-color",
+          "value": "rgb(253, 243, 231)"
         },
         {
           "type": "parses",
           "file": "style.css",
-          "say": "Something in your style file looks unfinished. Check your curly brackets and semicolons."
+          "say": "Something in your style file looks broken. Check your curly brackets and semicolons."
         }
       ],
       "hints": [
-        "Write a rule that says which part to style, then list the looks inside curly brackets.",
-        "Start with body { and add margin, min-height, display: flex, justify-content, align-items, font-family and background, each ending with ;.",
-        "body {\n  margin: 0;\n  min-height: 100vh;\n  display: flex;\n  …\n  background: linear-gradient(135deg, #ff9a9e, #a18cd1);\n}"
+        "Tell the whole page which font and background colour to use.",
+        "Write body { }, and inside it font-family set to Arial, sans-serif and background set to #fdf3e7. End each line with a semicolon.",
+        "body {\n  font-family: …;\n  background: …;\n}"
       ],
       "concept": {
-        "title": "CSS rules",
-        "explain": "A CSS rule picks part of the page, then lists how it should look inside curly brackets.",
+        "title": "Style rules",
+        "explain": "A style rule names what to change, then lists settings inside curly brackets, each ending with a semicolon.",
         "links": [
           {
             "title": "MDN: CSS basics",
             "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/CSS_basics"
           }
         ],
+        "imageQuery": "css rule anatomy diagram",
         "videoQuery": "css basics for beginners"
       }
     },
     {
-      "id": "css-card",
-      "chapter": "look",
-      "title": "Style the card",
-      "instruction": "Under the body rule, add a rule for .card: white background, 320px wide, 30px padding, rounded 20px corners, centred text and a soft shadow.",
-      "why": "Your content now sits on a neat white card that floats above the background.",
+      "id": "h1-colour",
+      "chapter": "colour",
+      "title": "Colour your name",
+      "instruction": "Under the body rule, leave a blank line, then add a rule for h1 with color: #e8613c; (color sets the text colour, here a bright orange).",
+      "why": "Your name pops out in orange.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 9
+        "afterLine": 4
       },
-      "expected": "\n.card {\n  background: white;\n  width: 320px;\n  padding: 30px;\n  border-radius: 20px;\n  text-align: center;\n  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);\n}",
+      "expected": "h1 {\n  color: #e8613c;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your card doesn't have rounded corners yet.",
-          "selector": ".card",
-          "property": "border-top-left-radius",
-          "value": "20px"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your card's writing isn't centred yet.",
-          "selector": ".card",
-          "property": "text-align",
-          "value": "center"
-        }
-      ],
-      "hints": [
-        "A dot in front of a name styles everything with that class.",
-        "Write .card { and add background, width, padding, border-radius, text-align and box-shadow.",
-        "\n.card {\n  background: white;\n  width: 320px;\n  …\n  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);\n}"
-      ],
-      "concept": {
-        "title": "Styling by class",
-        "explain": "Putting a dot before a class name, like .card, styles everything wearing that name tag.",
-        "links": [
-          {
-            "title": "MDN: Class selectors",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Class_selectors"
-          }
-        ]
-      }
-    },
-    {
-      "id": "photo-circle",
-      "chapter": "look",
-      "title": "Make the photo round",
-      "instruction": "Under the card rule, add a rule for .photo: 120px wide and tall, centred with margin 0 auto, and border-radius 50% to make it a circle.",
-      "why": "Half-rounded corners on a square turn it into a perfect circle.",
-      "who": "learner",
-      "file": "style.css",
-      "anchor": {
-        "afterLine": 18
-      },
-      "expected": "\n.photo {\n  width: 120px;\n  height: 120px;\n  margin: 0 auto;\n  border-radius: 50%;\n}",
-      "checks": [
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your photo spot isn't round yet.",
-          "selector": ".photo",
-          "property": "border-top-left-radius",
-          "value": "50%"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your photo spot isn't 120px wide yet.",
-          "selector": ".photo",
-          "property": "width",
-          "value": "120px"
-        }
-      ],
-      "hints": [
-        "A square with very round corners becomes a circle.",
-        "Write .photo { with width and height of 120px, margin: 0 auto, and border-radius: 50%.",
-        "\n.photo {\n  width: 120px;\n  height: …;\n  margin: 0 auto;\n  border-radius: …;\n}"
-      ],
-      "concept": {
-        "title": "Rounded corners",
-        "explain": "border-radius rounds the corners of a box, and 50% makes a square into a circle.",
-        "links": [
-          {
-            "title": "MDN: border-radius",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius"
-          }
-        ]
-      }
-    },
-    {
-      "id": "photo-colour",
-      "chapter": "look",
-      "title": "Decorate the photo",
-      "instruction": "Inside the .photo rule, under border-radius, add a gradient background, a 5px purple border, a big 64px emoji, line-height 120px to centre it, and a pointer cursor.",
-      "why": "Your face circle now looks fun and shows it can be clicked.",
-      "who": "learner",
-      "file": "style.css",
-      "anchor": {
-        "after": "border-radius: 50%;"
-      },
-      "expected": "  background: linear-gradient(135deg, #fbc2eb, #a6c1ee);\n  border: 5px solid #a18cd1;\n  font-size: 64px;\n  line-height: 120px;\n  cursor: pointer;",
-      "checks": [
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your photo doesn't show a hand when you point at it yet.",
-          "selector": ".photo",
-          "property": "cursor",
-          "value": "pointer"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your emoji isn't big yet.",
-          "selector": ".photo",
-          "property": "font-size",
-          "value": "64px"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your photo doesn't have a border yet.",
-          "selector": ".photo",
-          "property": "border-top-width",
-          "value": "5px"
-        }
-      ],
-      "hints": [
-        "Add more looks to the same photo rule, before its closing curly bracket.",
-        "Add background, border, font-size, line-height and cursor lines inside .photo.",
-        "  background: linear-gradient(135deg, #fbc2eb, #a6c1ee);\n  border: 5px solid …;\n  font-size: 64px;\n  …"
-      ]
-    },
-    {
-      "id": "css-text",
-      "chapter": "look",
-      "title": "Colour the writing",
-      "instruction": "Under the .photo rule, add three small rules: a purple colour for h1, grey for .intro, and pink with size 20px for h2.",
-      "why": "Colourful headings make your page feel friendly.",
-      "who": "learner",
-      "file": "style.css",
-      "anchor": {
-        "afterLine": 30
-      },
-      "expected": "\nh1 {\n  color: #6a4c93;\n}\n\n.intro {\n  color: #555;\n}\n\nh2 {\n  color: #ff6f91;\n  font-size: 20px;\n}",
-      "checks": [
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your name isn't purple yet.",
+          "say": "Your big heading isn't orange yet.",
           "selector": "h1",
           "property": "color",
-          "value": "rgb(106, 76, 147)"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your small heading isn't pink yet.",
-          "selector": "h2",
-          "property": "color",
-          "value": "rgb(255, 111, 145)"
-        },
-        {
-          "type": "cssProperty",
-          "file": "index.html",
-          "say": "Your welcome sentence isn't grey yet.",
-          "selector": ".intro",
-          "property": "color",
-          "value": "rgb(85, 85, 85)"
+          "value": "rgb(232, 97, 60)"
         }
       ],
       "hints": [
-        "Make one rule for each kind of writing and give it a colour.",
-        "Use h1, .intro and h2 rules, each with a color line. h2 also gets font-size.",
-        "\nh1 {\n  color: #6a4c93;\n}\n\n.intro {\n  color: …;\n}\n…"
+        "Give your big heading its own text colour.",
+        "Below the body rule, write h1 { } with color set to #e8613c inside.",
+        "h1 {\n  color: …;\n}"
       ],
       "concept": {
-        "title": "Colours",
-        "explain": "Colours can be written as a # followed by six letters and numbers, like #6a4c93 for purple.",
+        "title": "Text colour",
+        "explain": "color changes the colour of the words, and codes like #e8613c describe an exact colour.",
         "links": [
           {
             "title": "MDN: color",
@@ -599,349 +465,376 @@
       }
     },
     {
-      "id": "css-likes",
-      "chapter": "look",
-      "title": "Style the list",
-      "instruction": "Under the h2 rule, add a .likes rule that removes the bullets and padding, then a .likes li rule giving each item a light purple background, spacing and rounded corners.",
-      "why": "Your list turns into neat little bubbles.",
+      "id": "list-style",
+      "chapter": "colour",
+      "title": "Space out the list",
+      "instruction": "Under the h1 rule, add a rule for ul with text-align: left; (text-align lines up text left, right or center). Then a rule for li with margin: 10px 0; (margin is the empty space outside a box: 10px above and below, 0 at the sides).",
+      "why": "Your list items get room to breathe.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 43
+        "afterLine": 8
       },
-      "expected": "\n.likes {\n  list-style: none;\n  padding: 0;\n}\n\n.likes li {\n  background: #f3eaff;\n  margin: 6px 0;\n  padding: 8px;\n  border-radius: 10px;\n}",
+      "expected": "ul {\n  text-align: left;\n}\n\nli {\n  margin: 10px 0;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your list still has bullet dots.",
-          "selector": ".likes",
-          "property": "list-style-type",
-          "value": "none"
+          "say": "Your list items don't have space between them yet.",
+          "selector": "li",
+          "property": "margin-top",
+          "value": "10px"
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your list items don't have rounded corners yet.",
-          "selector": ".likes li",
-          "property": "border-top-left-radius",
-          "value": "10px"
+          "say": "Your list isn't lined up on the left yet.",
+          "selector": "ul",
+          "property": "text-align",
+          "value": "left"
         }
       ],
       "hints": [
-        "First style the whole list, then style each item inside it.",
-        "Write .likes { with list-style: none and padding: 0 }, then .likes li { with background, margin, padding and border-radius }.",
-        "\n.likes {\n  list-style: none;\n  padding: 0;\n}\n\n.likes li {\n  background: #f3eaff;\n  …\n}"
+        "Line the list up on the left, and add space around each item.",
+        "Write ul { } with text-align: left, then li { } with margin: 10px 0.",
+        "ul {\n  text-align: …;\n}\n\nli {\n  margin: …;\n}"
       ],
       "concept": {
-        "title": "Styling things inside things",
-        "explain": "Writing .likes li means: style only the list items that sit inside the likes list.",
+        "title": "Margin",
+        "explain": "Margin is the empty space around the outside of a box, pushing other things away.",
         "links": [
           {
-            "title": "MDN: Descendant combinator",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Descendant_combinator"
+            "title": "MDN: margin",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/margin"
+          },
+          {
+            "title": "MDN: text-align",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/text-align"
           }
         ]
       }
     },
     {
-      "id": "css-button",
-      "chapter": "look",
-      "title": "Style the button",
-      "instruction": "Under the list rules, add a button rule: space above, padding, no border, rounded 20px corners, purple background, white 16px text and a pointer cursor.",
-      "why": "A round colourful button looks inviting to click.",
+      "id": "section-card",
+      "chapter": "boxes",
+      "title": "Turn the likes into a card",
+      "instruction": "Between the h1 rule and the ul rule, add a rule for section with background: white; and border-radius: 12px; (border-radius rounds the corners).",
+      "why": "Your list sits on a white card with soft corners.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 55
+        "afterLine": 7
       },
-      "expected": "\nbutton {\n  margin-top: 15px;\n  padding: 10px 20px;\n  border: none;\n  border-radius: 20px;\n  background: #6a4c93;\n  color: white;\n  font-size: 16px;\n  cursor: pointer;\n}",
+      "expected": "section {\n  background: white;\n  border-radius: 12px;\n}",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your button isn't purple yet.",
-          "selector": "button",
-          "property": "background-color",
-          "value": "rgb(106, 76, 147)"
+          "say": "Your likes card doesn't have rounded corners yet.",
+          "selector": "section",
+          "property": "border-top-left-radius",
+          "value": "12px"
         },
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your button's writing isn't white yet.",
-          "selector": "button",
-          "property": "color",
+          "say": "Your likes card isn't white yet.",
+          "selector": "section",
+          "property": "background-color",
           "value": "rgb(255, 255, 255)"
         }
       ],
       "hints": [
-        "Give the button a rule of its own and list its looks.",
-        "Write button { with margin-top, padding, border, border-radius, background, color, font-size and cursor.",
-        "\nbutton {\n  margin-top: 15px;\n  padding: 10px 20px;\n  border: none;\n  …\n}"
-      ]
+        "Give the likes part a white background and round corners.",
+        "After the h1 rule, write section { } with background: white and border-radius: 12px.",
+        "section {\n  background: …;\n  border-radius: …;\n}"
+      ],
+      "concept": {
+        "title": "Rounded corners",
+        "explain": "border-radius makes the corners of a box round; bigger numbers make rounder corners.",
+        "links": [
+          {
+            "title": "MDN: border-radius",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius"
+          }
+        ]
+      }
     },
     {
-      "id": "css-hover",
-      "chapter": "look",
-      "title": "Hover colour and fact style",
-      "instruction": "Under the button rule, add button:hover with a pink background, then a .fact rule with a minimum height of 20px, purple colour and slanted (italic) text.",
-      "why": "The button changes colour when you point at it, and facts will look special.",
+      "id": "section-size",
+      "chapter": "boxes",
+      "title": "Size the card",
+      "instruction": "Inside the section rule, under border-radius, add padding: 20px; (padding is the space inside the box, between its edge and its words), margin: 20px auto; (auto centers the box), and max-width: 400px; (max-width stops the box getting wider than that).",
+      "why": "Your card becomes a neat, centered box.",
       "who": "learner",
       "file": "style.css",
       "anchor": {
-        "afterLine": 66
+        "after": "border-radius: 12px;"
       },
-      "expected": "\nbutton:hover {\n  background: #ff6f91;\n}\n\n.fact {\n  min-height: 20px;\n  color: #6a4c93;\n  font-style: italic;\n}",
+      "expected": "  padding: 20px;\n  margin: 20px auto;\n  max-width: 400px;",
       "checks": [
         {
           "type": "cssProperty",
           "file": "index.html",
-          "say": "Your fun fact spot isn't slanted yet.",
-          "selector": ".fact",
-          "property": "font-style",
-          "value": "italic"
+          "say": "Your card isn't limited in width yet.",
+          "selector": "section",
+          "property": "max-width",
+          "value": "400px"
         },
         {
-          "type": "ai",
-          "file": "style.css",
-          "say": "Your button doesn't change colour when you point at it yet.",
-          "question": "Is there a button:hover rule that sets a pink background (#ff6f91)?"
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your card needs some space inside its edges.",
+          "selector": "section",
+          "property": "padding-top",
+          "value": "20px"
         }
       ],
       "hints": [
-        "Adding :hover after a name gives it a look only when the mouse is over it.",
-        "Write button:hover { background: … } and then .fact { with min-height, color and font-style }.",
-        "\nbutton:hover {\n  background: …;\n}\n\n.fact {\n  min-height: 20px;\n  …\n}"
+        "Add room inside the card, center it and stop it getting too wide.",
+        "Under border-radius in the section rule, add padding: 20px, margin: 20px auto and max-width: 400px.",
+        "  padding: …;\n  margin: 20px …;\n  max-width: …;"
       ],
       "concept": {
-        "title": "Hover",
-        "explain": ":hover gives something a different look only while your mouse is over it.",
+        "title": "Padding and width",
+        "explain": "Padding is space inside a box's edges, and max-width sets how wide a box can ever get.",
         "links": [
           {
-            "title": "MDN: :hover",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/:hover"
+            "title": "MDN: padding",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/padding"
+          },
+          {
+            "title": "MDN: max-width",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/max-width"
+          }
+        ]
+      }
+    },
+    {
+      "id": "body-more",
+      "chapter": "boxes",
+      "title": "Center the whole page",
+      "instruction": "In the body rule, under background, add color: #333; (dark grey text), text-align: center;, margin: 0; and padding: 20px;. You've used all of these already!",
+      "why": "Everything on your page lines up in the middle.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "after": "background: #fdf3e7;"
+      },
+      "expected": "  color: #333;\n  text-align: center;\n  margin: 0;\n  padding: 20px;",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page isn't centered yet.",
+          "selector": "body",
+          "property": "text-align",
+          "value": "center"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page text isn't dark grey yet.",
+          "selector": "body",
+          "property": "color",
+          "value": "rgb(51, 51, 51)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page needs some space around its edges.",
+          "selector": "body",
+          "property": "padding-top",
+          "value": "20px"
+        }
+      ],
+      "hints": [
+        "Give the page grey text, center it, and swap the outside space for inside space.",
+        "Inside body, under background, add color: #333, text-align: center, margin: 0 and padding: 20px.",
+        "  color: …;\n  text-align: …;\n  margin: …;\n  padding: …;"
+      ]
+    },
+    {
+      "id": "footer-style",
+      "chapter": "boxes",
+      "title": "Make the footer quiet",
+      "instruction": "At the very end of style.css, add a rule for footer with color: #999; (light grey) and font-size: 14px; (font-size sets how big letters are).",
+      "why": "Your signature is small and doesn't steal attention.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 28
+      },
+      "expected": "footer {\n  color: #999;\n  font-size: 14px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your footer text isn't small yet.",
+          "selector": "footer",
+          "property": "font-size",
+          "value": "14px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your footer text isn't light grey yet.",
+          "selector": "footer",
+          "property": "color",
+          "value": "rgb(153, 153, 153)"
+        }
+      ],
+      "hints": [
+        "Make the bottom text lighter and smaller.",
+        "At the end of the file, write footer { } with color: #999 and font-size: 14px.",
+        "footer {\n  color: …;\n  font-size: …;\n}"
+      ],
+      "concept": {
+        "title": "Font size",
+        "explain": "font-size sets how big the letters are, usually in px (tiny dots on your screen).",
+        "links": [
+          {
+            "title": "MDN: font-size",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/font-size"
           }
         ]
       },
       "quiz": {
-        "question": "What does border-radius: 50% do to a square?",
+        "question": "Which one adds space INSIDE a box, between its edge and its words?",
         "options": [
-          "Makes it bigger",
-          "Turns it into a circle",
-          "Hides it"
+          "margin",
+          "padding",
+          "max-width"
         ],
         "answer": 1,
-        "explain": "Rounding the corners by half the size makes a perfect circle."
+        "explain": "Padding is inside the edge; margin is outside it."
       }
     },
     {
-      "id": "look-styled",
-      "chapter": "look",
-      "title": "Admire your card",
-      "instruction": "Refresh your page in the browser. Point at the button to see it change colour!",
-      "why": "You can see all your styling come together.",
+      "id": "photo-style",
+      "chapter": "photo",
+      "title": "Style the photo box",
+      "instruction": "Between the body rule and the h1 rule, add a rule for .photo (the dot means 'the box with class photo'). Give it font-size: 80px;, background: #ffcf8a;, border: 5px solid white; (border is a line around the box), border-radius: 50%; (50% makes it round) and width: 140px; (width sets how wide the box is).",
+      "why": "Your emoji gets a big, round, framed spot.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 8
+      },
+      "expected": ".photo {\n  font-size: 80px;\n  background: #ffcf8a;\n  border: 5px solid white;\n  border-radius: 50%;\n  width: 140px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your photo box isn't 140 wide yet.",
+          "selector": ".photo",
+          "property": "width",
+          "value": "140px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your emoji isn't big yet.",
+          "selector": ".photo",
+          "property": "font-size",
+          "value": "80px"
+        }
+      ],
+      "hints": [
+        "Make the photo box big, orange, framed and round.",
+        "After the body rule, write .photo { } with font-size 80px, background #ffcf8a, border 5px solid white, border-radius 50% and width 140px.",
+        ".photo {\n  font-size: …;\n  background: …;\n  border: …;\n  border-radius: …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "Borders and width",
+        "explain": "border draws a line around a box (thickness, style, colour), and width sets how wide the box is.",
+        "links": [
+          {
+            "title": "MDN: border",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border"
+          },
+          {
+            "title": "MDN: width",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/width"
+          }
+        ]
+      }
+    },
+    {
+      "id": "photo-circle",
+      "chapter": "photo",
+      "title": "Make it a perfect circle",
+      "instruction": "Inside the .photo rule, under width, add height: 140px; (how tall the box is), line-height: 140px; (the height of a line of text, which puts the emoji in the middle) and margin: 20px auto; to center it.",
+      "why": "Your photo becomes a perfect centered circle.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "after": "width: 140px;"
+      },
+      "expected": "  height: 140px;\n  line-height: 140px;\n  margin: 20px auto;",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your photo box isn't tall enough to be a circle yet.",
+          "selector": ".photo",
+          "property": "height",
+          "value": "140px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your emoji isn't in the middle of its circle yet.",
+          "selector": ".photo",
+          "property": "line-height",
+          "value": "140px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your photo circle needs space above it.",
+          "selector": ".photo",
+          "property": "margin-top",
+          "value": "20px"
+        }
+      ],
+      "hints": [
+        "Make the box as tall as it is wide, and push the emoji to the middle.",
+        "Under width in .photo, add height: 140px, line-height: 140px and margin: 20px auto.",
+        "  height: …;\n  line-height: …;\n  margin: …;"
+      ],
+      "concept": {
+        "title": "Height and line height",
+        "explain": "height sets how tall a box is, and line-height sets how tall each line of text is.",
+        "links": [
+          {
+            "title": "MDN: height",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/height"
+          },
+          {
+            "title": "MDN: line-height",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/line-height"
+          }
+        ]
+      }
+    },
+    {
+      "id": "look-final",
+      "chapter": "photo",
+      "title": "See your finished page",
+      "instruction": "Refresh index.html in your browser. You should see a round photo, your orange name and a white card of things you like. Show your friends!",
+      "why": "You built a whole web page yourself.",
       "who": "watch",
       "file": "style.css",
       "expected": "",
       "checks": [],
       "hints": [
-        "Refresh the browser tab.",
-        "Press F5 or the refresh button.",
-        "Hover over the button."
-      ]
-    },
-    {
-      "id": "js-grab",
-      "chapter": "js",
-      "title": "Find the parts of your page",
-      "instruction": "In script.js, make three names: photo, factButton and fact, each finding the matching part of your page by its id.",
-      "why": "Your code needs a way to reach the photo, button and fact spot before it can change them.",
-      "who": "learner",
-      "file": "script.js",
-      "anchor": {
-        "afterLine": 0
-      },
-      "expected": "const photo = document.getElementById(\"photo\");\nconst factButton = document.getElementById(\"fact-button\");\nconst fact = document.getElementById(\"fact\");",
-      "checks": [
-        {
-          "type": "ai",
-          "file": "script.js",
-          "say": "Your code isn't finding the photo, button and fact spot yet.",
-          "question": "Does script.js create constants photo, factButton and fact using document.getElementById with the ids photo, fact-button and fact?"
-        },
-        {
-          "type": "parses",
-          "file": "script.js",
-          "say": "Something in your code looks unfinished. Check your brackets and quote marks."
-        }
-      ],
-      "hints": [
-        "Give each part of the page a name in your code by looking it up with its id.",
-        "Use const and document.getElementById(\"…\") three times, for photo, fact-button and fact.",
-        "const photo = document.getElementById(\"photo\");\nconst factButton = document.getElementById(\"…\");\n…"
-      ],
-      "concept": {
-        "title": "Variables",
-        "explain": "const gives something a name so your code can use it again later.",
-        "links": [
-          {
-            "title": "MDN: Storing information in variables",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/First_steps/Variables"
-          }
-        ]
-      }
-    },
-    {
-      "id": "faces",
-      "chapter": "js",
-      "title": "Change faces on click",
-      "instruction": "Under those three lines, add a list called faces with 5 emojis and a counter faceNumber starting at 0. Then, at the end of the file, make clicking the photo move the counter up, go back to 0 at the end, and show the next face.",
-      "why": "Now your photo reacts when someone clicks it!",
-      "who": "learner",
-      "file": "script.js",
-      "anchor": {
-        "afterLine": 3
-      },
-      "expected": "\nconst faces = [\"🙂\", \"😎\", \"🤪\", \"😄\", \"🥳\"];\nlet faceNumber = 0;\n\nphoto.addEventListener(\"click\", function () {\n  faceNumber = faceNumber + 1;\n  if (faceNumber >= faces.length) {\n    faceNumber = 0;\n  }\n  photo.textContent = faces[faceNumber];\n});",
-      "checks": [
-        {
-          "type": "ai",
-          "file": "script.js",
-          "say": "Clicking your photo doesn't change the face yet.",
-          "question": "Does script.js add a click listener to photo that increases faceNumber, resets it to 0 when it reaches faces.length, and sets photo.textContent to faces[faceNumber]?"
-        },
-        {
-          "type": "parses",
-          "file": "script.js",
-          "say": "Something in your code looks unfinished. Check your brackets."
-        }
-      ],
-      "hints": [
-        "Keep a list of faces and a number that remembers which face is showing; on each click, go to the next one.",
-        "Use an array in [ ], let faceNumber = 0, then photo.addEventListener(\"click\", function () { … }) with an if to go back to 0.",
-        "const faces = [\"🙂\", \"😎\", …];\nlet faceNumber = 0;\n\nphoto.addEventListener(\"click\", function () {\n  faceNumber = faceNumber + 1;\n  if (…) {\n  …"
-      ],
-      "concept": {
-        "title": "Click events",
-        "explain": "addEventListener tells the page: when this thing gets clicked, run these lines of code.",
-        "links": [
-          {
-            "title": "MDN: Introduction to events",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Building_blocks/Events"
-          }
-        ],
-        "videoQuery": "javascript click event beginner"
-      }
-    },
-    {
-      "id": "facts-list",
-      "chapter": "js",
-      "title": "Write your fun facts",
-      "instruction": "Under the faceNumber line, add a list called facts holding 5 fun facts about you, each in quotes and separated by commas.",
-      "why": "These are the facts your button will pick from.",
-      "who": "learner",
-      "file": "script.js",
-      "anchor": {
-        "after": "let faceNumber = 0;"
-      },
-      "expected": "\nconst facts = [\n  \"I can eat a whole pizza by myself.\",\n  \"My favourite colour is purple.\",\n  \"I once scored a goal from the halfway line.\",\n  \"I have watched my favourite film ten times.\",\n  \"I want a dog called Biscuit.\"\n];",
-      "checks": [
-        {
-          "type": "ai",
-          "file": "script.js",
-          "say": "I can't find your list of 5 fun facts yet.",
-          "question": "Does script.js define a const array named facts containing 5 strings?"
-        },
-        {
-          "type": "parses",
-          "file": "script.js",
-          "say": "Something in your list looks off. Check the quotes and commas."
-        }
-      ],
-      "hints": [
-        "It's a list just like faces, but with sentences instead of emojis.",
-        "Use const facts = [ ]; with each fact in quotes and a comma between them.",
-        "const facts = [\n  \"I can eat a whole pizza by myself.\",\n  \"…\",\n  …\n];"
-      ],
-      "concept": {
-        "title": "Lists in code",
-        "explain": "An array is a list in square brackets, and each item has a number starting from 0.",
-        "links": [
-          {
-            "title": "MDN: Arrays",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/First_steps/Arrays"
-          }
-        ]
-      }
-    },
-    {
-      "id": "fact-click",
-      "chapter": "js",
-      "title": "Show a random fact",
-      "instruction": "At the very end of the file, make clicking the button pick a random number up to the number of facts and show that fact in the fact spot.",
-      "why": "Your button now surprises people with a random fun fact.",
-      "who": "learner",
-      "file": "script.js",
-      "anchor": {
-        "afterLine": 22
-      },
-      "expected": "\nfactButton.addEventListener(\"click\", function () {\n  const randomNumber = Math.floor(Math.random() * facts.length);\n  fact.textContent = facts[randomNumber];\n});",
-      "checks": [
-        {
-          "type": "ai",
-          "file": "script.js",
-          "say": "Clicking your button doesn't show a fun fact yet.",
-          "question": "Does script.js add a click listener to factButton that picks a random index with Math.floor(Math.random() * facts.length) and sets fact.textContent to that fact?"
-        },
-        {
-          "type": "parses",
-          "file": "script.js",
-          "say": "Something in your code looks unfinished. Check your brackets."
-        }
-      ],
-      "hints": [
-        "It works like the photo click, but picks a random fact instead of the next face.",
-        "Use factButton.addEventListener(\"click\", …) and Math.floor(Math.random() * facts.length) to get a random number.",
-        "factButton.addEventListener(\"click\", function () {\n  const randomNumber = Math.floor(…);\n  fact.textContent = …;\n});"
-      ],
-      "concept": {
-        "title": "Random numbers",
-        "explain": "Math.random gives a surprise number, and Math.floor rounds it down to a whole number.",
-        "links": [
-          {
-            "title": "MDN: Math.random()",
-            "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random"
-          }
-        ]
-      },
-      "quiz": {
-        "question": "What does addEventListener(\"click\", …) do?",
-        "options": [
-          "Changes a colour",
-          "Runs code when something is clicked",
-          "Adds a new list"
-        ],
-        "answer": 1,
-        "explain": "It waits for a click and then runs the code you gave it."
-      }
-    },
-    {
-      "id": "try-it",
-      "chapter": "js",
-      "title": "Try it out",
-      "instruction": "Refresh your page. Click your face to change it, and press the button for fun facts!",
-      "why": "You built a working interactive page all by yourself.",
-      "who": "watch",
-      "file": "script.js",
-      "expected": "",
-      "checks": [],
-      "hints": [
-        "Refresh the browser tab.",
-        "Click the round face a few times.",
-        "Press the fun fact button again and again."
+        "Go back to the browser tab with your page.",
+        "Press the refresh button or F5.",
+        "If nothing changed, check both files are saved and in the same folder."
       ]
     }
   ],
-  "createdAt": "2026-10-29T06:25:34.117Z",
+  "createdAt": "2026-10-29T06:45:54.658Z",
   "version": 1
 }

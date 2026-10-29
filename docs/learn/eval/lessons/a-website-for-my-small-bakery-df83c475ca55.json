@@ -1,0 +1,993 @@
+{
+  "id": "idea-a-website-for-your-bakery-c5abbaf0",
+  "source": {
+    "kind": "idea",
+    "request": "a website for my small bakery",
+    "answers": [
+      {
+        "question": "What's it for?",
+        "answer": "So people find my shop"
+      },
+      {
+        "question": "What should it have?",
+        "answer": "Our cakes and prices, opening hours, where we are, a contact page"
+      }
+    ]
+  },
+  "title": "A website for your bakery",
+  "summary": "You'll build a small two-page website for your bakery: a home page with your cakes, prices, opening hours and address, plus a contact page.",
+  "outcome": "A friendly bakery website that works offline from your folder, with a menu to move between the home page and the contact page.",
+  "learns": [
+    "Basic HTML page structure",
+    "Headings, paragraphs and lists",
+    "Linking two pages together",
+    "Grouping content in sections",
+    "Styling with a CSS file",
+    "Colors, spacing and rounded corners"
+  ],
+  "estimate": {
+    "minutes": 79,
+    "linesToType": 91,
+    "steps": 22
+  },
+  "simpler": {
+    "title": "Just the home page with your cakes",
+    "estimate": {
+      "minutes": 46,
+      "linesToType": 47,
+      "steps": 11
+    },
+    "why": "Get one lovely page showing off your cakes and opening hours first; you can add the contact page and extra styling later.",
+    "stepIds": [
+      "skeleton",
+      "head-info",
+      "header",
+      "cakes-title",
+      "cakes-list",
+      "hours",
+      "see-home",
+      "body-style",
+      "header-style",
+      "section-style",
+      "see-final"
+    ]
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>Sweet Crumbs Bakery</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <header>\n    <h1>🧁 Sweet Crumbs Bakery</h1>\n    <p><a href=\"index.html\">Home</a> | <a href=\"contact.html\">Contact</a></p>\n  </header>\n  <section>\n    <h2>Our Cakes</h2>\n    <ul>\n      <li>🍰 Strawberry cake - £3.50 a slice</li>\n      <li>🎂 Chocolate cake - £3.00 a slice</li>\n      <li>🥕 Carrot cake - £3.20 a slice</li>\n      <li>🧁 Cupcake - £2.00 each</li>\n    </ul>\n  </section>\n  <section>\n    <h2>Opening Hours</h2>\n    <ul>\n      <li>Monday to Friday: 8am - 5pm</li>\n      <li>Saturday: 9am - 4pm</li>\n      <li>Sunday: closed</li>\n    </ul>\n  </section>\n  <section>\n    <h2>Where We Are</h2>\n    <p>📍 12 High Street, Townsville</p>\n    <p>Next to the post office, with a blue door.</p>\n  </section>\n  <footer>\n    <p>Fresh baked every morning</p>\n  </footer>\n</body>\n</html>\n"
+    },
+    {
+      "path": "contact.html",
+      "content": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>Contact - Sweet Crumbs Bakery</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <header>\n    <h1>🧁 Sweet Crumbs Bakery</h1>\n    <p><a href=\"index.html\">Home</a> | <a href=\"contact.html\">Contact</a></p>\n  </header>\n  <section>\n    <h2>Contact Us</h2>\n    <p>📞 Phone: 01234 567890</p>\n    <p>✉️ Email: hello@sweetcrumbs.com</p>\n    <p>Call us to order a cake for a birthday or party!</p>\n  </section>\n  <footer>\n    <p>Fresh baked every morning</p>\n  </footer>\n</body>\n</html>\n"
+    },
+    {
+      "path": "style.css",
+      "content": "body {\n  font-family: Georgia, serif;\n  background: #fff5e6;\n  color: #4a2c1a;\n  margin: 0;\n}\n\nheader {\n  background: #f4a6b8;\n  text-align: center;\n  padding: 20px;\n}\n\na {\n  color: #4a2c1a;\n  font-size: 18px;\n}\n\nsection {\n  background: white;\n  margin: 20px;\n  padding: 20px;\n  border: 2px solid #f4a6b8;\n  border-radius: 12px;\n}\n\nh2 {\n  color: #c0506b;\n}\n\nfooter {\n  text-align: center;\n  padding: 10px;\n}\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "home",
+      "title": "Write the home page"
+    },
+    {
+      "id": "contact",
+      "title": "Make the contact page"
+    },
+    {
+      "id": "colour",
+      "title": "Add colour"
+    },
+    {
+      "id": "boxes",
+      "title": "Boxes and finishing touches"
+    }
+  ],
+  "steps": [
+    {
+      "id": "skeleton",
+      "chapter": "home",
+      "title": "Start the page",
+      "instruction": "Create a file called index.html. At the very top, type the start of every web page: the line <!DOCTYPE html>, then an html part that holds a head part and a body part.",
+      "why": "Every web page needs this frame: the head holds info about the page, the body holds what people see.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n</body>\n</html>",
+      "checks": [
+        {
+          "type": "fileExists",
+          "file": "index.html",
+          "say": "I can't find your index.html file yet."
+        },
+        {
+          "type": "parses",
+          "file": "index.html",
+          "say": "Something in your page frame looks unfinished. Check every part you opened is closed."
+        }
+      ],
+      "hints": [
+        "A web page starts with a line saying it is a web page, then one big part that holds two smaller parts: one for info, one for what you see.",
+        "Type <!DOCTYPE html> first, then <html>. Inside it put <head></head> and then <body></body>, each on their own lines, and finish with </html>.",
+        "<!DOCTYPE …>\n<html>\n<head>\n</…>\n…\n</html>"
+      ],
+      "concept": {
+        "title": "The page frame",
+        "explain": "html wraps the whole page, head holds hidden info about it, and body holds everything people see.",
+        "links": [
+          {
+            "title": "MDN: Getting started with HTML",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started"
+          }
+        ],
+        "imageQuery": "basic html page structure head body diagram",
+        "videoQuery": "html page structure for beginners"
+      }
+    },
+    {
+      "id": "head-info",
+      "chapter": "home",
+      "title": "Give the page a name",
+      "instruction": "Inside the head, add three lines: a meta line with charset set to utf-8, a title saying Sweet Crumbs Bakery, and a link to a style file called style.css (rel=\"stylesheet\" href=\"style.css\").",
+      "why": "meta lets emojis show properly, title names the browser tab, and link connects the style file you'll write later.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "head"
+      },
+      "expected": "  <meta charset=\"utf-8\">\n  <title>Sweet Crumbs Bakery</title>\n  <link rel=\"stylesheet\" href=\"style.css\">",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see the name of your page for the browser tab yet.",
+          "selector": "head title"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "Add the line that tells the browser which letters to use (utf-8).",
+          "selector": "meta[charset]"
+        },
+        {
+          "type": "attribute",
+          "file": "index.html",
+          "say": "Your page isn't connected to the style file style.css yet.",
+          "selector": "link",
+          "name": "href",
+          "value": "style.css"
+        }
+      ],
+      "hints": [
+        "The head holds information about the page: which letters it uses, its tab name, and where its style lives.",
+        "Between <head> and </head> add a <meta> with charset=\"utf-8\", a <title> with your bakery name, and a <link> with rel=\"stylesheet\" and href=\"style.css\".",
+        "<meta charset=\"…\">\n<title>…</title>\n<link rel=\"…\" href=\"…\">"
+      ],
+      "concept": {
+        "title": "Page info in the head",
+        "explain": "The head tells the browser the page's name, its letters, and which style file to use.",
+        "links": [
+          {
+            "title": "MDN: What's in the head?",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/The_head_metadata_in_HTML"
+          }
+        ]
+      }
+    },
+    {
+      "id": "footer",
+      "chapter": "home",
+      "title": "Add a footer",
+      "instruction": "Inside the body, add a footer. In the footer, put a paragraph saying Fresh baked every morning.",
+      "why": "A footer is the strip at the bottom of a page; a paragraph (p) holds a line of normal text.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "expected": "  <footer>\n    <p>Fresh baked every morning</p>\n  </footer>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see the bottom strip of your page yet.",
+          "selector": "footer p"
+        }
+      ],
+      "hints": [
+        "Start with the bottom of the page: a little strip with one line of text.",
+        "Inside the body, open <footer>, put a <p> with your text inside it, then close </footer>.",
+        "<footer>\n  <p>…</p>\n</…>"
+      ],
+      "concept": {
+        "title": "Footers and paragraphs",
+        "explain": "A footer is the bottom strip of a page, and p is a normal paragraph of text.",
+        "links": [
+          {
+            "title": "MDN: The footer element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/footer"
+          },
+          {
+            "title": "MDN: The p element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p"
+          }
+        ]
+      }
+    },
+    {
+      "id": "header",
+      "chapter": "home",
+      "title": "Add the header and menu",
+      "instruction": "Right under the opening body line (above the footer), add a header. In it put a big heading (h1) saying 🧁 Sweet Crumbs Bakery, then a paragraph with two links: Home going to index.html, and Contact going to contact.html, with a | between them.",
+      "why": "The header is the top of your page, h1 is the biggest heading, and a makes a link you can click.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "<body>"
+      },
+      "expected": "  <header>\n    <h1>🧁 Sweet Crumbs Bakery</h1>\n    <p><a href=\"index.html\">Home</a> | <a href=\"contact.html\">Contact</a></p>\n  </header>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your big heading at the top yet.",
+          "selector": "header h1"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see a link to your Contact page yet.",
+          "selector": "header a[href=\"contact.html\"]"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see a link back to your Home page yet.",
+          "selector": "header a[href=\"index.html\"]"
+        }
+      ],
+      "hints": [
+        "The top of the page needs your bakery's name in big letters and a small menu with two links.",
+        "After <body>, open <header>. Inside, add an <h1> with the name, then a <p> holding two <a> links: href=\"index.html\" for Home and href=\"contact.html\" for Contact. Close </header>.",
+        "<header>\n  <h1>…</h1>\n  <p><a href=\"…\">…</a> | <a href=\"…\">…</a></p>\n</…>"
+      ],
+      "concept": {
+        "title": "Headers, headings and links",
+        "explain": "header is the top area, h1 is the biggest title, and a turns words into a link to another page.",
+        "links": [
+          {
+            "title": "MDN: Creating hyperlinks",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Creating_hyperlinks"
+          },
+          {
+            "title": "MDN: Heading elements",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements"
+          }
+        ],
+        "videoQuery": "html links a href for beginners"
+      }
+    },
+    {
+      "id": "cakes-title",
+      "chapter": "home",
+      "title": "Start the cakes section",
+      "instruction": "Under the header, add a section. Inside it, put a smaller heading (h2) saying Our Cakes.",
+      "why": "A section groups one topic of your page, and h2 is a heading one size smaller than h1.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</header>"
+      },
+      "expected": "  <section>\n    <h2>Our Cakes</h2>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see a part of your page with the heading Our Cakes yet.",
+          "selector": "section h2"
+        }
+      ],
+      "hints": [
+        "Make a new part of the page for your cakes, with its own title.",
+        "After </header>, open <section>, put an <h2> inside with the words Our Cakes, then close </section>.",
+        "<section>\n  <h2>…</h2>\n</…>"
+      ],
+      "concept": {
+        "title": "Sections",
+        "explain": "A section is a box that holds one topic of your page, like your cakes.",
+        "links": [
+          {
+            "title": "MDN: The section element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/section"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cakes-list",
+      "chapter": "home",
+      "title": "List your cakes",
+      "instruction": "Under the Our Cakes heading, add a bullet list (ul) with 4 items (li): 🍰 Strawberry cake - £3.50 a slice, 🎂 Chocolate cake - £3.00 a slice, 🥕 Carrot cake - £3.20 a slice, and 🧁 Cupcake - £2.00 each.",
+      "why": "ul makes a bullet list and each li is one bullet, perfect for a menu with prices.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "<h2>Our Cakes</h2>"
+      },
+      "expected": "    <ul>\n      <li>🍰 Strawberry cake - £3.50 a slice</li>\n      <li>🎂 Chocolate cake - £3.00 a slice</li>\n      <li>🥕 Carrot cake - £3.20 a slice</li>\n      <li>🧁 Cupcake - £2.00 each</li>\n    </ul>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your list of cakes yet.",
+          "selector": "section ul li"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Your cake list should include the cupcake.",
+          "selector": "section ul",
+          "text": "Cupcake"
+        }
+      ],
+      "hints": [
+        "Write your cakes and their prices as a list with bullet points.",
+        "Under the h2, open <ul>. Add four <li> lines, one cake and price in each, then close </ul>.",
+        "<ul>\n  <li>🍰 … - £3.50 a slice</li>\n  <li>…</li>\n  <li>…</li>\n  <li>…</li>\n</ul>"
+      ],
+      "concept": {
+        "title": "Bullet lists",
+        "explain": "ul starts a bullet list and every li inside it is one bullet point.",
+        "links": [
+          {
+            "title": "MDN: The ul element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/ul"
+          }
+        ]
+      }
+    },
+    {
+      "id": "hours",
+      "chapter": "home",
+      "title": "Add opening hours",
+      "instruction": "Below the cakes section, add a new section with an h2 saying Opening Hours and a bullet list of 3 items: Monday to Friday: 8am - 5pm, Saturday: 9am - 4pm, Sunday: closed.",
+      "why": "Customers need to know when they can visit, and you already know every tag you need.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 21
+      },
+      "expected": "  <section>\n    <h2>Opening Hours</h2>\n    <ul>\n      <li>Monday to Friday: 8am - 5pm</li>\n      <li>Saturday: 9am - 4pm</li>\n      <li>Sunday: closed</li>\n    </ul>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see a second part with your opening hours yet.",
+          "selector": "section:nth-of-type(2) ul li"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Your opening hours should mention Sunday.",
+          "selector": "section:nth-of-type(2)",
+          "text": "Sunday"
+        }
+      ],
+      "hints": [
+        "This is just like your cakes part: a new box with a title and a list.",
+        "After the </section> that closes the cakes, open a new <section> with an <h2>, then a <ul> with three <li> lines, and close it all.",
+        "<section>\n  <h2>…</h2>\n  <ul>\n    <li>…</li>\n    <li>…</li>\n    <li>…</li>\n  </ul>\n</section>"
+      ]
+    },
+    {
+      "id": "where",
+      "chapter": "home",
+      "title": "Say where you are",
+      "instruction": "Below the opening hours section, add one more section with an h2 saying Where We Are and two paragraphs: 📍 12 High Street, Townsville and Next to the post office, with a blue door.",
+      "why": "Now people can find your bakery.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 29
+      },
+      "expected": "  <section>\n    <h2>Where We Are</h2>\n    <p>📍 12 High Street, Townsville</p>\n    <p>Next to the post office, with a blue door.</p>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see a third part with your address yet.",
+          "selector": "section:nth-of-type(3) p"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Your address part should have the heading Where We Are.",
+          "selector": "section:nth-of-type(3) h2",
+          "text": "Where"
+        }
+      ],
+      "hints": [
+        "One more box: a title and two lines of text telling people how to find you.",
+        "After the hours </section>, open <section>, add an <h2>, then two <p> lines, then close </section>.",
+        "<section>\n  <h2>…</h2>\n  <p>📍 …</p>\n  <p>…</p>\n</…>"
+      ]
+    },
+    {
+      "id": "see-home",
+      "chapter": "home",
+      "title": "Look at your home page",
+      "instruction": "Open index.html in your web browser (double-click it in your folder). You should see your heading, menu, cakes, hours, address and footer. It looks plain for now; colour comes later.",
+      "why": "Seeing your page in a real browser shows your code works.",
+      "who": "watch",
+      "file": "index.html",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Find index.html in your project folder.",
+        "Double-click it, or drag it into an open browser window.",
+        "If it opens in a text editor, right-click it and choose Open with, then your browser."
+      ],
+      "quiz": {
+        "question": "Which tag makes one bullet in a list?",
+        "options": [
+          "<ul>",
+          "<li>",
+          "<h2>",
+          "<p>"
+        ],
+        "answer": 1,
+        "explain": "li is one list item; ul is the whole list around them."
+      }
+    },
+    {
+      "id": "contact-skel",
+      "chapter": "contact",
+      "title": "Start the contact page",
+      "instruction": "Create a new file called contact.html. Type the same frame as your home page: the DOCTYPE line, html, a head with meta charset utf-8, a title saying Contact - Sweet Crumbs Bakery, the link to style.css, and an empty body.",
+      "why": "Each page of a website is its own file with its own frame.",
+      "who": "learner",
+      "file": "contact.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>Contact - Sweet Crumbs Bakery</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n</body>\n</html>",
+      "checks": [
+        {
+          "type": "fileExists",
+          "file": "contact.html",
+          "say": "I can't find your contact.html file yet."
+        },
+        {
+          "type": "selectorExists",
+          "file": "contact.html",
+          "say": "Your contact page needs a name for the browser tab.",
+          "selector": "head title"
+        },
+        {
+          "type": "attribute",
+          "file": "contact.html",
+          "say": "Connect your contact page to the style file style.css too.",
+          "selector": "link",
+          "name": "href",
+          "value": "style.css"
+        }
+      ],
+      "hints": [
+        "Look at the top of index.html: your new page starts almost the same way.",
+        "Copy the structure: <!DOCTYPE html>, <html>, <head> with <meta>, <title> and <link>, then <body></body> and </html>. Change the title to Contact - Sweet Crumbs Bakery.",
+        "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"…\">\n  <title>…</title>\n  <link rel=\"…\" href=\"…\">\n</head>\n…"
+      ]
+    },
+    {
+      "id": "contact-header",
+      "chapter": "contact",
+      "title": "Same header on every page",
+      "instruction": "Inside the body of contact.html, add the same header as on your home page: the h1 with 🧁 Sweet Crumbs Bakery and the paragraph with the Home and Contact links.",
+      "why": "Keeping the same header on every page lets visitors move around easily.",
+      "who": "learner",
+      "file": "contact.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "expected": "  <header>\n    <h1>🧁 Sweet Crumbs Bakery</h1>\n    <p><a href=\"index.html\">Home</a> | <a href=\"contact.html\">Contact</a></p>\n  </header>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "contact.html",
+          "say": "I can't see the big heading on your contact page yet.",
+          "selector": "header h1"
+        },
+        {
+          "type": "selectorExists",
+          "file": "contact.html",
+          "say": "Your contact page needs a link back to the Home page.",
+          "selector": "header a[href=\"index.html\"]"
+        }
+      ],
+      "hints": [
+        "Your home page already has the top part you need here.",
+        "Between <body> and </body>, add <header> with the same <h1> and the <p> holding two <a> links.",
+        "<header>\n  <h1>…</h1>\n  <p><a href=\"…\">Home</a> | <a href=\"…\">…</a></p>\n</header>"
+      ]
+    },
+    {
+      "id": "contact-info",
+      "chapter": "contact",
+      "title": "Add your contact details",
+      "instruction": "Under the header, add a section with an h2 saying Contact Us and three paragraphs: 📞 Phone: 01234 567890, ✉️ Email: hello@sweetcrumbs.com, and Call us to order a cake for a birthday or party!",
+      "why": "This is what the contact page is for: how customers reach you.",
+      "who": "learner",
+      "file": "contact.html",
+      "anchor": {
+        "after": "</header>"
+      },
+      "expected": "  <section>\n    <h2>Contact Us</h2>\n    <p>📞 Phone: 01234 567890</p>\n    <p>✉️ Email: hello@sweetcrumbs.com</p>\n    <p>Call us to order a cake for a birthday or party!</p>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "contact.html",
+          "say": "I can't see your contact details yet.",
+          "selector": "section h2"
+        },
+        {
+          "type": "textIncludes",
+          "file": "contact.html",
+          "say": "Add your phone number to the contact details.",
+          "selector": "section",
+          "text": "Phone"
+        },
+        {
+          "type": "selectorExists",
+          "file": "contact.html",
+          "say": "You should have three lines of contact text.",
+          "selector": "section p",
+          "count": 3
+        }
+      ],
+      "hints": [
+        "Make one box with a title and three lines: phone, email and a friendly message.",
+        "After </header>, open <section>, add an <h2>, then three <p> lines, then close </section>.",
+        "<section>\n  <h2>…</h2>\n  <p>📞 Phone: …</p>\n  <p>…</p>\n  <p>…</p>\n</…>"
+      ]
+    },
+    {
+      "id": "contact-footer",
+      "chapter": "contact",
+      "title": "Finish with the footer",
+      "instruction": "Under the contact section, add the same footer as the home page, with the paragraph Fresh baked every morning.",
+      "why": "The matching footer makes both pages feel like one website.",
+      "who": "learner",
+      "file": "contact.html",
+      "anchor": {
+        "after": "</section>"
+      },
+      "expected": "  <footer>\n    <p>Fresh baked every morning</p>\n  </footer>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "contact.html",
+          "say": "I can't see the bottom strip on your contact page yet.",
+          "selector": "footer p"
+        }
+      ],
+      "hints": [
+        "The bottom of this page should match the bottom of your home page.",
+        "After </section>, add <footer> with a <p> inside, then </footer>.",
+        "<footer>\n  <p>…</p>\n</…>"
+      ]
+    },
+    {
+      "id": "see-links",
+      "chapter": "contact",
+      "title": "Try your links",
+      "instruction": "Open index.html in your browser again and click Contact. Your contact page should open. Then click Home to go back.",
+      "why": "Your two pages are now joined into a real little website.",
+      "who": "watch",
+      "file": "contact.html",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Open index.html in your browser.",
+        "Click the word Contact in the menu at the top.",
+        "If it doesn't open, check the link's file name matches contact.html exactly."
+      ],
+      "quiz": {
+        "question": "What does href=\"contact.html\" in a link do?",
+        "options": [
+          "Makes the text bigger",
+          "Says which page opens when you click",
+          "Changes the colour",
+          "Adds a picture"
+        ],
+        "answer": 1,
+        "explain": "href is the address the link takes you to."
+      }
+    },
+    {
+      "id": "body-style",
+      "chapter": "colour",
+      "title": "Pick a font and background",
+      "instruction": "Create a new file called style.css. Write a rule for body with two settings: font-family: Georgia, serif; and background: #fff5e6;",
+      "why": "font-family picks the letter style, and background colours the whole page a warm cream.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "body {\n  font-family: Georgia, serif;\n  background: #fff5e6;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page background isn't cream yet.",
+          "selector": "body",
+          "property": "background-color",
+          "value": "rgb(255, 245, 230)"
+        },
+        {
+          "type": "fileExists",
+          "file": "style.css",
+          "say": "I can't find your style.css file yet."
+        },
+        {
+          "type": "parses",
+          "file": "style.css",
+          "say": "Something in your style file is unfinished. Check the curly brackets and the semicolons."
+        }
+      ],
+      "hints": [
+        "Style rules start with what you want to change, then the settings inside curly brackets.",
+        "Type body, then {. Inside add font-family with Georgia, serif and background with #fff5e6, each ending with ;. Close with }.",
+        "body {\n  font-family: …;\n  …: #fff5e6;\n}"
+      ],
+      "concept": {
+        "title": "Style rules",
+        "explain": "A style rule names a part of the page, then lists settings like colour and font inside curly brackets.",
+        "links": [
+          {
+            "title": "MDN: CSS basics",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/CSS_basics"
+          },
+          {
+            "title": "MDN: font-family",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/font-family"
+          }
+        ],
+        "videoQuery": "css basics for beginners"
+      }
+    },
+    {
+      "id": "body-more",
+      "chapter": "colour",
+      "title": "Text colour and edges",
+      "instruction": "Inside the body rule, under the background line, add color: #4a2c1a; and margin: 0;",
+      "why": "color sets the text colour (a chocolate brown), and margin is the space around the outside of a box; 0 removes the white gap at the page edges.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "after": "background: #fff5e6;"
+      },
+      "expected": "  color: #4a2c1a;\n  margin: 0;",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your text isn't chocolate brown yet.",
+          "selector": "body",
+          "property": "color",
+          "value": "rgb(74, 44, 26)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "There's still a gap around the edges of your page.",
+          "selector": "body",
+          "property": "margin-top",
+          "value": "0px"
+        }
+      ],
+      "hints": [
+        "Add two more settings to the same body rule: one for the text colour, one for the space around the page.",
+        "Under the background line, add color with #4a2c1a and margin with 0, each ending with ;.",
+        "  color: …;\n  margin: …;"
+      ],
+      "concept": {
+        "title": "Colour and margin",
+        "explain": "color changes the text colour, and margin is the empty space outside a box.",
+        "links": [
+          {
+            "title": "MDN: margin",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/margin"
+          },
+          {
+            "title": "MDN: color",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/color"
+          }
+        ]
+      }
+    },
+    {
+      "id": "header-style",
+      "chapter": "colour",
+      "title": "A pink header",
+      "instruction": "Below the body rule (leave an empty line), add a rule for header with background: #f4a6b8;, text-align: center; and padding: 20px;",
+      "why": "text-align: center puts the words in the middle, and padding is the space inside the box around the words.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 6
+      },
+      "expected": "header {\n  background: #f4a6b8;\n  text-align: center;\n  padding: 20px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your header isn't pink yet.",
+          "selector": "header",
+          "property": "background-color",
+          "value": "rgb(244, 166, 184)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The words in your header aren't in the middle yet.",
+          "selector": "header",
+          "property": "text-align",
+          "value": "center"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Give your header some space inside around the words.",
+          "selector": "header",
+          "property": "padding-top",
+          "value": "20px"
+        }
+      ],
+      "hints": [
+        "Make the top of your page pink, with its words in the middle and some room around them.",
+        "Write header { … } with background #f4a6b8, text-align center and padding 20px.",
+        "header {\n  background: …;\n  text-align: …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "Centring and padding",
+        "explain": "text-align: center puts words in the middle, and padding adds space inside a box around its words.",
+        "links": [
+          {
+            "title": "MDN: padding",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/padding"
+          },
+          {
+            "title": "MDN: text-align",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/text-align"
+          }
+        ],
+        "imageQuery": "css box model padding margin diagram"
+      }
+    },
+    {
+      "id": "link-style",
+      "chapter": "colour",
+      "title": "Style the menu links",
+      "instruction": "Below the header rule, add a rule for a (the links) with color: #4a2c1a; and font-size: 18px;",
+      "why": "font-size sets how big the letters are; brown links match your page instead of plain blue.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 12
+      },
+      "expected": "a {\n  color: #4a2c1a;\n  font-size: 18px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your menu links aren't a bit bigger yet.",
+          "selector": "a",
+          "property": "font-size",
+          "value": "18px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your menu links are still blue; make them brown.",
+          "selector": "a",
+          "property": "color",
+          "value": "rgb(74, 44, 26)"
+        }
+      ],
+      "hints": [
+        "Links are blue by default; give them your brown colour and slightly bigger letters.",
+        "Write a rule for a with color #4a2c1a and font-size 18px.",
+        "a {\n  color: …;\n  font-size: …;\n}"
+      ],
+      "concept": {
+        "title": "Text size",
+        "explain": "font-size sets how big the letters are, measured in px (tiny screen dots).",
+        "links": [
+          {
+            "title": "MDN: font-size",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/font-size"
+          }
+        ]
+      }
+    },
+    {
+      "id": "section-style",
+      "chapter": "boxes",
+      "title": "Turn sections into cards",
+      "instruction": "Below the a rule, add a rule for section with background: white;, margin: 20px;, padding: 20px;, border: 2px solid #f4a6b8; and border-radius: 12px;",
+      "why": "border draws a line around the box, and border-radius rounds its corners, so each section looks like a little card.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 17
+      },
+      "expected": "section {\n  background: white;\n  margin: 20px;\n  padding: 20px;\n  border: 2px solid #f4a6b8;\n  border-radius: 12px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your sections don't have a white background yet.",
+          "selector": "section",
+          "property": "background-color",
+          "value": "rgb(255, 255, 255)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Round the corners of your sections.",
+          "selector": "section",
+          "property": "border-top-left-radius",
+          "value": "12px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Add space around the outside of your sections.",
+          "selector": "section",
+          "property": "margin-top",
+          "value": "20px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your sections don't have a solid line around them yet.",
+          "selector": "section",
+          "property": "border-top-style",
+          "value": "solid"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The line around your sections should be pink (#f4a6b8).",
+          "selector": "section",
+          "property": "border-top-color",
+          "value": "rgb(244, 166, 184)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Add space inside your sections.",
+          "selector": "section",
+          "property": "padding-top",
+          "value": "20px"
+        }
+      ],
+      "hints": [
+        "Make each section a white card with space around it, space inside it, a pink edge and round corners.",
+        "Write section { … } with background white, margin 20px, padding 20px, border 2px solid #f4a6b8 and border-radius 12px.",
+        "section {\n  background: …;\n  margin: …;\n  padding: …;\n  border: 2px solid …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "Borders and round corners",
+        "explain": "border draws a line around a box, and border-radius makes its corners round.",
+        "links": [
+          {
+            "title": "MDN: border",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border"
+          },
+          {
+            "title": "MDN: border-radius",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius"
+          }
+        ]
+      }
+    },
+    {
+      "id": "h2-style",
+      "chapter": "boxes",
+      "title": "Colour the headings",
+      "instruction": "Below the section rule, add a rule for h2 with color: #c0506b; (a raspberry pink).",
+      "why": "Coloured headings make each card's title stand out.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 25
+      },
+      "expected": "h2 {\n  color: #c0506b;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your section headings aren't raspberry pink yet.",
+          "selector": "h2",
+          "property": "color",
+          "value": "rgb(192, 80, 107)"
+        }
+      ],
+      "hints": [
+        "Give the titles of your cards their own colour.",
+        "Write a rule for h2 with color set to #c0506b.",
+        "h2 {\n  …: …;\n}"
+      ]
+    },
+    {
+      "id": "footer-style",
+      "chapter": "boxes",
+      "title": "Tidy the footer",
+      "instruction": "Below the h2 rule, add a rule for footer with text-align: center; and padding: 10px;",
+      "why": "A centred footer with some space finishes the page neatly.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 29
+      },
+      "expected": "footer {\n  text-align: center;\n  padding: 10px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The words in your footer aren't in the middle yet.",
+          "selector": "footer",
+          "property": "text-align",
+          "value": "center"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Give your footer a little space inside.",
+          "selector": "footer",
+          "property": "padding-top",
+          "value": "10px"
+        }
+      ],
+      "hints": [
+        "Centre the bottom line just like you did the header, with a bit less space.",
+        "Write a rule for footer with text-align center and padding 10px.",
+        "footer {\n  text-align: …;\n  …\n}"
+      ]
+    },
+    {
+      "id": "see-final",
+      "chapter": "boxes",
+      "title": "Admire your bakery website",
+      "instruction": "Refresh index.html in your browser. You should see a pink header, white cards with round corners and raspberry headings. Click Contact to check that page is styled too.",
+      "why": "One style file dresses up both pages at once.",
+      "who": "watch",
+      "file": "style.css",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Go back to the browser tab with your page.",
+        "Press the refresh button or F5.",
+        "If nothing changed, check both pages link to style.css."
+      ],
+      "quiz": {
+        "question": "What does padding do?",
+        "options": [
+          "Adds space outside a box",
+          "Adds space inside a box around its words",
+          "Changes the font",
+          "Makes a link"
+        ],
+        "answer": 1,
+        "explain": "Padding is the space inside the box; margin is the space outside it."
+      }
+    }
+  ],
+  "createdAt": "2026-10-29T06:49:28.524Z",
+  "version": 1
+}

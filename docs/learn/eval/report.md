@@ -1,6 +1,6 @@
 # Stride Learn: lesson quality test (C2)
 
-Ran 2026-10-29T06:38:14.579Z with `npm run learn:eval`. The raw results are in `report.json` next to this file.
+Ran 2026-10-29T07:06:34.147Z with `npm run learn:eval`. The raw results are in `report.json` next to this file.
 
 **Claude:** working: a key is set
 
@@ -9,13 +9,13 @@ Ran 2026-10-29T06:38:14.579Z with `npm run learn:eval`. The raw results are in `
 | Lesson | Source | Status | Automatic grade | Opus scores (1-5) | Estimate | Build cost |
 |---|---|---|---|---|---|---|
 | about-me fixture (hand-written) | fixture | graded | 9/9 pass | wording 3 · step size 3 · order 3 · hints 3 · fidelity 4 | 24 min · 28 lines · 6 steps | — |
-| a page about me | built | graded | 8/9 pass | wording 3 · step size 3 · order 3 · hints 3 · fidelity 4 | 102 min · 116 lines · 20 steps | $0.36 |
-| a website for my small bakery | — | error: The answer was cut off at 20000 tokens. | — | — | — | $0.49 |
+| a page about me | built | graded | 8/9 pass | wording 4 · step size 4 · order 3 · hints 2 · fidelity 4 | 68 min · 65 lines · 17 steps | $0.51 |
+| a website for my small bakery | built | graded | 7/9 pass | wording 4 · step size 4 · order 4 · hints 4 · fidelity 5 | 79 min · 91 lines · 22 steps | $0.46 |
 | make me Instagram | built | graded: The full Instagram needs accounts, servers and a database to store everyone's posts, which is a lot for a first project. How about a profile page with a grid of photos, like an Instagram profile? | 1/1 pass | n/a | — | $0.0000 |
-| a page like this picture | built | graded | 9/9 pass | wording 3 · step size 3 · order 4 · hints 3 · fidelity 4 | 113 min · 139 lines · 24 steps | $0.44 |
-| Create Your First HTML/CSS Project | built | graded | 7/9 pass | wording 3 · step size 3 · order 2 · hints 3 · fidelity 3 | 61 min · 58 lines · 17 steps | $0.29 |
-| HTML Tutorial for Beginners | — | error: The answer was cut off at 16000 tokens. | — | — | — | $0.37 |
-| How to Code Your First Website | — | error: The lesson breaks Stride's step rules. | — | — | — | $0.20 |
+| a page like this picture | built | graded | 8/9 pass | wording 4 · step size 4 · order 4 · hints 3 · fidelity 5 | 100 min · 104 lines · 24 steps | $0.47 |
+| Create Your First HTML/CSS Project | — | error: The lesson breaks Stride's step rules. (Step bold needs a video part (start and end in seconds).) | — | — | — | $0.94 |
+| HTML Tutorial for Beginners | — | error: The answer was cut off at 32000 tokens. | — | — | — | $0.69 |
+| How to Code Your First Website | — | error: The lesson breaks Stride's step rules. (Step words needs a video part (start and end in seconds).) | — | — | — | $0.30 |
 
 ### about-me fixture (hand-written) (fixture)
 
@@ -40,21 +40,46 @@ Opus review: wording 3 · step size 3 · order 3 · hints 3 · fidelity 4. The c
 
 - ✅ Valid lesson
 - ✅ Every check passes on the finished project; the first fails on an empty one
-- ❌ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
-  - index.html: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file).
+- ✅ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
 - ✅ Every 🧑 step adds 3-10 lines
 - ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
 - ✅ Estimate matches the steps and is in a sensible range
 - ✅ Each concept: one plain sentence, no jargon, with a link
-- ✅ Hints get stronger, and hint 3 isn't the whole answer
+- ❌ Hints get stronger, and hint 3 isn't the whole answer
+  - Step skeleton: hint 3 isn't the strongest (shows 0% → 100% → 84% of the answer's code).
+  - Step head: hint 3 isn't the strongest (shows 6% → 100% → 81% of the answer's code).
+  - Step section: hint 3 isn't the strongest (shows 0% → 94% → 76% of the answer's code).
 - ➖ Video steps link to a real part of the video — Not a video lesson.
 
-Opus review: wording 3 · step size 3 · order 3 · hints 3 · fidelity 4. The lesson builds steadily from bare HTML to styling to interactivity, with well-placed 'look at it' checkpoints and friendly personal content that matches what the student asked for. But the JavaScript jumps badly at 'faces' (many new ideas at once, arrays used before they're taught), CSS terms like flex, vh and line-height are never explained, and the face-switching extra plus the emoji standing in for a real photo drift slightly from the request.
-  - faces: Far too big for one step: arrays, let, if, functions, addEventListener, .length and textContent all at once, with code split between two places in the file.
-  - faces: Uses an array before the idea is explained; the 'Lists in code' concept only comes later, in facts-list.
-  - head-info: Four new tags with unexplained jargon ('letter set (UTF-8)', viewport, rel=stylesheet). Hint 2 names the tags but never shows the attributes a beginner can't guess.
-  - card: Brings in main, div, h1, p, class and id together. Words like 'main part' and 'box' don't tell a beginner which tag to type.
-  - skeleton: Hint 3 is basically the full answer, missing only </body>, so there's nothing left to work out.
+Opus review: wording 4 · step size 4 · order 3 · hints 2 · fidelity 4. The lesson matches the request closely (name, likes, photo spot), with clear plain-language explanations and small, even steps. Its biggest weakness is hints that get weaker instead of stronger, with hint 2 giving the full answer and hint 3 a vaguer skeleton, plus an odd build order and no chance to see the CSS changes along the way.
+  - head: Hint 2 gives the exact full code, and hint 3 is a blanked skeleton that reveals less. The hints get weaker, not stronger, and this happens in nearly every step.
+  - list-style: text-align: left on ul does nothing visible yet, because centering only arrives later in body-more. The learner adds a fix for a problem they have never seen.
+  - footer: The footer is built before the header, so the learner signs the bottom of an empty page and then has to insert content above it.
+  - section-card: Several CSS steps (section-card, photo-style) say to insert rules between existing ones instead of adding to the end. That jumping around is confusing for a first-timer.
+  - body-style: There is no look/refresh step during the 9 CSS steps, so the learner never sees each style change take effect. Jargon like 'sans-serif' and the '#fdf3e7' code also goes unexplained when first used.
+
+### a website for my small bakery (built)
+
+- ✅ Valid lesson
+- ✅ Every check passes on the finished project; the first fails on an empty one
+- ✅ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
+- ❌ Every 🧑 step adds 3-10 lines
+  - Step body-more adds 2 lines.
+- ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
+- ✅ Estimate matches the steps and is in a sensible range
+- ✅ Each concept: one plain sentence, no jargon, with a link
+- ❌ Hints get stronger, and hint 3 isn't the whole answer
+  - Step skeleton: hint 3 isn't the strongest (shows 0% → 100% → 64% of the answer's code).
+  - Step head-info: hint 3 isn't the strongest (shows 3% → 91% → 78% of the answer's code).
+  - Step cakes-title: hint 3 isn't the strongest (shows 6% → 94% → 81% of the answer's code).
+- ➖ Video steps link to a real part of the video — Not a video lesson.
+
+Opus review: wording 4 · step size 4 · order 4 · hints 4 · fidelity 5. It follows the student's request closely (cakes with prices, hours, address and a contact page) and steadily builds a real two-page site with satisfying browser checkpoints. Its weakest spots are a few overloaded early steps (head-info, header) with unexplained jargon, and the odd footer-before-header order.
+  - head-info: Three new tags and jargon (charset, utf-8, rel, href) arrive in one step with no plain explanation of what href or rel mean.
+  - header: Too many new ideas at once: header, h1, the a tag, href and links nested inside a paragraph, plus a link to contact.html, a page that doesn't exist yet.
+  - footer: Building the footer before the header is backwards. The learner then has to insert code above existing code, which is confusing for a first-timer.
+  - body-style: Hex colour codes like #fff5e6 and the word serif are used without saying what they are, though the step briefly mentions 'a warm cream'.
+  - contact-skel: An 11-line step whose third hint is almost the full answer. Copying could be suggested, but the hint ladder adds little.
 
 ### make me Instagram (built)
 
@@ -69,36 +94,22 @@ Opus review: wording 3 · step size 3 · order 3 · hints 3 · fidelity 4. The l
 - ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
 - ✅ Estimate matches the steps and is in a sensible range
 - ✅ Each concept: one plain sentence, no jargon, with a link
-- ✅ Hints get stronger, and hint 3 isn't the whole answer
+- ❌ Hints get stronger, and hint 3 isn't the whole answer
+  - Step skeleton: hint 3 isn't the strongest (shows 0% → 100% → 64% of the answer's code).
+  - Step head-info: hint 3 isn't the strongest (shows 3% → 100% → 81% of the answer's code).
+  - Step header: hint 3 isn't the strongest (shows 6% → 100% → 81% of the answer's code).
 - ➖ Video steps link to a real part of the video — Not a video lesson.
 
-Opus review: wording 3 · step size 3 · order 4 · hints 3 · fidelity 4. x
-  - click-card: Packs a variable, querySelectorAll, forEach, a function, addEventListener and classList into one step, but the only concept note covers clicks; none of the others is explained to a first-time coder.
-
-### Create Your First HTML/CSS Project (built)
-
-- ✅ Valid lesson
-- ✅ Every check passes on the finished project; the first fails on an empty one
-- ❌ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
-  - resources/css/index.css: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file).
-- ✅ Every 🧑 step adds 3-10 lines
-- ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
-- ❌ Estimate matches the steps and is in a sensible range
-  - 61 min with no smaller version offered first.
-- ✅ Each concept: one plain sentence, no jargon, with a link
-- ✅ Hints get stronger, and hint 3 isn't the whole answer
-- ✅ Video steps link to a real part of the video
-
-Opus review: wording 3 · step size 3 · order 2 · hints 3 · fidelity 3. The lesson follows the video's project closely, with friendly 'why' lines and a clear split between watching and typing. Its biggest weakness is front-loading the link tag and the class/id names into the HTML steps, which breaks the video's order and asks beginners to type things before they mean anything.
-  - skeleton: The stylesheet link is typed before any CSS exists or is explained, while the video adds it at 724s. The later 'link-check' watch step then shows typing that the learner has already done.
-  - banner: The learner types class="banner", id="small-gritty" and the full relative image path here. These come before the 'paths' step explains paths and before any styling gives classes and ids a purpose; the video adds them later, at 525s, 644s and 778s.
-  - gritter: This one step introduces a span, an id, a class, a form and two kinds of input across 9 lines. It is too many new ideas at once, and class="bold" means nothing until the 'bold' step.
-  - posts: The nested <div><div><span> is never explained, and the third hint gives that exact structure, leaving only the sentence to fill in.
-  - meta: It shares the 332-498 video clip with 'skeleton', where the video auto-generates the boilerplate, and it asks a beginner to type X-UA-Compatible/ie=edge with no meaningful explanation.
+Opus review: wording 4 · step size 4 · order 4 · hints 3 · fidelity 5. The lesson matches the picture very closely, building every section with sensible, well-explained HTML and CSS in a clear order. Its weakest point is the hints: hint 2 usually dictates the full answer while hint 3 is a vaguer template, so they get weaker instead of stronger, and a few terms (hex colours, px, two-value padding) are never or only belatedly explained.
+  - card-title: Hint 2 ('Write .card h3 { } with color #3d3030') is the entire answer, so hint 3's blanked template is weaker than hint 2. This backwards order repeats in nav-hover, banner-title, footer-css and most CSS steps.
+  - banner-css: Hint 3 starts with '….banner', which wrongly suggests something must be typed before the dot.
+  - header-css: Uses 'px' and the two-value 'padding: 10px 30px' without explaining either. px is only explained later, in banner-title.
+  - body-css: Hex colours like #f9f6f1 are used throughout but never explained, and 'sans-serif' is left unexplained.
+  - skeleton: The first step packs in DOCTYPE, html, head and body (seven lines and four new tags) for someone who has never coded.
 
 ## Findings
 
-- GOAL C3 (build under $0.50): 3 real build(s), most expensive $0.44 — passes.
+- GOAL C3 (build under $0.50): 3 real build(s), most expensive $0.51 — FAILS.
 - GOAL C3 (hint under $0.01): 3 real Haiku check call(s), average $0.0002, most expensive $0.0002 — passes. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; only a check the code can't decide calls Haiku.
 - Reading one 19-24 minute video with Gemini (low resolution) cost $0.22-$0.29 (average $0.25, upper-bound price). That is part of a video lesson's build, so it leaves about $0.25 of the $0.50 budget for the Opus steps call (projection, not measured).
 - The 3 videos were picked as beginner HTML/CSS step-by-step builds; youtube.com is blocked here, so view counts and captions couldn't be checked. Gemini read two titles differently from the ones noted when picking them ("HTML Tutorial for Beginners - Full Course", "How to Code Your FIRST Website (in 10 minutes)"); the report shows what Gemini read.
@@ -116,19 +127,25 @@ Gemini total for these notes: $0.74 (low media resolution). Gemini priced at $1.
 
 ## Spend
 
-This run: $2.35. All eval runs so far (cost.json): $3.09. Hard cap: $8.00.
+This run: $3.52. All eval runs so far (cost.json): $6.61. Hard cap: $8.00.
 
 ## Hint-time checks (Haiku, real calls)
 
 | Lesson | Step | Haiku said | Tokens in / out | Cost |
 |---|---|---|---|---|
-| a page about me | skeleton | yes: Your index.html starts with the web page line, wraps everything in the html part, and has the head and body parts in place, so the basic frame is there. | 1865 / 59 | $0.0002 |
-| a page like this picture | skeleton | yes: Your page starts with the doctype line, the html tag, and a head that has the character set, screen-size line, the My Site title, and the link to style.css, and the head and html are both closed properly. | 1966 / 74 | $0.0002 |
-| Create Your First HTML/CSS Project | skeleton | no: Your page skeleton looks great, but the body isn't empty yet. The step asked for an empty body, and yours already has the banner and gritter sections filled in, which is coming in a later step. | 1320 / 74 | $0.0002 |
+| a page about me | skeleton | yes: Your page has the starting line, the outer wrapper, and both the head and body sections, all properly closed. The extra content inside is fine for this step. | 1272 / 61 | $0.0002 |
+| a website for my small bakery | skeleton | yes: Your index.html starts with the <!DOCTYPE html> line, then an html part that holds a head part and a body part, which is exactly the basic page start this step asks for. | 1612 / 69 | $0.0002 |
+| a page like this picture | skeleton | yes: Your index.html starts with the DOCTYPE line, wraps everything in html tags, and has a head part and a body part each with its own closing tag, so this step is done. | 1559 / 68 | $0.0002 |
 
 ## Prompt changes
 
-Before/after: this is the first run with these prompts; the next run compares against it (`--before`).
+Before = the run of 2026-10-29T06:38:14.579Z; after = this run. Opus scores are wording · step size · order · hints · fidelity (1-5), then their average.
+
+| Lesson | Automatic grade before → after | Opus scores before | Opus scores after | Average before → after | Build cost before → after |
+|---|---|---|---|---|---|
+| about-me fixture (hand-written) | 9/9 → 9/9 | 3 · 3 · 3 · 3 · 4 | 3 · 3 · 3 · 3 · 4 | 3.2 → 3.2 | — → — |
+| a page about me | 8/9 → 8/9 | 3 · 3 · 3 · 3 · 4 | 4 · 4 · 3 · 2 · 4 | 3.2 → 3.4 | $0.36 → $0.51 |
+| a page like this picture | 9/9 → 8/9 | 3 · 3 · 4 · 3 · 4 | 4 · 4 · 4 · 3 · 5 | 3.4 → 4.0 | $0.44 → $0.47 |
 
 | Where | Change | Why |
 |---|---|---|
