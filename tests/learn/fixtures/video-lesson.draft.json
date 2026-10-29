@@ -1,0 +1,177 @@
+{
+  "title": "Your first web page",
+  "summary": "Follow the video to build a small page about yourself, then colour the heading.",
+  "outcome": "A personal web page with a purple heading.",
+  "learns": [
+    "the parts of an HTML page",
+    "headings, paragraphs and lists",
+    "linking a CSS file"
+  ],
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n    <link rel=\"stylesheet\" href=\"style.css\">\n  </head>\n  <body>\n    <h1>Hello, I'm Alex</h1>\n    <p>I like making things.</p>\n    <ul>\n      <li>Music</li>\n      <li>Football</li>\n    </ul>\n  </body>\n</html>\n"
+    },
+    {
+      "path": "style.css",
+      "content": "h1 {\n  color: purple;\n}\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "html",
+      "title": "The HTML page"
+    },
+    {
+      "id": "style",
+      "title": "Adding style"
+    }
+  ],
+  "steps": [
+    {
+      "id": "intro",
+      "chapter": "html",
+      "title": "See what you'll make",
+      "instruction": "See what you'll make.",
+      "why": "It builds up your page bit by bit.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Look at the video part again.",
+        "Check the spot in your file.",
+        "Start with the first tag."
+      ],
+      "video": {
+        "start": 0,
+        "end": 35
+      }
+    },
+    {
+      "id": "skeleton",
+      "chapter": "html",
+      "title": "Type the page skeleton",
+      "instruction": "Type the page skeleton.",
+      "why": "It builds up your page bit by bit.",
+      "who": "learner",
+      "expected": "<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n  </head>\n  <body>\n  </body>\n</html>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "selector": "title"
+        },
+        {
+          "type": "parses",
+          "file": "index.html"
+        }
+      ],
+      "hints": [
+        "Look at the video part again.",
+        "Check the spot in your file.",
+        "Start with the first tag."
+      ],
+      "video": {
+        "start": 35,
+        "end": 120
+      },
+      "file": "index.html",
+      "concept": {
+        "title": "HTML page",
+        "explain": "Every page has a head with settings and a body with what you see.",
+        "links": [
+          {
+            "title": "MDN: HTML basics",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/HTML_basics"
+          }
+        ]
+      }
+    },
+    {
+      "id": "content",
+      "chapter": "html",
+      "title": "Add a heading, a paragraph and a list",
+      "instruction": "Add a heading, a paragraph and a list.",
+      "why": "It builds up your page bit by bit.",
+      "who": "learner",
+      "expected": "<h1>Hello, I'm Alex</h1>\n<p>I like making things.</p>\n<ul>\n  <li>Music</li>\n  <li>Football</li>\n</ul>",
+      "checks": [
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "selector": "h1",
+          "text": "hello"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "selector": "ul li",
+          "count": 2
+        }
+      ],
+      "hints": [
+        "Put it inside body.",
+        "Start with an h1 tag."
+      ],
+      "video": {
+        "start": 120,
+        "end": 245
+      },
+      "file": "index.html"
+    },
+    {
+      "id": "link-css",
+      "chapter": "style",
+      "title": "Link your CSS file",
+      "instruction": "Link your CSS file.",
+      "why": "It builds up your page bit by bit.",
+      "who": "learner",
+      "expected": "<link rel=\"stylesheet\" href=\"style.css\">",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "selector": "link[href='nope.css']"
+        }
+      ],
+      "hints": [
+        "Look at the video part again.",
+        "Check the spot in your file.",
+        "Start with the first tag."
+      ],
+      "video": {
+        "start": 245,
+        "end": 330
+      },
+      "file": "index.html"
+    },
+    {
+      "id": "colour",
+      "chapter": "style",
+      "title": "Colour the heading",
+      "instruction": "Colour the heading.",
+      "why": "It builds up your page bit by bit.",
+      "who": "learner",
+      "expected": "h1 {\n  color: purple;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "selector": "h1",
+          "property": "color",
+          "value": "rgb(128, 0, 128)"
+        }
+      ],
+      "hints": [
+        "Look at the video part again.",
+        "Check the spot in your file.",
+        "Start with the first tag."
+      ],
+      "video": {
+        "start": 330,
+        "end": 410
+      },
+      "file": "style.css"
+    }
+  ]
+}

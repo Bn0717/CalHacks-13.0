@@ -1,0 +1,33 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"title\": \"Build Your First Web Page in 10 Minutes\",\n  \"summary\": \"The presenter makes a simple personal page with a heading, a paragraph and a list, then colours the heading with CSS.\",\n  \"chapters\": [\n    {\n      \"title\": \"The HTML page\",\n      \"start\": 0,\n      \"end\": 245\n    },\n    {\n      \"title\": \"Adding style\",\n      \"start\": 245,\n      \"end\": 410\n    }\n  ],\n  \"segments\": [\n    {\n      \"start\": 0,\n      \"end\": 35,\n      \"chapter\": \"The HTML page\",\n      \"action\": \"Introduces the project and shows the finished page.\",\n      \"file\": \"\",\n      \"code\": \"\"\n    },\n    {\n      \"start\": 35,\n      \"end\": 120,\n      \"chapter\": \"The HTML page\",\n      \"action\": \"Creates index.html and types the basic page skeleton.\",\n      \"file\": \"index.html\",\n      \"code\": \"<!DOCTYPE html>\\n<html>\\n  <head>\\n    <title>My Page</title>\\n  </head>\\n  <body>\\n  </body>\\n</html>\"\n    },\n    {\n      \"start\": 120,\n      \"end\": 245,\n      \"chapter\": \"The HTML page\",\n      \"action\": \"Adds a big heading, a paragraph and a list of hobbies inside body.\",\n      \"file\": \"index.html\",\n      \"code\": \"<h1>Hello, I'm Alex</h1>\\n<p>I like making things.</p>\\n<ul>\\n  <li>Music</li>\\n  <li>Football</li>\\n</ul>\"\n    },\n    {\n      \"start\": 245,\n      \"end\": 330,\n      \"chapter\": \"Adding style\",\n      \"action\": \"Creates style.css and links it from the head.\",\n      \"file\": \"index.html\",\n      \"code\": \"<link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\"\n    },\n    {\n      \"start\": 330,\n      \"end\": 410,\n      \"chapter\": \"Adding style\",\n      \"action\": \"Colours the heading purple.\",\n      \"file\": \"style.css\",\n      \"code\": \"h1 {\\n  color: purple;\\n}\"\n    }\n  ]\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 106210,
+    "candidatesTokenCount": 512,
+    "totalTokenCount": 106722,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 310
+      },
+      {
+        "modality": "VIDEO",
+        "tokenCount": 105900
+      }
+    ]
+  },
+  "modelVersion": "gemini-3.5-flash",
+  "responseId": "rec-0001"
+}
