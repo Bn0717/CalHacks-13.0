@@ -2,13 +2,13 @@
 
 Legend: ✅ passes (with evidence) · ❌ fails / not done · ⏳ Mac-only (needs the real app on a Mac) · 🔒 blocked (missing key / blocked site)
 
-_Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22), C2 (PR #23, without Claude) merged; round-1 UI fixes in progress._
+_Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). Key now works: real-AI runs in a fresh session. Review round 2 running._
 
 ## Blockers in this cloud environment
 
 - 🔒 Cloud environments reserve the name `ANTHROPIC_API_KEY`, so the key never reached this session. Fixed: the app now
   also reads `STRIDE_ANTHROPIC_API_KEY` (`src/ai/client.ts`, `tests/client-key-alias.test.ts`). The key was added under that
-  name, but a fresh session found the stored value is **not a valid Claude API key** (401 from api.anthropic.com both as
+  name. The first stored value was rejected; the user replaced it and a test call now returns 200. Earlier: the stored value was **not a valid Claude API key** (401 from api.anthropic.com both as
   `x-api-key` and as a bearer token; it doesn't start with `sk-ant-api`). Real-AI runs wait for a valid key.
 - ✅ `GEMINI_API_KEY` is set and Google's Gemini API is reachable.
 - Real Gemini video notes for the 3 eval videos cost ≈ $0.74 total (upper bound; `docs/learn/eval/report.md`).
@@ -22,7 +22,7 @@ _Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22), C2 (PR #23, without Clau
 | A2 | ✅ | `build-from-idea.test.ts › answers 'make me Instagram' with a small alternative…`; CLI offers "a profile page with a grid of photos". |
 | A3 | ✅ (terminal) | Transcript "⏱ About 22 minutes · you'll type about 25 lines · 6 steps". On screen at 200% the numbers were hidden → fixing (r1 #3). |
 | A4 | 🔒 | Now enforced in code (`src/learn/rules.ts`, `tests/learn/rules.test.ts`); still needs a real-AI lesson. |
-| A5 | ❌ | ✅ came 2.4–3.6 s after the last edit → fixing (r1 #5). |
+| A5 | ⏳ review | Fixed in PR #24: ✅ 1.50–1.68 s after the last write (`docs/learn/runs/about-me.md`); awaiting round 2. |
 | A6 | 🔒 | Half-typed → "Still typing?", hints 1→2 escalate; hint 3 ≠ whole answer enforced (`rules.test.ts`). Needs a real-AI lesson. |
 | A7 | 🔒 | Concept links required (`ConceptSchema.links.min(1)`); video timestamp link tested (`terminal.test`). Needs a real-AI lesson. |
 | A8 | ✅ | `session.test › q saves, and the next session opens the same step with the same hints`. |
@@ -53,6 +53,7 @@ _Last updated: 2026-10-29 — C1 (PR #21), C3 (PR #22), C2 (PR #23, without Clau
 
 ## Review log
 
-- **Round 1** (fresh reviewer, b185cc9): 5 ✅, 7 ❌, 6 🔒, 4 ⏳. Fixes in progress on `learn/r1-fixes` (screen ↔ session, 200% text, ✅ timing,
-  estimate, dark buddy, polish). `learn/c2-quality` merged (PR #23): plain checker messages (`check/words.ts`), AI rules in code
+- **Round 1** (fresh reviewer, b185cc9): 5 ✅, 7 ❌, 6 🔒, 4 ⏳. Fixes merged in PR #24 (screen ↔ session via `onView`, 200% text + in-view audit, ✅ 1.5 s,
+  estimate, dark buddy, polish, fixture now 8/8 on the grader). `learn/c2-quality` merged (PR #23): plain checker messages (`check/words.ts`), AI rules in code
   (`rules.ts`), real build stages (`stages.ts`), eval harness + grader (`docs/learn/eval/report.md`).
+- **Round 2** (fresh reviewer, after PR #24): running.
