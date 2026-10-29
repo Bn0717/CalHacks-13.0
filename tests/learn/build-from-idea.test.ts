@@ -173,7 +173,7 @@ describe("buildFromIdea", () => {
     const r = await buildFromIdea(aboutMe, deps({ ask: model.ask }));
     if (r.kind !== "lesson") throw new Error("expected a lesson");
     expect(r.lesson.estimate.minutes).toBe(90);
-    expect(r.lesson.simpler).toEqual({ title: simpler.title, why: simpler.why, estimate: { minutes: 30, linesToType: 50, steps: 2 } });
+    expect(r.lesson.simpler).toEqual({ title: simpler.title, why: simpler.why, estimate: { minutes: 30, linesToType: 50, steps: 2 }, stepIds: ["part-0", "part-1"] });
     expect(() => parseLesson(r.lesson)).not.toThrow();
   });
 

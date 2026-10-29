@@ -11,6 +11,16 @@ export function loadEnv(projectRoot = process.cwd()): void {
   loaded = true;
   const path = join(projectRoot, ".env");
   if (existsSync(path)) process.loadEnvFile(path);
+  useKeyAlias();
+}
+
+// Cloud environments keep the name ANTHROPIC_API_KEY for themselves, so the key can also be stored as
+// STRIDE_ANTHROPIC_API_KEY. If the usual name is empty, the other one is used.
+export const KEY_ALIAS = "STRIDE_ANTHROPIC_API_KEY";
+
+export function useKeyAlias(env: NodeJS.ProcessEnv = process.env): void {
+  const alias = env[KEY_ALIAS]?.trim();
+  if (!env.ANTHROPIC_API_KEY?.trim() && alias) env.ANTHROPIC_API_KEY = alias;
 }
 
 export const MODEL = () => process.env.CALHACK_MODEL || "claude-opus-5-5";

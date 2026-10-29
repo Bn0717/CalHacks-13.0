@@ -12,6 +12,7 @@
     "demo:pages": "tsx src/cli/serve-demo.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "learn": "tsx src/cli/learn.ts",
     "droid:check": "tsx src/cli/droid-check.ts",
     "eval": "tsx src/cli/eval.ts",
     "voice:setup": "node scripts/voice-setup.mjs",
