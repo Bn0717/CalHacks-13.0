@@ -188,6 +188,7 @@ function httpProblem(status: number, detail: string): string {
   if (status === 404) return "That Gemini model wasn't found. Check CALHACK_GEMINI_MODEL.";
   if (status === 429) return "Gemini is busy or the daily video limit is used up. Try again later.";
   if (status === 400) return "Gemini couldn't open this video. Make sure it's a public YouTube video.";
+  if (status === 500 || status === 503) return "Gemini is busy right now (503). Try again in a moment.";
   return `Gemini returned an error (${status}).`;
 }
 

@@ -1,9 +1,11 @@
 // The checker's messages are for a 14-year-old who has never coded: plain words, never raw CSS selectors or code jargon.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { reasons } from "../../src/learn/check/hint.js";
-import { checkStep } from "../../src/learn/check/index.js";
+import { checkStep, type Renderer } from "../../src/learn/check/index.js";
 import { describeSelector, JARGON, propertyWords, withArticle } from "../../src/learn/check/words.js";
-import type { Check, Step } from "../../src/learn/lesson.js";
+import { parseLesson, type Check, type Step } from "../../src/learn/lesson.js";
 
 const say = (selector: string) => withArticle(describeSelector(selector));
 
@@ -34,6 +36,38 @@ describe("selectors in words", () => {
     expect(propertyWords("color")).toBe("text colour");
     expect(propertyWords("margin-top")).toBe("space around the outside (margin) on the top");
     expect(propertyWords("zoom")).toBe("zoom setting");
+  });
+});
+
+describe("the about-me lesson's wrong tries", () => {
+  const lesson = parseLesson(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures/about-me.lesson.json"), "utf8")));
+  // A fake browser that never finds the style, so CSS checks fail with a message too.
+  const renderer: Renderer = { render: async (r) => ({ answers: r.probes.map(() => ({ values: [] })), consoleErrors: [] }), close: async () => {} };
+
+  it("never show code jargon or a raw selector, whatever the student typed", async () => {
+    const tries = (expected: string) => ["", expected.slice(0, Math.floor(expected.length / 2)), expected.replace(/<\/\w+>/, ""), "<p>hello</p>"];
+    const messages: string[] = [];
+    for (const step of lesson.steps.filter((s) => s.who === "learner")) {
+      const others = lesson.files.filter((f) => f.path !== step.file);
+      for (const typed of tries(step.expected)) {
+        const files = [...others, { path: step.file!, content: typed }];
+        const r = await checkStep(step, typed === "" ? others : files, { renderer });
+        if (r.status === "pass") continue;
+        messages.push(r.message);
+        expect(r.message, r.message).not.toMatch(JARGON);
+        for (const c of step.checks) if ("selector" in c && c.selector.includes(" ")) expect(r.message).not.toContain(c.selector);
+      }
+    }
+    expect(messages.length).toBeGreaterThan(10);
+  });
+
+  it("uses a check's own plain words when it has them, but not when they hold code words", async () => {
+    const step = lesson.steps.find((s) => s.id === "intro")!;
+    const page = { path: "index.html", content: "<html><body></body></html>" };
+    const plain = { ...step, checks: [{ type: "selectorExists" as const, selector: "body h1", say: "I can't see your name as a big heading yet." }] };
+    expect((await checkStep(plain, [page])).message).toBe("I can't see your name as a big heading yet.");
+    const jargon = { ...step, checks: [{ type: "selectorExists" as const, selector: "body h1", say: "The selector body h1 matches no element." }] };
+    expect((await checkStep(jargon, [page])).message).toBe("I can't see a big heading (<h1>) inside the page yet.");
   });
 });
 

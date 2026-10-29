@@ -15,13 +15,18 @@ export const ESTIMATE = {
 // ---------- Checks: how Stride knows a step is done. Always about behaviour, never exact text. ----------
 
 const checkFile = z.string().optional().describe("Which project file to check, e.g. 'index.html'. Leave out to use the step's file.");
+// Optional: what Stride tells the student while this check isn't met yet. Without it, the checker words one itself.
+const checkSay = z
+  .string()
+  .optional()
+  .describe("What to tell the student while this isn't done yet, in plain words for someone who never coded, e.g. \"I can't see your big heading yet.\" No code words.");
 
 export const CheckSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("parses"), file: checkFile }).describe("The file parses as HTML, CSS or JS (picked from its extension)."),
+  z.object({ type: z.literal("parses"), file: checkFile, say: checkSay }).describe("The file parses as HTML, CSS or JS (picked from its extension)."),
   z
     .object({
       type: z.literal("selectorExists"),
-      file: checkFile,
+      file: checkFile, say: checkSay,
       selector: z.string().min(1).describe("A CSS selector, e.g. 'header h1'"),
       count: z.number().int().min(0).optional().describe("Exact number of matches. Leave out for 'at least one'."),
     })
@@ -29,7 +34,7 @@ export const CheckSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("textIncludes"),
-      file: checkFile,
+      file: checkFile, say: checkSay,
       selector: z.string().min(1),
       text: z.string().min(1).describe("Text the element must contain (case doesn't matter)."),
     })
@@ -37,7 +42,7 @@ export const CheckSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("attribute"),
-      file: checkFile,
+      file: checkFile, say: checkSay,
       selector: z.string().min(1),
       name: z.string().min(1).describe("Attribute name, e.g. 'alt'"),
       value: z.string().optional().describe("Exact value. Leave out for 'has the attribute'."),
@@ -46,15 +51,15 @@ export const CheckSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("cssProperty"),
-      file: checkFile,
+      file: checkFile, say: checkSay,
       selector: z.string().min(1),
       property: z.string().min(1).describe("CSS property, e.g. 'background-color'"),
       value: z.string().optional().describe("Expected computed value, e.g. 'rgb(255, 0, 0)'. Leave out for 'is set'."),
     })
     .describe("The element's computed style has this property (checked in a rendered page)."),
-  z.object({ type: z.literal("fileExists"), file: z.string().min(1) }).describe("The file exists in the project."),
+  z.object({ type: z.literal("fileExists"), file: z.string().min(1), say: checkSay }).describe("The file exists in the project."),
   z
-    .object({ type: z.literal("ai"), file: checkFile, question: z.string().min(1).describe("A yes/no question about the student's code.") })
+    .object({ type: z.literal("ai"), file: checkFile, say: checkSay, question: z.string().min(1).describe("A yes/no question about the student's code.") })
     .describe("Last resort, answered by a fast model. Use only when no other check can decide."),
 ]);
 
@@ -66,7 +71,7 @@ export type CheckType = Check["type"];
 export const ConceptSchema = z.object({
   title: z.string().min(1),
   explain: z.string().min(1).describe("A short plain-English explanation for a beginner."),
-  links: z.array(z.object({ title: z.string().min(1), url: z.url() })).describe("Good reading, e.g. an MDN page."),
+  links: z.array(z.object({ title: z.string().min(1), url: z.url() })).min(1).describe("Good reading, e.g. an MDN page. At least one."),
   imageQuery: z.string().optional().describe("A search for a simple diagram."),
   videoQuery: z.string().optional().describe("A search for a short explainer video."),
 });

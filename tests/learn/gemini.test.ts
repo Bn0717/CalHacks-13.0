@@ -46,6 +46,29 @@ describe("readVideo", () => {
     expect(body.generationConfig.responseJsonSchema.properties.segments).toBeDefined();
   });
 
+  it("asks for low media resolution by default, and reports token counts and the raw reply", async () => {
+    const withUsage = JSON.stringify({
+      ...JSON.parse(recorded),
+      usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 200, thoughtsTokenCount: 50 },
+      modelVersion: "gemini-x-flash",
+    });
+    const { fetch, calls } = fakeFetch(withUsage);
+    const usage: unknown[] = [];
+    const raws: unknown[] = [];
+    await readVideo(VIDEO, { fetch, env: { GEMINI_API_KEY: "k" }, onUsage: (u) => usage.push(u), onRaw: (r) => raws.push(r) });
+    expect(JSON.parse(String(calls[0]!.init.body)).generationConfig.mediaResolution).toBe("MEDIA_RESOLUTION_LOW");
+    expect(usage).toEqual([{ model: "gemini-x-flash", inputTokens: 1000, outputTokens: 200, thoughtsTokens: 50 }]);
+    expect(raws[0]).toMatchObject({ modelVersion: "gemini-x-flash" });
+
+    const high = fakeFetch(recorded);
+    await readVideo(VIDEO, { fetch: high.fetch, env: { GEMINI_API_KEY: "k", CALHACK_GEMINI_MEDIA_RESOLUTION: "high" } });
+    expect(JSON.parse(String(high.calls[0]!.init.body)).generationConfig.mediaResolution).toBe("MEDIA_RESOLUTION_HIGH");
+  });
+
+  it("says Gemini is busy on a 503", async () => {
+    await expect(readVideo(VIDEO, { fetch: fakeFetch("{}", 503).fetch, env: { GEMINI_API_KEY: "k" } })).rejects.toThrow(/busy/);
+  });
+
   it("uses CALHACK_GEMINI_MODEL when set", async () => {
     const { fetch, calls } = fakeFetch(recorded);
     await readVideo(VIDEO, { fetch, env: { GEMINI_API_KEY: "k", CALHACK_GEMINI_MODEL: "gemini-test" } });
