@@ -32,7 +32,7 @@ const aboutMe = { request: "a page about me", answers: [] };
 
 describe("rule tests", () => {
   it("spot a hint 3 that gives the whole answer, ignoring spacing and case", () => {
-    expect(hintGivesAway("<h1>Hi, I'm Sam</h1>\n<P>I'm learning to make websites.</P>", intro.expected)).toBe(true);
+    expect(hintGivesAway("<h1>Hi, I'm Sam</h1>\n<P>I'm learning to make websites.</P>\n<p>This page is  all about me.</p>", intro.expected)).toBe(true);
     expect(hintGivesAway(intro.hints[2], intro.expected)).toBe(false);
     expect(hintGivesAway("<br>", "<br>")).toBe(false); // too small to give away
   });

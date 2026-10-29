@@ -20,7 +20,7 @@
   let actionsNow = []; // every button with a key, for shortcuts
 
   function freshLocal() {
-    return { picked: null, fixing: false, correction: "", hintOfferDismissed: false };
+    return { picked: null, fixing: false, correction: "", hintOfferDismissed: false, recapOpen: false };
   }
 
   const send = (channel, data) => {
@@ -91,7 +91,7 @@
   // Shows <tags> and `code` inside a sentence in a code font, as text.
   function rich(text) {
     const frag = document.createDocumentFragment();
-    const parts = String(text).split(/(<\/?[a-zA-Z!][^<>]*>|`[^`]+`)/g);
+    const parts = M.explainTerms(String(text)).split(/(<\/?[a-zA-Z!][^<>]*>|`[^`]+`)/g);
     for (const part of parts) {
       if (!part) continue;
       if (/^<\/?[a-zA-Z!][^<>]*>$/.test(part)) frag.append(el("code", { class: "inline" }, part));
@@ -153,8 +153,10 @@
   const eyebrow = el("p", { class: "leyebrow", id: "l-eyebrow" });
   const title = el("h1", { class: "ltitle", id: "l-title", tabindex: "-1" });
   const tools = el("div", { class: "ltools" });
-  const head = el("header", { class: "lhead" }, buddyBox, el("div", { class: "lhead-text" }, eyebrow, title), tools);
-  const body = el("div", { class: "lbody", id: "l-body" });
+  // The badge and the header buttons share the top row, so the step title gets the whole width under them.
+  const head = el("header", { class: "lhead" }, buddyBox, el("div", { class: "lhead-top" }, eyebrow, tools), title);
+  // The text part scrolls at big text sizes; it's a stop for Tab then, so keyboard users can scroll it too.
+  const body = el("div", { class: "lbody", id: "l-body", role: "region", "aria-label": "Lesson text" });
   const actions = el("div", { class: "lactions", id: "l-actions" });
   const live = el("div", { class: "sr-only", "aria-live": "polite", "aria-atomic": "true", id: "l-live" });
   const alertLive = el("div", { class: "sr-only", role: "alert", id: "l-alert" });
@@ -245,7 +247,7 @@
     return el(
       "div",
       { class: "lhint" + (latest ? " is-latest" : "") },
-      el("p", { class: "lhint-label" }, icon("bulb", "xs"), "Hint " + n + " of 3", n === 3 ? el("span", { class: "lhint-sub" }, " · part of the code") : null),
+      el("p", { class: "lhint-label" }, icon("bulb", "xs"), el("span", { class: "nowrap" }, "Hint " + n + " of 3"), n === 3 ? el("span", { class: "lhint-sub nowrap" }, "· part of the code") : null),
       code ? el("pre", { class: "lcode" }, text) : el("p", { class: "lhint-text" }, rich(text)),
       n === 3 && code ? el("p", { class: "lhint-text small" }, "Fill in the dots with your own words.") : null,
     );
@@ -259,20 +261,21 @@
   // Each returns { eyebrow, title, body: [nodes], actions: [specs], tools: [specs], strip, more: [nodes] | null, tone }.
 
   function screenBuilding(v) {
-    const doneCount = v.stages.filter((s) => s.status === "done").length;
-    const runningIndex = v.stages.findIndex((s) => s.status === "running");
-    const partNo = runningIndex >= 0 ? runningIndex + 1 : Math.min(doneCount + 1, v.stages.length);
+    const stages = M.buildingStages(v); // the real stages: sent ticked, or as labels plus the one running now
+    const doneCount = stages.filter((s) => s.status === "done").length;
+    const runningIndex = stages.findIndex((s) => s.status === "running");
+    const partNo = runningIndex >= 0 ? runningIndex + 1 : Math.min(doneCount + 1, stages.length);
     return {
-      eyebrow: "Building your lesson · part " + partNo + " of " + v.stages.length,
+      eyebrow: "Building your lesson · part " + partNo + " of " + stages.length,
       title: v.what,
       body: [
         el("p", { class: "lead" }, "I'm making the whole thing first, so every step works when you get to it."),
         el(
           "ol",
           { class: "lticks", "aria-label": "What I'm doing" },
-          v.stages.map((s) => el("li", { class: "ltick " + s.status }, mark(s.status), el("span", { class: "ltick-label" }, s.label, el("span", { class: "sr-only" }, ". " + statusWord[s.status])))),
+          stages.map((s) => el("li", { class: "ltick " + s.status }, mark(s.status), el("span", { class: "ltick-label" }, rich(s.label), el("span", { class: "sr-only" }, ". " + statusWord[s.status])))),
         ),
-        el("p", { class: "muted small" }, icon("clock", "xs"), v.note || "This usually takes under a minute. You can leave this open."),
+        el("p", { class: "muted small" }, icon("clock", "xs"), v.note || (v.time ? "It's " + v.time + ". You can leave this open." : "You can leave this open.")),
       ],
       actions: [{ id: "stop", label: "Stop", channel: "lesson-close", kind: "quiet" }],
     };
@@ -359,23 +362,29 @@
     );
   }
 
+  function learnsList(heading, list) {
+    if (!list || !list.length) return null;
+    return el("div", { class: "llearns" }, el("h2", { class: "lsec-title" }, heading), el("ul", { class: "lchips" }, list.map((l) => el("li", {}, l))));
+  }
+
+  // The time, lines and steps come first: they're what the student needs to decide, and stay on screen at big text sizes.
   function screenEstimate(v) {
-    const learns = el("div", { class: "llearns" }, el("h2", { class: "lsec-title" }, "You'll learn"), el("ul", { class: "lchips" }, v.learns.map((l) => el("li", {}, l))));
     if (!v.simpler) {
       return {
         eyebrow: "Before we start",
         title: v.title,
-        body: [el("p", { class: "lead" }, rich(v.outcome)), stats(v.estimate), learns],
+        body: [stats(v.estimate), el("p", { class: "lead" }, rich(v.outcome)), learnsList("You'll learn", v.learns)],
         actions: [{ id: "start", label: "Let's start", kind: "primary", wide: true, channel: "lesson-choose", data: { version: "full" } }],
       };
     }
     const simple = el(
       "div",
       { class: "loffer is-recommended", id: "offer-simple" },
-      el("p", { class: "loffer-tag" }, icon("star", "xs"), "Recommended"),
+      el("p", { class: "loffer-tag" }, icon("star", "xs"), "Recommended: start small"),
       el("h2", { class: "loffer-title" }, v.simpler.title),
-      el("p", { class: "loffer-why" }, rich(v.simpler.why)),
       stats(v.simpler.estimate),
+      el("p", { class: "loffer-why" }, rich(v.simpler.why)),
+      learnsList("You'll learn", v.simpler.learns), // what this simple version teaches, not the whole lesson
     );
     // The full version: there, honest, but clearly the second choice.
     const full = el(
@@ -388,7 +397,7 @@
     return {
       eyebrow: "Before we start",
       title: v.title,
-      body: [el("p", { class: "lead" }, "The whole thing is big, so let's start small. You can add the rest later in short lessons."), simple, full, learns],
+      body: [simple, full, el("p", { class: "muted small" }, "You can add the rest later in short lessons.")],
       // The obvious choice sits in the button row, so it's on screen at any text size.
       actions: [{ id: "simple", label: "Start simple (recommended)", kind: "primary", wide: true, channel: "lesson-choose", data: { version: "simple" } }],
     };
@@ -419,11 +428,18 @@
   function screenStep(v) {
     const s = v.step;
     const st = M.stepStatus(v);
-    const badge = M.whoBadge(s.who);
+    const badge = M.whoBadge(s.who, v.status);
     const acts = M.stepActions(v);
     const nodes = [];
 
-    nodes.push(el("p", { class: "linstr" }, rich(s.instruction)));
+    // At big text sizes, once a hint is open the step's words fold away (one tap brings them back), so the hint fits.
+    const fold = compact && v.hints.length > 0 && !isExpanded() && s.who === "learner";
+    if (fold) {
+      const recap = el("details", { class: "lrecap" }, el("summary", { "data-key": "recap" }, "See the step again"), el("p", { class: "linstr" }, rich(s.instruction)));
+      if (local.recapOpen) recap.open = true;
+      recap.addEventListener("toggle", () => { local.recapOpen = recap.open; });
+      nodes.push(recap);
+    } else nodes.push(el("p", { class: "linstr" }, rich(s.instruction)));
 
     // The status row: what Stride is doing / thinks right now.
     const statusIcon = st.busy ? busyIcon(v.status)
@@ -438,8 +454,9 @@
       nodes.push(el("p", { class: "lwhere" }, layout.dock === "right" ? icon(towardCode, "xs") : null, el("span", {}, "Line " + s.line + (s.file ? " in " + s.file : "")), layout.dock === "left" ? icon(towardCode, "xs") : null));
     }
 
-    // The newest hint stays on the compact card: it's what they need right now.
-    if (v.hints.length && !isExpanded()) nodes.push(hintBox(v.hints[v.hints.length - 1], v.hints.length, true));
+    // The newest hint stays on the compact card: it's what they need right now (at big text, not while Stride types it).
+    const quietHint = compact && (v.status === "showing" || v.status === "passed");
+    if (v.hints.length && !isExpanded() && !quietHint) nodes.push(hintBox(v.hints[v.hints.length - 1], v.hints.length, true));
 
     // Chips: a new idea (opens the concept card) and the matching part of the video.
     const vchip = M.videoChip(v);
@@ -545,7 +562,7 @@
 
   function screenPaused(v) {
     const back = v.reason === "welcome-back";
-    const hints = v.hintsUsed > 0 ? "You've used " + (v.hintsUsed === 1 ? "1 hint" : v.hintsUsed + " hints") + " so far. They're still here." : "You haven't needed a hint yet.";
+    const hints = v.hintsUsed > 0 ? "You've used " + (v.hintsUsed === 1 ? "1 hint" : v.hintsUsed + " hints") + " on this step. They're still here." : "No hints used on this step yet.";
     return {
       eyebrow: v.lessonTitle,
       title: back ? "Welcome back!" : "Taking a break",
@@ -572,7 +589,7 @@
         el("div", { class: "lerror" }, icon(ico), el("p", {}, e.line)),
         v.message && v.kind !== "other" ? el("p", { class: "muted small" }, v.message) : null,
       ],
-      actions: e.actions.map((a) => ({ ...a })),
+      actions: e.actions.map((a) => ({ ...a, wide: true })), // the same layout on every error: the fix, then a way out
       tone: "warn",
     };
   }
@@ -589,8 +606,9 @@
       v.picture
         ? el("img", { class: "lpicture", src: v.picture, alt: "A picture of the page you built" })
         : el("div", { class: "lpicture placeholder", role: "img", "aria-label": "A picture of the page you built" }, icon("image")),
-      el("h2", { class: "lsec-title" }, "Your " + v.steps + " steps"),
+      el("h2", { class: "lsec-title" }, "The " + v.steps + " steps you typed"),
       el("ul", { class: "ltiles" }, tiles.map((t) => el("li", { class: "ltile " + t.cls }, el("span", { class: "ltile-n" }, String(t.n)), el("span", { class: "ltile-label" }, t.label)))),
+      v.allSteps > v.steps ? el("p", { class: "muted small" }, icon("bot", "xs"), "Plus " + (v.allSteps - v.steps === 1 ? "1 setup step" : v.allSteps - v.steps + " setup steps") + " I did for you, " + v.allSteps + " in all.") : null,
       v.minutes > 0 ? el("p", { class: "muted small" }, icon("clock", "xs"), "It took you about " + v.minutes + " min.") : null,
       el("h2", { class: "lsec-title" }, "What you learned"),
       el("ul", { class: "lchips" }, v.learned.map((l) => el("li", {}, l))),
@@ -642,8 +660,11 @@
       card.classList.add("is-hidden");
       card.setAttribute("aria-hidden", "true");
       clearInterval(buddy.timer);
+      prevRendered = { screen: "hidden" }; // whatever comes next is new
       return;
     }
+    compact = isCompact();
+    card.classList.toggle("is-compact", compact);
     card.classList.remove("is-hidden");
     card.removeAttribute("aria-hidden");
 
@@ -680,6 +701,7 @@
     const keepScroll = body.scrollTop;
     body.replaceChildren(...nodes);
     body.scrollTop = isNew ? 0 : keepScroll;
+    const reveal = whatToReveal(prevRendered, view, isNew);
 
     // The buttons row; the expand toggle sits at its end.
     const specs = [...(parts.actions || [])];
@@ -729,13 +751,49 @@
 
     prevRendered = JSON.parse(JSON.stringify(view));
     markScroll();
+    if (reveal) revealInBody(reveal);
     reportRect();
   }
 
-  // A soft fade at the bottom when there's more to scroll (at big text sizes).
+  // At big text sizes (the card is under 20 text-widths wide) some parts fold away so what matters fits.
+  let compact = false;
+  function isCompact() {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const width = card.getBoundingClientRect().width || root.getBoundingClientRect().width;
+    return width > 0 && width / rem < 20;
+  }
+
+  // What the student needs to see after an update: a new hint, or the status when it changes (✅, not quite yet).
+  function whatToReveal(prev, v, isNew) {
+    if (v.screen !== "step") return null;
+    const hintNew = v.hints.length > 0 && (isNew || !prev || prev.screen !== "step" || v.hints.length > prev.hints.length);
+    // While Stride types it, or at the ✅, the status is the news, not the hint.
+    if (v.status === "showing" || v.status === "passed") return isNew ? null : body.querySelector(".lstatus");
+    if (hintNew) return body.querySelector(".lhint.is-latest");
+    if (!isNew && prev && prev.screen === "step" && prev.status !== v.status) return body.querySelector(".lstatus");
+    return null;
+  }
+
+  // Scrolls the text part just enough to show a node (like scrollIntoView with block "nearest"), clear of the fade.
+  function revealInBody(node) {
+    const b = body.getBoundingClientRect();
+    const r = node.getBoundingClientRect();
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const fade = body.scrollHeight > body.clientHeight + 4 ? 2 * rem : 0;
+    const room = b.height - fade;
+    let delta = 0;
+    if (r.height > room || r.top < b.top) delta = r.top - b.top; // too tall to fit: show its start
+    else if (r.bottom > b.bottom - fade) delta = r.bottom - (b.bottom - fade);
+    if (delta) body.scrollTop += delta;
+    markScroll();
+  }
+
+  // A soft fade at the bottom when there's more to scroll (at big text sizes). Then the text part is a Tab stop.
   function markScroll() {
     const more = body.scrollHeight - body.clientHeight - body.scrollTop > 4;
     body.classList.toggle("can-scroll", more);
+    if (body.scrollHeight > body.clientHeight + 4) body.setAttribute("tabindex", "0");
+    else body.removeAttribute("tabindex");
   }
   body.addEventListener("scroll", markScroll, { passive: true });
   let prevRendered = null;
@@ -751,7 +809,11 @@
       send("lesson-rect", { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) });
     });
   }
-  if (window.ResizeObserver) new ResizeObserver(reportRect).observe(card);
+  if (window.ResizeObserver) {
+    new ResizeObserver(reportRect).observe(card);
+    // The text size or window width changed: fold or unfold the big-text layout.
+    new ResizeObserver(() => { if (view.screen !== "hidden" && isCompact() !== compact) render(); }).observe(root);
+  }
 
   // ---------------- Keys ----------------
 
@@ -780,6 +842,7 @@
       tempOpen = M.autoOpen(view && view.screen === "step" ? view.step.id : null, next) && !layout.expanded;
     }
     if (next.screen !== view.screen || (next.screen === "question" && view.id !== next.id)) local = freshLocal();
+    else if (next.screen === "step" && view.step.id !== next.step.id) local.recapOpen = false;
     prevView = view;
     view = next;
     render();

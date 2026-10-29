@@ -1,8 +1,10 @@
 // What the lesson screen is sent: runner state → LessonView (src/learn/view.ts).
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS } from "../../src/learn/stages.js";
 import { TIMING, initialState, newProgress, reduce, type RunnerEvent, type RunnerState } from "../../src/learn/runner.js";
 import { lessonSummary } from "../../src/learn/summary.js";
-import { estimateView, finishedView, pausedView, progressView, quizView, stepStatus, stepView } from "../../src/learn/view.js";
+import { buildingView, estimateView, finishedView, pausedView, progressView, quizView, simplerLearns, stepStatus, stepView } from "../../src/learn/view.js";
 import { START, aboutMe, fail, partial, pass } from "./runner-fakes.js";
 
 const lesson = aboutMe();
@@ -91,9 +93,37 @@ describe("lesson view: the other screens", () => {
     expect(estimateView(big)).toMatchObject({ simpler: { title: "Just a hello", estimate: { minutes: 8 } } });
   });
 
-  it("welcome back: the same step and the hints used", () => {
-    const progress = { ...newProgress(lesson, "learn", START), stepIndex: 3, steps: { intro: { status: "hinted" as const, hintsUsed: 2 } } };
-    expect(pausedView(lesson, progress, "welcome-back")).toMatchObject({ screen: "paused", reason: "welcome-back", step: { number: 4, total: 6, title: "Things you like" }, hintsUsed: 2 });
+  it("estimate: the simple option lists what the simple version teaches, not the whole lesson's list", () => {
+    // From the simple version's own steps: skeleton and hobbies bring "The parts of an HTML page" and "Lists".
+    const core = { ...lesson, simpler: { title: "Just a hello", why: "Quick win first.", estimate: { minutes: 8, linesToType: 6, steps: 3 }, stepIds: ["open-editor", "skeleton", "intro", "hobbies"] } };
+    const ideas = ["skeleton", "hobbies"].map((id) => lesson.steps.find((s) => s.id === id)!.concept!.title);
+    const v = estimateView(core) as Extract<ReturnType<typeof estimateView>, { screen: "estimate" }>;
+    expect(v.simpler?.learns).toEqual(ideas);
+    expect(v.simpler?.learns).not.toContain(lesson.learns[2]); // "linking a CSS file" is only in the full lesson
+    expect(v.learns).toEqual(lesson.learns); // the full lesson keeps its own list
+    // A list written for the simple version wins.
+    expect(simplerLearns({ ...core, simpler: { ...core.simpler, learns: ["a big heading"] } })).toEqual(["a big heading"]);
+    // No list and no steps: nothing, rather than a list that promises too much.
+    expect(simplerLearns({ ...core, simpler: { ...core.simpler, stepIds: undefined } })).toEqual([]);
+  });
+
+  it("building: the builder's real stages in order, ticked up to the one running now, with the honest time", () => {
+    const labels = BUILD_STAGES.idea.map((s) => STAGE_LABELS[s]);
+    const v = buildingView("A page about me", "idea", "browser");
+    expect(v).toMatchObject({ screen: "building", stage: 2, labels, time: BUILD_TIME_TEXT });
+    expect((v as { stages: { status: string }[] }).stages.map((s) => s.status)).toEqual(["done", "done", "running", "todo", "todo", "todo"]);
+    const done = buildingView("x", "video", "done") as { stages: { status: string }[]; labels: string[] };
+    expect(done.labels).toEqual(BUILD_STAGES.video.map((s) => STAGE_LABELS[s]));
+    expect(done.stages.every((s) => s.status === "done")).toBe(true);
+    // The preview page shows the same stages and time, so its screenshots match what the app will send.
+    const preview = readFileSync(new URL("../../src/app/ui/lesson-preview.js", import.meta.url), "utf8");
+    for (const label of labels) expect(preview).toContain(JSON.stringify(label));
+    expect(preview).toContain(JSON.stringify(BUILD_TIME_TEXT));
+  });
+
+  it("welcome back: the same step, and only this step's hints (the ones still on screen)", () => {
+    const progress = { ...newProgress(lesson, "learn", START), stepIndex: 3, steps: { intro: { status: "hinted" as const, hintsUsed: 2 }, hobbies: { status: "hinted" as const, hintsUsed: 1 } } };
+    expect(pausedView(lesson, progress, "welcome-back")).toMatchObject({ screen: "paused", reason: "welcome-back", step: { number: 4, total: 6, title: "Things you like" }, hintsUsed: 1 });
     expect(progressView(lesson, progress).steps[2].mark).toBe("hinted");
   });
 

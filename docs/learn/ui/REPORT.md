@@ -9,6 +9,8 @@ Each view is checked for:
 - **Names**: every button, field, group and the progress bar has a name a screen reader can say.
 - **Overflow**: nothing is cut off or sticks out sideways, and the page never scrolls sideways (2x text too).
 - **Overlap**: the lesson card never covers the code area.
+- **In view**: the main button, a newly shown hint and the estimate's minutes · lines · steps are on screen without
+  scrolling (the preview's lesson window is the real 420 px wide, so 2x text is the hard case).
 - **Keyboard**: Tab reaches every control in reading order, each with a visible focus ring.
 - **Words**: no jargon (DOM, selector, parse, runner, anchor, check…) and no script errors.
 

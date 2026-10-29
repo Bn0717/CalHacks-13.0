@@ -140,9 +140,21 @@
 .lchap + .lchap::before { content: ""; position: absolute; left: -0.25rem; top: -0.25rem; bottom: -0.25rem; width: 0.125rem; border-radius: 1px; background: var(--ink-3); opacity: 0.6; }
 
 /* ---------- Header ---------- */
-.lhead { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.875rem 0.75rem 0.25rem 1.25rem; flex: none; }
-.lhead-text { flex: 1; min-width: 0; padding-top: 0.125rem; }
-.leyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--ink-2); margin-bottom: 0.125rem; }
+/* The buddy on the left; the badge and the header buttons share the top row; the title spans the width under them. */
+.lhead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "buddy top" "buddy title";
+  align-items: start;
+  column-gap: 0.75rem;
+  padding: 0.875rem 0.75rem 0.25rem 1.25rem;
+  flex: none;
+}
+.lhead > .lbuddy { grid-area: buddy; }
+.lhead-top { grid-area: top; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; min-height: min(2.5rem, 48px); }
+.lhead > .ltitle { grid-area: title; padding-right: 0.5rem; }
+.leyebrow { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--ink-2); min-width: 0; }
+.leyebrow[hidden] + .ltools { margin-left: auto; }
 .leyebrow-text { min-width: 0; overflow-wrap: anywhere; }
 .ltitle { margin: 0; font-size: 1.375rem; line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .ltitle:focus { outline: none; }
@@ -150,17 +162,23 @@
 .lbadge.stride { background: var(--paper-3); color: var(--ink); }
 .lbadge.watch { background: var(--paper-3); color: var(--ink); }
 
-.ltools { display: flex; gap: 0.125rem; flex: none; margin-top: -0.25rem; }
+.ltools { display: flex; gap: 0.125rem; flex: none; }
 .ltool { width: 2.5rem; height: 2.5rem; border: 0; border-radius: 0.75rem; background: transparent; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; transition: background var(--fast) ease, color var(--fast) ease; }
 .ltool:hover { background: var(--paper-2); color: var(--ink); }
 
 /* The buddy sits on the card and faces the code. */
 .lbuddy { flex: none; width: 3.5rem; height: 3.5rem; margin-top: 0.125rem; }
 .lbuddy-svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 0 0.8px rgba(40, 16, 8, 0.85)); }
+/* Dark mode: the bar's soft light glow, plus a thin light edge, so the dark arms and legs stay visible. */
+:root[data-theme="dark"] .lbuddy-svg { filter: drop-shadow(0 0 0.6px rgba(255, 240, 230, 0.95)) drop-shadow(0 0 5px rgba(255, 255, 255, 0.28)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lbuddy-svg { filter: drop-shadow(0 0 0.6px rgba(255, 240, 230, 0.95)) drop-shadow(0 0 5px rgba(255, 255, 255, 0.28)); }
+}
 .lbuddy.face-left .lbuddy-svg { transform: scaleX(-1); }
 
 /* ---------- Body ---------- */
 .lbody { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.5rem 1.25rem 0.25rem; }
+.lesson-root .lbody:focus-visible { outline-offset: -3px; border-radius: 0.5rem; }
 .lcontent, .lmore { display: flex; flex-direction: column; gap: 0.75rem; }
 .lmore { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); gap: 1rem; }
 .enter { animation: lrise var(--calm) var(--ease) both; }
@@ -195,7 +213,8 @@ code.inline { font: 0.9em/1.3 var(--mono); background: var(--paper-3); color: va
 .lwhere { display: inline-flex; align-self: flex-start; align-items: center; gap: 0.375rem; font-size: 0.875rem; font-weight: 650; color: var(--accent-ink); background: var(--accent-soft); padding: 0.25rem 0.625rem; border-radius: 999px; }
 
 .lhint { border-left: 0.1875rem solid var(--accent); background: var(--accent-wash); border-radius: 0 0.75rem 0.75rem 0; padding: 0.625rem 0.75rem; display: flex; flex-direction: column; gap: 0.375rem; }
-.lhint-label { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; font-weight: 700; color: var(--accent-ink); }
+.lhint-label { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.375rem; font-size: 0.8125rem; font-weight: 700; color: var(--accent-ink); }
+.nowrap { white-space: nowrap; }
 .lhint-sub { font-weight: 600; }
 .lhint-text { font-size: 1rem; }
 .lhint-text.small { font-size: 0.875rem; color: var(--ink-2); }
@@ -374,3 +393,32 @@ code.inline { font: 0.9em/1.3 var(--mono); background: var(--paper-3); color: va
 .lstatus > .ico.busy { color: var(--accent-ink); }
 .lchiprow { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .lchiprow .lbtn.chip { align-self: auto; }
+
+/* The step's words, folded away under a hint at big text sizes. */
+.lrecap { border-radius: 0.75rem; background: var(--paper-2); padding: 0.375rem 0.75rem; }
+.lrecap > summary { cursor: pointer; font-size: 0.9375rem; font-weight: 650; color: var(--accent-ink); padding: 0.25rem 0; list-style-position: inside; }
+.lrecap[open] > summary { margin-bottom: 0.25rem; }
+.llearns .lchips li { background: var(--paper); }
+.loffer:not(.is-recommended) .llearns .lchips li, .lcontent > .llearns .lchips li { background: var(--paper-2); }
+
+/* ---------- Big text (200%) in the narrow window: tighter edges, a smaller buddy, the title under it ---------- */
+.lcard.is-compact .lstrip { padding: 0.625rem 0.75rem 0; }
+.lcard.is-compact .lhead { grid-template-areas: "buddy top" "title title"; column-gap: 0.5rem; padding: 0.5rem 0.375rem 0.125rem 0.75rem; }
+.lcard.is-compact .lbuddy { width: 40px; height: 40px; margin-top: 0; }
+.lcard.is-compact .ltitle { font-size: 1.25rem; padding-right: 0; }
+.lcard.is-compact .lbody { padding: 0.375rem 0.75rem 0.25rem; }
+.lcard.is-compact .lcontent { gap: 0.5rem; }
+.lcard.is-compact .lactions { padding: 0.5rem 0.75rem 0.625rem; gap: 0.375rem; }
+.lcard.is-compact .lbtn { min-height: 2.5rem; padding: 0.375rem 0.75rem; }
+.lcard.is-compact .lbtn kbd { display: none; } /* the keys are listed under More */
+.lcard.is-compact .lstatus { padding: 0.5rem 0.625rem; gap: 0.5rem; }
+.lcard.is-compact .lhint { padding: 0.5rem 0.625rem; }
+.lcard.is-compact .loffer { padding: 0.75rem; }
+.lcard.is-compact .lstrip-label { margin-top: 0.375rem; justify-content: flex-end; }
+.lcard.is-compact .lstrip-chapter { display: none; } /* the screen reader still hears it from the progress bar */
+.lcard.is-compact .lbadge { white-space: nowrap; font-size: 0.75rem; padding: 0.0625rem 0.5rem; }
+.lcard.is-compact .leyebrow { font-size: 0.8125rem; }
+/* Big text: the error's picture would squeeze its words into a thin column; the title already says what happened. */
+.lcard.is-compact .lerror > .ico { display: none; }
+.lcard.is-compact .lerror { padding: 0.5rem 0.75rem; }
+.lcard.is-compact .loffer-title { font-size: 1.0625rem; }

@@ -39,6 +39,9 @@ const child = spawn("npx", ["tsx", "src/cli/learn.ts", ...cliArgs, "--dir", dir,
 let output = "";
 let cursor = 0;
 let partial = "";
+// When the student last wrote a file, and when each ✅ line arrived (A5: within ~2 s of stopping typing).
+let lastWriteAt = 0;
+let lastTickAt = 0;
 const onOut = (chunk: Buffer) => {
   const text = chunk.toString("utf8");
   output += text;
@@ -46,7 +49,10 @@ const onOut = (chunk: Buffer) => {
   partial += text;
   const lines = partial.split("\n");
   partial = lines.pop()!;
-  for (const l of lines) log.push(`${stamp()} ${l}`);
+  for (const l of lines) {
+    log.push(`${stamp()} ${l}`);
+    if (l.includes("✅ Nice, that works!")) lastTickAt = Date.now();
+  }
 };
 child.stdout.on("data", onOut);
 child.stderr.on("data", onOut);
@@ -77,6 +83,7 @@ async function writeStep(step: Step, before: string, code: string, what: string)
   const file = join(dir, step.file!);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, insertAtAnchor(before, step.anchor, code).content);
+  lastWriteAt = Date.now();
   student(`${what} in ${step.file}`);
 }
 
@@ -166,14 +173,13 @@ try {
       await sleep(1000);
     }
     await writeStep(step, before, step.expected, "types the step's code");
-    const wroteAt = Date.now();
     await waitFor(/✅ Nice, that works!|💡 Hint|🤔/, 60_000).then(async (r) => {
       if (!r[0].startsWith("✅")) {
         log.push(`${stamp()} ⚠️ simulator: the step's own expected code didn't pass first time`);
         await waitFor(/✅ Nice, that works!/, 90_000);
       }
     });
-    delays.push({ step: step.id, ms: Date.now() - wroteAt });
+    delays.push({ step: step.id, ms: lastTickAt - lastWriteAt });
     if (step.quiz) await answerQuiz(step);
   }
   await waitFor(/💸 AI cost/, 30_000);
