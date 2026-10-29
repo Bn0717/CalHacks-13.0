@@ -11,13 +11,22 @@ import { learnModel, type AskModel } from "./build-from-idea.js";
 export const PRICES = {
   opus: { input: 4, output: 20 }, // claude-opus-5-5
   haiku: { input: 0.1, output: 0.5 }, // claude-haiku-5-5
+  // gemini-3.5-flash, from Google Cloud's published "Global" price list (Oct 2026). Thinking is billed as output.
+  gemini: { input: 1.5, output: 9 },
 } as const;
 
 export type Price = { input: number; output: number };
 
-// The price for a model. Anything that isn't Haiku is priced like Opus, so an unknown model is never under-counted.
+// The price for a model. Anything that isn't Haiku or Gemini is priced like Opus, so an unknown model is never under-counted.
 export function priceFor(model: string): Price {
-  return /haiku/i.test(model) ? PRICES.haiku : PRICES.opus;
+  if (/haiku/i.test(model)) return PRICES.haiku;
+  if (/gemini/i.test(model)) return PRICES.gemini;
+  return PRICES.opus;
+}
+
+// A Gemini answer's token counts in the same shape as a Claude answer, so CostLog.record takes both.
+export function geminiUsage(u: { model: string; inputTokens: number; outputTokens: number; thoughtsTokens: number }): Usage {
+  return { model: u.model, usage: { input_tokens: u.inputTokens, output_tokens: u.outputTokens + u.thoughtsTokens } };
 }
 
 export function costOf(model: string, inputTokens: number, outputTokens: number): number {

@@ -152,10 +152,10 @@ describe("buildFromIdea", () => {
   });
 
   it("adds a simpler offer when the lesson is over 60 minutes", async () => {
-    // 6 steps of 25 lines each: 6 × 25 × 0.6 = 90 minutes of typing.
-    const big = Array.from({ length: 6 }, (_, i) => `.box-${i} { color: red; }`);
+    // 15 steps of 10 lines each: 15 × 10 × 0.6 = 90 minutes of typing.
+    const big = Array.from({ length: 15 }, (_, i) => `.box-${i} { color: red; }`);
     const css = Array.from({ length: 150 }, (_, i) => `.l${i} { margin: ${i}px; }`).join("\n");
-    const longSteps = Array.from({ length: 6 }, (_, i) => ({
+    const longSteps = Array.from({ length: 15 }, (_, i) => ({
       id: `part-${i}`,
       chapter: "html",
       title: `Part ${i}`,
@@ -163,7 +163,7 @@ describe("buildFromIdea", () => {
       why: "Practice.",
       who: "learner" as const,
       file: "style.css",
-      expected: css.split("\n").slice(i * 25, i * 25 + 25).join("\n"),
+      expected: css.split("\n").slice(i * 10, i * 10 + 10).join("\n"),
       checks: [{ type: "selectorExists" as const, selector: big[i]! }],
       hints: ["a", "b", "c"],
     }));
@@ -173,16 +173,22 @@ describe("buildFromIdea", () => {
     const r = await buildFromIdea(aboutMe, deps({ ask: model.ask }));
     if (r.kind !== "lesson") throw new Error("expected a lesson");
     expect(r.lesson.estimate.minutes).toBe(90);
-    expect(r.lesson.simpler).toEqual({ title: simpler.title, why: simpler.why, estimate: { minutes: 30, linesToType: 50, steps: 2 }, stepIds: ["part-0", "part-1"] });
+    expect(r.lesson.simpler).toEqual({ title: simpler.title, why: simpler.why, estimate: { minutes: 12, linesToType: 20, steps: 2 }, stepIds: ["part-0", "part-1"] });
     expect(() => parseLesson(r.lesson)).not.toThrow();
   });
 
   it("still returns the long lesson when the simpler offer can't be made", async () => {
     const css = Array.from({ length: 120 }, (_, i) => `.l${i} { margin: ${i}px; }`).join("\n");
-    const step = { ...stepsAnswer.steps[4]!, id: "all", expected: css, checks: [{ type: "parses" as const }] };
+    // 12 steps of 10 lines: 72 minutes.
+    const steps = Array.from({ length: 12 }, (_, i) => ({
+      ...stepsAnswer.steps[4]!,
+      id: `part-${i}`,
+      expected: css.split("\n").slice(i * 10, i * 10 + 10).join("\n"),
+      checks: [{ type: "parses" as const }],
+    }));
     const model = fakeModel({
       project: [{ ...project, files: [fixture.files[0]!, { path: "style.css", content: css }] }],
-      steps: [{ chapters: stepsAnswer.chapters, steps: [step] }],
+      steps: [{ chapters: stepsAnswer.chapters, steps }],
       simpler: [{ title: "x", why: "y", stepIds: ["nope"] }],
     });
     const r = await buildFromIdea(aboutMe, deps({ ask: model.ask }));

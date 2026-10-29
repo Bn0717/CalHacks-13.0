@@ -1,0 +1,296 @@
+{
+  "ranAt": "2026-10-29T05:49:18.084Z",
+  "claude": {
+    "usable": false,
+    "note": "no Claude key is set (ANTHROPIC_API_KEY / STRIDE_ANTHROPIC_API_KEY)"
+  },
+  "geminiPrice": "Gemini priced at $1.50 per million input tokens and $9.00 per million output + thinking tokens (Google Cloud's published 'Global' price for Gemini 3.5 Flash, Oct 2026; ai.google.dev was blocked from here, so the Gemini API's own page wasn't checked). Gemini actually served gemini-3.6-flash, which the same price list shows at an introductory $0.75 / $3.75 until 31 Dec 2026, so the real bill is likely about half of what is shown. Treat these as upper-bound estimates.",
+  "cases": [
+    {
+      "name": "about-me fixture (hand-written)",
+      "kind": "idea",
+      "status": "graded",
+      "source": "fixture",
+      "grade": {
+        "name": "about-me fixture (hand-written)",
+        "kind": "lesson",
+        "lessonId": "about-me",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": false,
+            "examples": [
+              "Step link-css adds 1 line.",
+              "Step intro adds 2 lines."
+            ]
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": false,
+            "examples": [
+              "skeleton \"The parts of an HTML page\": 2 sentences: \"The <head> holds information about the page, like its title. The <body> holds what people see.\"",
+              "hobbies \"Lists\": 2 sentences: \"<ul> makes a bullet list. Each thing in it goes in its own <li> (list item).\"",
+              "link-css \"Linking CSS\": 2 sentences: \"CSS is a separate file that says how the page looks. <link> connects it to the HTML.\""
+            ]
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": [],
+            "skipped": "Not a video lesson."
+          }
+        ],
+        "passed": 6,
+        "total": 8
+      },
+      "estimate": {
+        "minutes": 22,
+        "linesToType": 25,
+        "steps": 6
+      }
+    },
+    {
+      "name": "a page about me",
+      "kind": "idea",
+      "status": "blocked",
+      "note": "needs a working Claude key"
+    },
+    {
+      "name": "a website for my small bakery",
+      "kind": "idea",
+      "status": "blocked",
+      "note": "needs a working Claude key"
+    },
+    {
+      "name": "make me Instagram",
+      "kind": "idea",
+      "status": "graded",
+      "source": "built",
+      "grade": {
+        "name": "make me Instagram",
+        "kind": "tooBig",
+        "criteria": [
+          {
+            "id": "tooBig",
+            "title": "A huge ask gets a small offer, not a flat no",
+            "pass": true,
+            "examples": []
+          }
+        ],
+        "passed": 1,
+        "total": 1
+      },
+      "usd": 0,
+      "note": "The full Instagram needs accounts, servers and a database to store everyone's posts, which is a lot for a first project. How about a profile page with a grid of photos, like an Instagram profile?"
+    },
+    {
+      "name": "a page like this picture",
+      "kind": "idea",
+      "status": "blocked",
+      "note": "needs a working Claude key"
+    },
+    {
+      "name": "Create Your First HTML/CSS Project",
+      "kind": "video",
+      "status": "blocked",
+      "note": "needs a working Claude key"
+    },
+    {
+      "name": "HTML Tutorial for Beginners",
+      "kind": "video",
+      "status": "blocked",
+      "note": "needs a working Claude key"
+    },
+    {
+      "name": "How to Code Your First Website",
+      "kind": "video",
+      "status": "blocked",
+      "note": "needs a working Claude key"
+    }
+  ],
+  "videoNotes": [
+    {
+      "videoId": "wzWmZYi4qMg",
+      "url": "https://www.youtube.com/watch?v=wzWmZYi4qMg",
+      "status": "reused",
+      "model": "gemini-3.6-flash",
+      "title": "Create Your First HTML/CSS Project",
+      "chapters": 5,
+      "segments": 17,
+      "codeSegments": 11,
+      "codeLines": 145,
+      "endSeconds": 1156,
+      "inputTokens": 105242,
+      "outputTokens": 6515,
+      "usd": 0.216498
+    },
+    {
+      "videoId": "WOvg00FnmsU",
+      "url": "https://www.youtube.com/watch?v=WOvg00FnmsU",
+      "status": "reused",
+      "model": "gemini-3.6-flash",
+      "title": "HTML Tutorial for Beginners - Full Course",
+      "chapters": 6,
+      "segments": 30,
+      "codeSegments": 21,
+      "codeLines": 284,
+      "endSeconds": 1446,
+      "inputTokens": 131708,
+      "outputTokens": 9945,
+      "usd": 0.287067
+    },
+    {
+      "videoId": "zMTId2CUClw",
+      "url": "https://www.youtube.com/watch?v=zMTId2CUClw",
+      "status": "reused",
+      "model": "gemini-3.6-flash",
+      "title": "How to Code Your FIRST Website (in 10 minutes)",
+      "chapters": 5,
+      "segments": 13,
+      "codeSegments": 8,
+      "codeLines": 41,
+      "endSeconds": 1421,
+      "inputTokens": 129351,
+      "outputTokens": 4177,
+      "usd": 0.2316195
+    }
+  ],
+  "spend": {
+    "thisRun": 0,
+    "allRuns": 0.7351845,
+    "cap": 8
+  },
+  "findings": [
+    "GOAL C3 (build under $0.50, hint under $0.01): no real Claude call ran, so there is no real lesson-build or hint cost yet. The about-me fixture is hand-written, so it has no cost data at all; it only gives the estimate shown above.",
+    "Reading one 19-24 minute video with Gemini (low resolution) cost $0.22-$0.29 (average $0.25, upper-bound price). That is part of a video lesson's build, so it leaves about $0.25 of the $0.50 budget for the Opus steps call (projection, not measured).",
+    "The 3 videos were picked as beginner HTML/CSS step-by-step builds; youtube.com is blocked here, so view counts and captions couldn't be checked. Gemini read two titles differently from the ones noted when picking them (\"HTML Tutorial for Beginners - Full Course\", \"How to Code Your FIRST Website (in 10 minutes)\"); the report shows what Gemini read.",
+    "Found by this test: in wzWmZYi4qMg's real notes Gemini escaped the code twice (every line break arrived as a typed \\\\n, so each file was one long line). src/learn/gemini.ts now turns that back into real lines (unescapeCode); without it that video's lesson would have been built from 11 one-line code blobs."
+  ],
+  "messageExamples": [
+    {
+      "before": "I can't find \"body h1\" yet.",
+      "after": "I can't see a big heading (<h1>) inside the page yet."
+    },
+    {
+      "before": "I see 2 \"ul li\", but this step needs 3.",
+      "after": "I see 2 list items (<li>) inside the bullet list (<ul>), but this step needs 3."
+    },
+    {
+      "before": "\"title\" should say \"about me\".",
+      "after": "The page title (<title>) should say \"about me\"."
+    },
+    {
+      "before": "\"head link\" needs href=\"style.css\".",
+      "after": "The link to a style file (<link>) inside the head part (<head>) needs href=\"style.css\"."
+    },
+    {
+      "before": "\"img\" needs a alt attribute.",
+      "after": "The picture (<img>) still needs a short description of the picture (alt)."
+    },
+    {
+      "before": "\"h1\" doesn't have the right color yet.",
+      "after": "The big heading (<h1>) doesn't have the right text colour yet."
+    },
+    {
+      "before": "I can't find \".card h3\" yet.",
+      "after": "I can't see a small heading (<h3>) inside the part with class=\"card\" yet."
+    },
+    {
+      "before": "style.css doesn't exist yet.",
+      "after": "There's no file called style.css in your project folder yet."
+    },
+    {
+      "before": "The <ul> isn't closed yet.",
+      "after": "The <ul> you started still needs its closing </ul>."
+    },
+    {
+      "before": "The page also shows an error: Uncaught ReferenceError: x is not defined",
+      "after": "Your page also shows a problem when it opens, so check the code you just typed for a typo."
+    }
+  ],
+  "promptChanges": [
+    {
+      "where": "idea: project",
+      "change": "No code comments in the finished site.",
+      "why": "Every line is typed by the student; comments are lines typed for nothing and inflate the estimate."
+    },
+    {
+      "where": "idea + video: steps",
+      "change": "3-10 non-blank lines, never more than 10; split long parts.",
+      "why": "A4 / grader 'stepSize'. Now also enforced in code: steps over 12 lines are sent back."
+    },
+    {
+      "where": "idea: steps",
+      "change": "Explicit teaching order: skeleton, then HTML content, then CSS, then JS; one new idea per step.",
+      "why": "Judge 'teaching order'; A4."
+    },
+    {
+      "where": "idea + video: steps",
+      "change": "'watch' steps add no code; every line of the finished project is typed in some learner step.",
+      "why": "A4 '🤖 steps are only setup'; grader 'whoTypes'. Enforced in code too."
+    },
+    {
+      "where": "idea + video: steps",
+      "change": "Instructions say what to add and where in words, for a 14-year-old who never coded.",
+      "why": "B1 / judge 'beginner wording'."
+    },
+    {
+      "where": "idea + video: hints",
+      "change": "Each hint stronger: words only, then the spot + tag name, then part of the code with … gaps; hint 3 never the whole 'expected'.",
+      "why": "A6. Enforced in code: a hint 3 holding the whole answer is sent back."
+    },
+    {
+      "where": "idea + video: concepts",
+      "change": "ONE plain sentence under 25 words, banned jargon list, at least one MDN link.",
+      "why": "A7; the about-me fixture's concepts are all 2 sentences. Links are now required by the schema."
+    },
+    {
+      "where": "idea + video: checks",
+      "change": "Optional plain 'say' wording per check, no code words.",
+      "why": "B1: the student never sees a CSS selector. The checker words one itself when it's missing."
+    },
+    {
+      "where": "video: timestamps",
+      "change": "Every learner step has a video part from the notes' times, start < end, inside the video, in order.",
+      "why": "A7 'video steps link to the right timestamp'. Enforced in code: parts past the video's end are sent back."
+    },
+    {
+      "where": "checker: Haiku judge",
+      "change": "Reasons in plain words for a 14-year-old, never DOM/selector/element/parse.",
+      "why": "B1."
+    }
+  ]
+}

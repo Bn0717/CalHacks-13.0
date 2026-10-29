@@ -11,11 +11,11 @@ export class UnsupportedSelector extends Error {
   }
 }
 
-type AttrTest = { name: string; value?: string };
-type Pseudo = { kind: "first" | "last" } | { kind: "nth"; n: number };
-type Compound = { tag?: string; id?: string; classes: string[]; attrs: AttrTest[]; pseudos: Pseudo[] };
+export type AttrTest = { name: string; value?: string };
+export type Pseudo = { kind: "first" | "last" } | { kind: "nth"; n: number };
+export type Compound = { tag?: string; id?: string; classes: string[]; attrs: AttrTest[]; pseudos: Pseudo[] };
 // Compounds left to right; combinators[i] joins compounds[i] and compounds[i + 1].
-type Complex = { compounds: Compound[]; combinators: (" " | ">")[] };
+export type Complex = { compounds: Compound[]; combinators: (" " | ">")[] };
 
 const NAME = /^-?[_a-zA-Z][-_a-zA-Z0-9]*/;
 
