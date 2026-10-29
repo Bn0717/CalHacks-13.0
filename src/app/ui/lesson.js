@@ -244,11 +244,13 @@
 
   function hintBox(text, n, latest) {
     const code = M.isCode(text);
+    // Code keeps its lines: a long line scrolls sideways (with the keyboard too) instead of wrapping.
+    const codeBox = code ? el("pre", { class: "lcode", tabindex: "0", role: "region", "aria-label": "Code for hint " + n + ". Scroll sideways to see long lines." }, text) : null;
     return el(
       "div",
       { class: "lhint" + (latest ? " is-latest" : "") },
       el("p", { class: "lhint-label" }, icon("bulb", "xs"), el("span", { class: "nowrap" }, "Hint " + n + " of 3"), n === 3 ? el("span", { class: "lhint-sub nowrap" }, "· part of the code") : null),
-      code ? el("pre", { class: "lcode" }, text) : el("p", { class: "lhint-text" }, rich(text)),
+      code ? codeBox : el("p", { class: "lhint-text" }, rich(text)),
       n === 3 && code ? el("p", { class: "lhint-text small" }, "Fill in the dots with your own words.") : null,
     );
   }
@@ -265,16 +267,21 @@
     const doneCount = stages.filter((s) => s.status === "done").length;
     const runningIndex = stages.findIndex((s) => s.status === "running");
     const partNo = runningIndex >= 0 ? runningIndex + 1 : Math.min(doneCount + 1, stages.length);
+    const tick = (s) => el("li", { class: "ltick " + s.status }, mark(s.status), el("span", { class: "ltick-label" }, rich(s.label), el("span", { class: "sr-only" }, ". " + statusWord[s.status])));
+    // At big text the finished parts fold into one line, so the part running now stays in view.
+    const items = compact && doneCount > 0
+      ? [el("li", { class: "ltick done folded" }, mark("done"), el("span", { class: "ltick-label" }, doneCount + " of " + stages.length + " parts done")), ...stages.filter((s) => s.status !== "done").map(tick)]
+      : stages.map(tick);
+    const lead = el("p", { class: "lead" }, "I'm making the whole thing first, so every step works when you get to it.");
     return {
-      eyebrow: "Building your lesson · part " + partNo + " of " + stages.length,
+      eyebrow: compact ? "Building" : "Building your lesson", // one line at big text
       title: v.what,
       body: [
-        el("p", { class: "lead" }, "I'm making the whole thing first, so every step works when you get to it."),
-        el(
-          "ol",
-          { class: "lticks", "aria-label": "What I'm doing" },
-          stages.map((s) => el("li", { class: "ltick " + s.status }, mark(s.status), el("span", { class: "ltick-label" }, rich(s.label), el("span", { class: "sr-only" }, ". " + statusWord[s.status])))),
-        ),
+        compact ? null : lead,
+        compact && doneCount > 0 ? null : el("p", { class: "lticks-head" }, "Part " + partNo + " of " + stages.length),
+
+        el("ol", { class: "lticks", "aria-label": "What I'm doing, part " + partNo + " of " + stages.length }, items),
+        compact ? lead : null,
         el("p", { class: "muted small" }, icon("clock", "xs"), v.note || (v.time ? "It's " + v.time + ". You can leave this open." : "You can leave this open.")),
       ],
       actions: [{ id: "stop", label: "Stop", channel: "lesson-close", kind: "quiet" }],
@@ -364,7 +371,7 @@
 
   function learnsList(heading, list) {
     if (!list || !list.length) return null;
-    return el("div", { class: "llearns" }, el("h2", { class: "lsec-title" }, heading), el("ul", { class: "lchips" }, list.map((l) => el("li", {}, l))));
+    return el("div", { class: "llearns" }, el("h2", { class: "lsec-title" }, heading), el("ul", { class: "lchips" }, list.map((l) => el("li", {}, M.chipText(l)))));
   }
 
   // The time, lines and steps come first: they're what the student needs to decide, and stay on screen at big text sizes.
@@ -432,13 +439,16 @@
     const acts = M.stepActions(v);
     const nodes = [];
 
-    // At big text sizes, once a hint is open the step's words fold away (one tap brings them back), so the hint fits.
-    const fold = compact && v.hints.length > 0 && !isExpanded() && s.who === "learner";
+    // At big text sizes, once a hint or a note about their code shows, the step's words fold away (one tap brings them
+    // back), so what Stride is saying fits.
+    // Folded, the news comes first (what Stride says, then the hint) and the step's words and line sit under it.
+    const noted = !!v.note && (v.status === "stuck" || v.status === "partial" || v.status === "stride-failed");
+    const fold = compact && !isExpanded() && ((s.who === "learner" && (v.hints.length > 0 || noted)) || (v.status === "stride-failed" && noted));
+    let recap = null;
     if (fold) {
-      const recap = el("details", { class: "lrecap" }, el("summary", { "data-key": "recap" }, "See the step again"), el("p", { class: "linstr" }, rich(s.instruction)));
+      recap = el("details", { class: "lrecap" }, el("summary", { "data-key": "recap" }, "See the step again"), el("p", { class: "linstr" }, rich(s.instruction)));
       if (local.recapOpen) recap.open = true;
       recap.addEventListener("toggle", () => { local.recapOpen = recap.open; });
-      nodes.push(recap);
     } else nodes.push(el("p", { class: "linstr" }, rich(s.instruction)));
 
     // The status row: what Stride is doing / thinks right now.
@@ -446,17 +456,24 @@
       : st.tone === "good" ? el("span", { class: "lcheer", "aria-hidden": "true" }, icon("check"))
       : st.tone === "warn" ? icon(v.hintOffered ? "bulb" : "alert", "sm")
       : icon(s.who === "watch" ? "eye" : "keyboard", "sm");
-    nodes.push(el("div", { class: "lstatus tone-" + st.tone, "data-status": v.status }, statusIcon, el("div", { class: "lstatus-text" }, el("p", { class: "lstatus-title" }, st.title), el("p", { class: "lstatus-line" }, rich(st.line)))));
+    const meter = st.parts
+      ? el("p", { class: "lscore" }, el("span", { class: "lscore-dots", "aria-hidden": "true" }, Array.from({ length: st.parts.total }, (_, i) => el("span", { class: i < st.parts.done ? "on" : "" }))), el("span", {}, st.parts.text))
+      : null;
+    nodes.push(el("div", { class: "lstatus tone-" + st.tone + (fold ? " slim" : "") + (fold && v.hints.length ? " has-hint" : ""), "data-status": v.status }, statusIcon, el("div", { class: "lstatus-text" }, el("p", { class: "lstatus-title" }, st.title), el("p", { class: "lstatus-line" }, rich(st.line)), meter)));
 
     // Where to type: points toward the code.
+    let where = null;
     if (s.line && s.who === "learner" && v.status !== "passed") {
       const towardCode = layout.dock === "right" ? "arrowL" : "arrowR";
-      nodes.push(el("p", { class: "lwhere" }, layout.dock === "right" ? icon(towardCode, "xs") : null, el("span", {}, "Line " + s.line + (s.file ? " in " + s.file : "")), layout.dock === "left" ? icon(towardCode, "xs") : null));
+      where = el("p", { class: "lwhere" }, layout.dock === "right" ? icon(towardCode, "xs") : null, el("span", {}, "Line " + s.line + (s.file ? " in " + s.file : "")), layout.dock === "left" ? icon(towardCode, "xs") : null);
     }
+    if (!fold && where) nodes.push(where);
 
     // The newest hint stays on the compact card: it's what they need right now (at big text, not while Stride types it).
     const quietHint = compact && (v.status === "showing" || v.status === "passed");
     if (v.hints.length && !isExpanded() && !quietHint) nodes.push(hintBox(v.hints[v.hints.length - 1], v.hints.length, true));
+    if (fold) nodes.push(...[where, recap].filter(Boolean));
+
 
     // Chips: a new idea (opens the concept card) and the matching part of the video.
     const vchip = M.videoChip(v);
@@ -484,7 +501,7 @@
           el("p", { class: "lconcept-tag" }, "New idea"),
           el("h2", { class: "lconcept-title", id: "l-concept-title" }, s.concept.title),
           el("p", {}, rich(s.concept.explain)),
-          s.concept.links.map((l) => button({ id: "link-" + l.url, label: l.title, icon: "link", kind: "link", ariaLabel: l.title + " (opens in your browser)", channel: "lesson-open-link", data: { url: l.url } })),
+          s.concept.links.map((l) => button({ id: "link-" + l.url, label: M.linkLabel(l.title), icon: "link", kind: "link", ariaLabel: M.linkLabel(l.title) + " (opens in your browser)", channel: "lesson-open-link", data: { url: l.url } })),
         ));
       }
       if (v.hints.length) more.push(section("Hints so far", "bulb", v.hints.map((h, i) => hintBox(h, i + 1, i === v.hints.length - 1))));
@@ -522,7 +539,7 @@
       actions: acts,
       keys,
       tools: stepTools(v),
-      expandable: true,
+      expandable: v.status !== "passed" || isExpanded(), // at the ✅ a lone "More" would be the only button: hide it
       strip: v.progress,
       stripLabel: { left: s.chapterTitle, right: "Step " + s.number + " of " + s.total },
       tone: st.tone,
@@ -601,17 +618,19 @@
       { n: v.shown, label: "shown by Stride", cls: "shown" },
     ];
     if (v.skipped > 0) tiles.push({ n: v.skipped, label: "skipped", cls: "skipped" });
+    // The counts come first: how it went is the news. Then what they made.
     const nodes = [
+      el("h2", { class: "lsec-title" }, "The " + v.steps + " steps you typed"),
+      el("ul", { class: "ltiles" }, tiles.map((t) => el("li", { class: "ltile " + t.cls }, el("span", { class: "ltile-n" }, String(t.n)), el("span", { class: "ltile-label" }, t.label)))),
       el("p", { class: "lead" }, rich(v.outcome)),
       v.picture
         ? el("img", { class: "lpicture", src: v.picture, alt: "A picture of the page you built" })
         : el("div", { class: "lpicture placeholder", role: "img", "aria-label": "A picture of the page you built" }, icon("image")),
-      el("h2", { class: "lsec-title" }, "The " + v.steps + " steps you typed"),
-      el("ul", { class: "ltiles" }, tiles.map((t) => el("li", { class: "ltile " + t.cls }, el("span", { class: "ltile-n" }, String(t.n)), el("span", { class: "ltile-label" }, t.label)))),
+
       v.allSteps > v.steps ? el("p", { class: "muted small" }, icon("bot", "xs"), "Plus " + (v.allSteps - v.steps === 1 ? "1 setup step" : v.allSteps - v.steps + " setup steps") + " I did for you, " + v.allSteps + " in all.") : null,
       v.minutes > 0 ? el("p", { class: "muted small" }, icon("clock", "xs"), "It took you about " + v.minutes + " min.") : null,
       el("h2", { class: "lsec-title" }, "What you learned"),
-      el("ul", { class: "lchips" }, v.learned.map((l) => el("li", {}, l))),
+      el("ul", { class: "lchips" }, v.learned.map((l) => el("li", {}, M.chipText(l)))),
       el(
         "div",
         { class: "lnext" },
@@ -769,15 +788,27 @@
     const hintNew = v.hints.length > 0 && (isNew || !prev || prev.screen !== "step" || v.hints.length > prev.hints.length);
     // While Stride types it, or at the ✅, the status is the news, not the hint.
     if (v.status === "showing" || v.status === "passed") return isNew ? null : body.querySelector(".lstatus");
-    if (hintNew) return body.querySelector(".lhint.is-latest");
+    // A new hint, with what's wrong right above it when both fit.
+    if (hintNew) return { node: body.querySelector(".lhint.is-latest"), from: body.querySelector(".lstatus") };
     if (!isNew && prev && prev.screen === "step" && prev.status !== v.status) return body.querySelector(".lstatus");
     return null;
   }
 
   // Scrolls the text part just enough to show a node (like scrollIntoView with block "nearest"), clear of the fade.
-  function revealInBody(node) {
+  function revealInBody(target) {
+    const node = target && target.node ? target.node : target;
+    if (!node) return;
     const b = body.getBoundingClientRect();
-    const r = node.getBoundingClientRect();
+    let r = node.getBoundingClientRect();
+    // Show from `from` (above the node) to the node's end, when that whole stretch fits.
+    if (target.from) {
+      const f = target.from.getBoundingClientRect();
+      const span = { top: Math.min(f.top, r.top), bottom: r.bottom, height: r.bottom - Math.min(f.top, r.top) };
+      const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const roomPx = b.height - (body.scrollHeight > body.clientHeight + 4 ? 2 * remPx : 0);
+      if (span.height <= roomPx) r = span;
+    }
+
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const fade = body.scrollHeight > body.clientHeight + 4 ? 2 * rem : 0;
     const room = b.height - fade;

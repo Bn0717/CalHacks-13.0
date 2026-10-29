@@ -2,7 +2,7 @@
 
 Legend: ✅ passes (with evidence) · ❌ fails / not done · ⏳ Mac-only (needs the real app on a Mac) · 🔒 blocked (missing key / blocked site)
 
-_Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). Key now works: real-AI runs in a fresh session. Review round 2 running._
+_Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). Key now works: real-AI runs in a fresh session. Round-2 fixes merged (PR #25, #26); real-AI eval still running; round 3 waits for its results._
 
 ## Blockers in this cloud environment
 
@@ -14,41 +14,41 @@ _Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). 
 - Real Gemini video notes for the 3 eval videos cost ≈ $0.74 total (upper bound; `docs/learn/eval/report.md`).
 - 🔒 `youtube.com` is blocked by the network proxy (Gemini reads YouTube videos on Google's side, so that path may still work).
 
-## A. The student can learn, start to finish (review round 1 on b185cc9)
+## A. The student can learn, start to finish (review round 2 on 1885751)
 
 | Line | Status | Evidence |
 | --- | --- | --- |
-| A1 | 🔒 | No valid Claude key. Only the hand-written fixture ran end to end (`docs/learn/runs/about-me.md`). |
-| A2 | ✅ | `build-from-idea.test.ts › answers 'make me Instagram' with a small alternative…`; CLI offers "a profile page with a grid of photos". |
-| A3 | ✅ (terminal) | Transcript "⏱ About 22 minutes · you'll type about 25 lines · 6 steps". On screen at 200% the numbers were hidden → fixing (r1 #3). |
-| A4 | 🔒 | Now enforced in code (`src/learn/rules.ts`, `tests/learn/rules.test.ts`); still needs a real-AI lesson. |
-| A5 | ⏳ review | Fixed in PR #24: ✅ 1.50–1.68 s after the last write (`docs/learn/runs/about-me.md`); awaiting round 2. |
-| A6 | 🔒 | Half-typed → "Still typing?", hints 1→2 escalate; hint 3 ≠ whole answer enforced (`rules.test.ts`). Needs a real-AI lesson. |
-| A7 | 🔒 | Concept links required (`ConceptSchema.links.min(1)`); video timestamp link tested (`terminal.test`). Needs a real-AI lesson. |
-| A8 | ✅ | `session.test › q saves, and the next session opens the same step with the same hints`. |
-| A9 | ✅ | `terminal.test › shows what they made, the counts and what they learned`; `docs/learn/ui/light-1x-finished.png`. |
+| A1 | 🔒 | Real-AI runs in progress in a separate session; only the fixture ran end to end (`docs/learn/runs/about-me.md`). |
+| A2 | ✅ | `build-from-idea.test.ts › answers 'make me Instagram' with a small alternative…`; eval report shows the profile-grid offer. |
+| A3 | ✅ | `⏱ About 24 minutes · you'll type about 28 lines · 6 steps` before step 1; visible at 200% in `docs/learn/ui/light-2x-estimate.png`. |
+| A4 | 🔒 | Rules in code (`rules.ts`); hint-3 rule is text-only → r2 fix; needs a real-AI lesson. |
+| A5 | ✅ | ✅ 1.50–1.71 s after the last write, no key pressed (`docs/learn/runs/about-me.md`, reviewer's sim). |
+| A6 | ⏳ review | Fixed in PR #25/#26: `tests/learn/judging.test.ts` (`<li>Drawing<li>` → hint after 10 s; pause after `<h1>` → "getting closer", no hint at 10 s; half-typed → partial); hint 1 shown with what's wrong. Awaiting round 3. |
+| A7 | 🔒 | Concept links required; "Say hi" step lacks a concept card → r2 fix; video timestamps need a real video lesson. |
+| A8 | ✅ | `session.test › q saves, and the next session opens the same step with the same hints`; `› coming back … shows Welcome back`. |
+| A9 | ✅ | `terminal.test › shows what they made, the counts and what they learned`; `light-1x-finished.png`. |
 
-## B. The Mac lesson screen (review round 1)
-
-| Line | Status | Evidence |
-| --- | --- | --- |
-| B1 | ❌ | Checker said `I can't find "body h1" yet.` (jargon) → C2; "the doctype", "hidden browser" unexplained → r1 fixes. |
-| B2 | ❌ | Tokens/font match bar.css; dark mode loses buddy's limbs; titles wrap beside header buttons → r1 fixes. |
-| B3 | ⏳ | Dock side remembered (`lesson-ui.test`); window docking needs the Mac (`WIRING.md`). |
-| B4 | ❌ | All 37 states have screenshots, but the screen wasn't fed by the real session (no `onView`) and build progress wasn't real → r1 fixes + C2 stages. |
-| B5 | ⏳ | 160–240 ms motion, `prefers-reduced-motion` handled; OS setting needs a Mac. |
-| B6 | ❌ | Tab order, focus, names, contrast ≥ 4.78 pass; at 200% the new hint / estimate numbers were hidden below the fold → r1 fixes. |
-| B7 | ❌ | Jargon messages; simple option showed the full lesson's "You'll learn"; hint count wording → r1 fixes. |
-| B8 | ✅ | 148 PNGs + `docs/learn/ui/REPORT.md`, re-generated and reviewed. |
-
-## C. Engineering quality (review round 1)
+## B. The Mac lesson screen (review round 2)
 
 | Line | Status | Evidence |
 | --- | --- | --- |
-| C1 | ✅ | typecheck passes; 977 pass, only the 4 Mac-only fail. |
-| C2 | ✅ | `lesson-ui.test.ts`, `view.test`, `lesson-model.test` + ~300 learn tests. |
-| C3 | 🔒 | Cost log built and tested (`cost.test`); `npm run learn:eval` meters every call. Gemini notes ≈ $0.25/video (real). Claude build/hint cost not measured (no key). |
-| C4 | ✅ | Bridge 127.0.0.1-only + timing-safe token (`bridge.test`, 18); Gemini key in header; `cost.test › never anything but tokens and prices`. |
+| B1 | ❌ | Selector jargon fixed (`check/words.ts`), but AI-judge reasons reach the student unfiltered; "4 list items" when 3 typed → r2 fix. |
+| B2 | ❌ | Dark buddy limbs ~1.7:1; building header wraps at 200%; lone "More" on passed card → r2 fix. |
+| B3 | ⏳ | Overlap check + remembered dock side pass in the cloud; real window docking needs the Mac (`WIRING.md` §2). |
+| B4 | ❌ | All 37 states + real build stages; but preview's stuck/partial text is nicer than what the product produces → r2 fix. |
+| B5 | ⏳ | 160–240 ms motion, `prefers-reduced-motion` handled; OS setting needs the Mac. |
+| B6 | ❌ | Keyboard/labels/contrast pass; at 200% stuck reason cut off, finish counts below fold, hint-3 code wraps → r2 fix. |
+| B7 | ❌ | Wrong code gets "You're on the right track" (see A6) → r2 fix. |
+| B8 | ✅ | 148 PNGs + `docs/learn/ui/REPORT.md`, regenerated identically. |
+
+## C. Engineering quality (review round 2)
+
+| Line | Status | Evidence |
+| --- | --- | --- |
+| C1 | ✅ | typecheck clean; 1046 pass, only the 4 Mac-only fail. |
+| C2 | ✅ | `session.test` onView walk, `view.test`, `lesson-model.test`, `rules.test`, screenshot audit. |
+| C3 | 🔒 | Gemini ≈ $0.25/video (real); Claude build/hint cost awaiting the real-AI session. |
+| C4 | ✅ | `bridge.test` (127.0.0.1 only, Origin refused, bad token closed); `cost.test › never anything but tokens and prices`. |
 | C5 | ✅ | Fix-my-Mac tests pass. |
 
 ## Review log
@@ -56,4 +56,6 @@ _Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). 
 - **Round 1** (fresh reviewer, b185cc9): 5 ✅, 7 ❌, 6 🔒, 4 ⏳. Fixes merged in PR #24 (screen ↔ session via `onView`, 200% text + in-view audit, ✅ 1.5 s,
   estimate, dark buddy, polish, fixture now 8/8 on the grader). `learn/c2-quality` merged (PR #23): plain checker messages (`check/words.ts`), AI rules in code
   (`rules.ts`), real build stages (`stages.ts`), eval harness + grader (`docs/learn/eval/report.md`).
-- **Round 2** (fresh reviewer, after PR #24): running.
+- **Round 2** (fresh reviewer, 1885751): 8 ✅, 7 ❌, 4 🔒, 2 ⏳. Fixes merged in PR #25 (partial vs wrong + "getting closer", hint 1 with
+  what's wrong, AI-judge jargon filter, 200% fold + audit, real checker words in the preview, polish) and PR #26 (terminal "keep going").
+

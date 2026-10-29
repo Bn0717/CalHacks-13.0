@@ -97,6 +97,29 @@ describe("lesson model: words", () => {
     expect(M.stepStatus(v).line).toBe("Watch it appear in index.html. Next time, you try.");
   });
 
+  it("never praises wrong code: 'Still typing?', 'Getting closer', 'Almost there' only at half right, else 'Not quite yet'", () => {
+    const typing = M.stepStatus(step({ status: "partial", partial: "typing", note: "Still typing? The <ul> you started still needs its closing </ul> (line 12)." }));
+    expect(typing).toMatchObject({ title: "Still typing?", line: "The <ul> you started still needs its closing </ul> (line 12).", tone: "calm" });
+    const closer = M.stepStatus(step({ status: "partial", partial: "closer", parts: { done: 1, total: 2 }, note: "Almost there. I see 1 list item (<li>), but this step needs 3." }));
+    expect(closer).toMatchObject({ title: "Getting closer", line: "I see 1 list item (<li>), but this step needs 3.", parts: { text: "1 of 2 parts right" } });
+    const half = M.stepStatus(step({ status: "stuck", parts: { done: 1, total: 2 }, note: "Almost there. One list item (<li>) is missing its closing </li>." }));
+    expect(half).toMatchObject({ title: "Almost there", line: "One list item (<li>) is missing its closing </li>.", tone: "warn", parts: { done: 1, total: 2 } });
+    const little = M.stepStatus(step({ status: "stuck", parts: { done: 1, total: 4 }, note: 'I can\'t see a description line (<meta name="description">) yet.' }));
+    expect(little).toMatchObject({ title: "Not quite yet", parts: { text: "1 of 4 parts right" } });
+    expect(M.stepStatus(step({ status: "stuck", parts: { done: 0, total: 4 } }))).toMatchObject({ title: "Not quite yet", parts: undefined });
+    for (const v of [typing, closer, half, little]) expect(v.title).not.toMatch(/right track/i);
+    // "Want a hint?" still says what's wrong.
+    expect(M.stepStatus(step({ status: "stuck", hintOffered: true, note: "The <ul> you started still needs its closing </ul>." })).line).toBe("The <ul> you started still needs its closing </ul>.");
+  });
+
+  it("labels read-more links plainly and starts every chip with a capital letter", () => {
+    expect(M.linkLabel("MDN: The ul element")).toBe("Read more: The ul element");
+    expect(M.linkLabel("Read more: Lists")).toBe("Read more: Lists");
+    expect(M.linkLabel("CSS basics")).toBe("Read more: CSS basics");
+    expect(M.chipText("the parts of an HTML page")).toBe("The parts of an HTML page");
+    expect(M.chipText("Lists")).toBe("Lists");
+  });
+
   it("adds a few plain words after tricky ones, once, and never inside code", () => {
     expect(M.explainTerms("Type the doctype, then <html>.")).toBe("Type the doctype (the first line, which tells the browser it's a web page), then <html>.");
     expect(M.explainTerms("Every page starts with <!DOCTYPE html>.")).toBe("Every page starts with <!DOCTYPE html> (the line that tells the browser it's a web page).");

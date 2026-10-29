@@ -6,7 +6,7 @@ import { buildFromIdea, type AskModel, type ModelJob } from "../../src/learn/bui
 import { buildFromVideo, firstPart, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
 import { readVideo, type VideoNotes } from "../../src/learn/gemini.js";
 import { ConceptSchema, LessonError, parseLesson, type Lesson, type Step } from "../../src/learn/lesson.js";
-import { hintGivesAway, lessonRuleProblems, hintStrength, looksLikeCode, nameHint, outlineHint, stepRuleProblems, strongerHints } from "../../src/learn/rules.js";
+import { codeStructure, hintGivesAway, hintStrength, lessonRuleProblems, looksLikeCode, nameHint, outlineHint, stepRuleProblems, strongerHints, structureShare } from "../../src/learn/rules.js";
 import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "../../src/learn/stages.js";
 
 const fixture = parseLesson(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures/about-me.lesson.json"), "utf8"))) as Lesson;
@@ -37,6 +37,22 @@ describe("rule tests", () => {
     expect(hintGivesAway("<h1>Hi, I'm Sam</h1>\n<P>I'm learning to make websites.</P>\n<p>This page is  all about me.</p>", intro.expected)).toBe(true);
     expect(hintGivesAway(intro.hints[2], intro.expected)).toBe(false);
     expect(hintGivesAway("<br>", "<br>")).toBe(false); // too small to give away
+  });
+
+  it("spot a hint 3 with the same tags and properties but other words (80% or more of the shape)", () => {
+    // Every tag of the answer, with "..." for the words: the whole answer in all but name.
+    expect(hintGivesAway("<h1>...</h1>\n<p>...</p>\n<p>...</p>", intro.expected)).toBe(true);
+    const hobbies = learner.find((s) => s.id === "hobbies")!;
+    expect(structureShare("<h2>...</h2>\n<ul>\n  <li>...</li>\n  <li>...</li>\n  <li>...</li>\n</ul>", hobbies.expected)).toBe(1);
+    expect(structureShare("<ul>\n  <li>...</li>\n  <li>...</li>\n  <li>...</li>\n</ul>", hobbies.expected)).toBe(0.8); // 4 of 5: too much
+    expect(hintGivesAway("<ul>\n  <li>...</li>\n  <li>...</li>\n  <li>...</li>\n</ul>", hobbies.expected)).toBe(true);
+    // CSS: the rules and properties count, the values don't.
+    const style = learner.find((s) => s.id === "style")!;
+    expect(hintGivesAway("body {\n  font-family: ...;\n  margin: ...;\n}\nh1 {\n  color: ...;\n}", style.expected)).toBe(true);
+    expect(codeStructure('<link rel="stylesheet" href="style.css">\nh1 { color: red; }')).toEqual(["link", "link@rel", "link@href", "rule:h1", "color"]);
+    // The fixture's hint 3s show only part of the shape.
+    for (const s of learner) expect(structureShare(s.hints[2], s.expected), s.id).toBeLessThan(0.8);
+    expect(stepRuleProblems({ ...intro, hints: [intro.hints[0], intro.hints[1], "<h1>...</h1><p>...</p><p>...</p>"] })[0]).toMatch(/hint 3 contains the whole answer/);
   });
 
   it("tell code from plain words", () => {
@@ -81,10 +97,16 @@ describe("the idea builder enforces the rules", () => {
     expect(lessonRuleProblems(r.lesson.steps)).toEqual([]);
   });
 
-  it("outlines code by blanking out what the student writes", () => {
-    expect(outlineHint('    <h1>Hi, I\'m Sam</h1>\n    <img src="me.png" alt="Me">\n')).toBe('    <h1>…</h1>\n    <img src="…" alt="…">');
-    expect(outlineHint("h1 {\n  color: tomato;\n}\n")).toBe("h1 {\n  color: …;\n}");
-    expect(outlineHint("<ul>\n</ul>\n<ol>\n</ol>\n")).toBe("<ul>\n</ul>\n…");
+  it("outlines code by blanking out what the student writes, and never gives the answer's whole shape", () => {
+    const css = "h1 {\n  color: tomato;\n  margin: 0;\n  padding: 4px;\n}\n";
+    const html = '    <h1>Hi, I\'m Sam</h1>\n    <p>I like <b>art</b></p>\n    <img src="me.png" alt="Me">\n';
+    for (const code of [css, html, "<ul>\n</ul>\n<ol>\n</ol>\n"]) {
+      const hint = outlineHint(code);
+      expect(hintGivesAway(hint, code), hint).toBe(false);
+      expect(hint).toContain("…");
+    }
+    expect(outlineHint(html).split("\n")[0]).toBe("    <h1>…</h1>");
+    expect(outlineHint(css)).toMatch(/^h1 \{\n  color: …;/);
   });
 
   it("gives up when the steps still break the rules", async () => {

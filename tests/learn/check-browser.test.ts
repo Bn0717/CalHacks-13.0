@@ -68,7 +68,7 @@ describe.skipIf(!canLaunch)("checker with a real hidden browser", () => {
       withCss("", "<script>notDefined()</script>"),
       { renderer },
     );
-    expect(r.status).toBe("partial");
+    expect(r.status).toBe("fail"); // one part right, one wrong: wrong, not "partial"
     expect(r.failed.map((c) => c.type)).toEqual(["cssProperty"]);
     expect(r.consoleErrors.join(" ")).toContain("notDefined");
   });

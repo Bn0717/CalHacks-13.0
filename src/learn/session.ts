@@ -37,7 +37,8 @@ export interface EditorLink {
   onEdit(fn: (e: { path: string; text: string; saved: boolean }) => void): () => void;
 }
 
-export type StepChecker = (step: Step, files: ProjectFile[]) => Promise<CheckOutcome>;
+// start: the step's file as it was when the step opened, so the checker can tell "not finished yet" from "wrong".
+export type StepChecker = (step: Step, files: ProjectFile[], start?: ProjectFile[]) => Promise<CheckOutcome>;
 
 export interface SessionDeps {
   lesson: Lesson;
@@ -80,6 +81,7 @@ export class LessonSession {
   private selfWrites = new Map<string, string>(); // what Stride itself last wrote, so its own writes aren't "typing"
   private live = new Map<string, string>(); // unsaved text from the editor
   private lastMessage: string | undefined;
+  private startContent: string | undefined; // the step's file when the step opened
   private quiz: Step["quiz"] | undefined;
   private quizStepId: string | undefined;
   private done = false;
@@ -303,10 +305,21 @@ export class LessonSession {
   }
 
   private async check(step: Step): Promise<CheckOutcome> {
-    const outcome = await this.deps.check(step, await this.readProject());
+    const files = await this.readProject();
+    const start = step.file && this.startContent !== undefined ? [{ path: step.file, content: this.startContent }] : undefined;
+    let outcome = await this.deps.check(step, files, start);
+    // The step's file just as it was when the step opened: nothing typed yet, so it's still their turn, not wrong.
+    const own = step.file ? files.find((f) => same(f.path, step.file!))?.content : undefined;
+    if (outcome.status !== "pass" && this.startContent !== undefined && own !== undefined && own === this.startContent) outcome = { ...outcome, untouched: true };
+    if (outcome.untouched) {
+      this.lastMessage = undefined;
+      return outcome;
+    }
     if (outcome.status !== "pass" && outcome.message && outcome.message !== this.lastMessage && !this.done) {
       this.lastMessage = outcome.message;
-      this.print(`${outcome.status === "partial" ? "⏳" : "🤔"} ${outcome.message}`);
+      // Half-typed, or the first lines typed right with the rest still to come: that's progress, not a mistake.
+      const keepGoing = outcome.status === "partial" || ((outcome.onTrack ?? 0) > 0 && !outcome.slip);
+      this.print(keepGoing ? `⏳ Good so far, keep going. ${outcome.message}` : `🤔 ${outcome.message}`);
     }
     return outcome;
   }
@@ -360,6 +373,7 @@ export class LessonSession {
     switch (effect.type) {
       case "openStep":
         this.lastMessage = undefined;
+        this.startContent = undefined;
         this.line = undefined;
         this.openConcept = isNewIdea(this.deps.lesson, effect.index);
         // On the screen, the quick question waits for the student; in the terminal it's just there for a moment.
@@ -378,6 +392,8 @@ export class LessonSession {
         this.track(this.openStep(effect.index, effect.step, effect.welcomeBack));
         break;
       case "showHint":
+        // Hint 1 comes with what's wrong right now, so the problem and the hint are always read together.
+        if (effect.level === 1 && effect.reason) this.print(`   What's wrong: ${effect.reason}`);
         this.print(hintText(effect.level, effect.text));
         if (effect.level === 3) this.print(this.runner.state.progress.pace === "fast" ? "Still stuck? Press s and I'll type it." : "Still stuck? Press s and I'll type it for you.");
         break;
@@ -425,7 +441,10 @@ export class LessonSession {
           await writeFile(path, "", "utf8");
         }
       }
+      const now = this.live.get(step.file) ?? (await readFile(path, "utf8").catch(() => undefined));
+      if (this.runner.state.progress.stepIndex === index) this.startContent = now;
     }
+
     this.print(stepCard(this.deps.lesson, index, newFile ? { newFile } : {}));
     // Back after a break: the hints they'd already seen on this step, so nothing is lost.
     const seen = welcomeBack && step.who === "learner" ? this.runner.state.hintLevel : 0;

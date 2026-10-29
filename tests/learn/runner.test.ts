@@ -120,7 +120,7 @@ describe("lesson runner: the about-me lesson from start to finish", () => {
     // The finish summary.
     const summary = lessonSummary(lesson, runner.state.progress);
     expect(summary).toMatchObject({ steps: 5, alone: 2, hinted: 1, shown: 1, skipped: 1 });
-    expect(summary.concepts).toEqual(["The parts of an HTML page", "Lists", "Linking CSS"]);
+    expect(summary.concepts).toEqual(["The parts of an HTML page", "Headings and paragraphs", "Lists", "Linking CSS"]);
     expect(summary.minutes).toBeGreaterThan(0);
   });
 });

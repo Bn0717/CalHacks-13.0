@@ -387,7 +387,7 @@ async function main(): Promise<void> {
       print: say,
       keys: input,
       watcher: folderWatcher,
-      check: (step, files) => checkStep(step, files, { renderer, ...(judge ? { judge } : {}) }),
+      check: (step, files, start) => checkStep(step, files, { renderer, ...(judge ? { judge } : {}), ...(start ? { start } : {}) }),
       ...(bridge ? { editor: editorLink(bridge) } : {}),
       pace: args.pace,
     });

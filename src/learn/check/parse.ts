@@ -8,7 +8,8 @@ export type HtmlDocument = DefaultTreeAdapterTypes.Document;
 export type HtmlElement = DefaultTreeAdapterTypes.Element;
 
 // What's wrong with a file that doesn't parse, in plain words, and where.
-export type ParseProblem = { message: string; line?: number };
+// mistake: a real slip, not half-typed code (e.g. "<h1>Hi<h1>", where the second <h1> swallows the lines after it).
+export type ParseProblem = { message: string; line?: number; mistake?: boolean };
 
 export type FileKind = "html" | "css" | "js" | "other";
 
@@ -44,21 +45,72 @@ export function readHtml(source: string, leavesOpen: readonly string[] = []): Pa
   const doc = parseHtml(source, {
     sourceCodeLocationInfo: true,
     onParseError: (e) => {
-      if (!fatal && FATAL_HTML.has(e.code)) fatal = { message: "A tag isn't finished yet.", line: e.startLine };
+      // The line where the unfinished tag starts (the parser may only notice on a later line).
+      if (!fatal && FATAL_HTML.has(e.code)) fatal = { message: "A tag isn't finished yet.", line: tagStartLine(source, e.startOffset, e.startLine) };
     },
   });
   return { doc, problem: fatal ?? unclosedElement(doc, leavesOpen) };
 }
 
+// The line of the last "<" at or before `offset`: where the tag the parser stopped in began.
+function tagStartLine(source: string, offset: number, fallback: number): number {
+  // (Search from just before the error: the error itself can sit on the next tag's "<".)
+  const at = source.lastIndexOf("<", Math.min(offset - 1, source.length - 1));
+  return at < 0 ? fallback : source.slice(0, at).split("\n").length;
+}
+
+// Tags that only hold words, never whole blocks like paragraphs or lists.
+const WORDS_ONLY = new Set("h1 h2 h3 h4 h5 h6 span a strong em b i label button title small".split(" "));
+const BLOCKS = new Set("p ul ol li div section header footer main nav article aside h1 h2 h3 h4 h5 h6 table form figure blockquote".split(" "));
+
 // The first element the student opened but never closed, e.g. a <ul> with no </ul>.
+// An unclosed heading (or another words-only tag) that swallowed whole blocks after it is a slip, not half-typed code.
 function unclosedElement(doc: HtmlDocument, leavesOpen: readonly string[]): ParseProblem | undefined {
-  for (const el of allElements(doc)) {
+  // "<h1>Hi<h1>" leaves two unclosed headings: the first holds only "Hi", the second swallows the lines after it.
+  const unclosed = allElements(doc).filter((el) => {
     const loc = el.sourceCodeLocation;
-    if (!loc?.startTag || loc.endTag || VOID.has(el.tagName) || OPTIONAL_END.has(el.tagName) || leavesOpen.includes(el.tagName)) continue;
-    if (el.namespaceURI !== "http://www.w3.org/1999/xhtml") continue; // self-closing SVG bits are fine
-    return { message: `The <${el.tagName}> you started still needs its closing </${el.tagName}>.`, line: loc.startTag.startLine };
+    if (!loc?.startTag || loc.endTag || VOID.has(el.tagName) || OPTIONAL_END.has(el.tagName) || leavesOpen.includes(el.tagName)) return false;
+    return el.namespaceURI === "http://www.w3.org/1999/xhtml"; // self-closing SVG bits are fine
+  });
+  if (unclosed.length === 0) return undefined;
+  const swallower = unclosed.find((el) => WORDS_ONLY.has(el.tagName) && allElements(el).some((child) => BLOCKS.has(child.tagName)));
+  const el = unclosed.find((e) => swallower && e.tagName === swallower.tagName) ?? unclosed[0]!;
+  return {
+    message: `The <${el.tagName}> you started still needs its closing </${el.tagName}>.`,
+    line: el.sourceCodeLocation!.startTag!.startLine,
+    ...(swallower ? { mistake: true } : {}),
+  };
+}
+
+// Tags typed with some closing tags but not enough, e.g. "<li>Drawing<li>" next to closed list items gives
+// [{ tag: "li", missing: 1 }]. HTML lets <li> and <p> go unclosed, so the parser alone doesn't notice.
+export function missingClosers(source: string): { tag: string; missing: number; line?: number }[] {
+  const code = source.replace(/<!--[\s\S]*?(-->|$)/g, "").replace(/<(script|style)\b[\s\S]*?(<\/\1\s*>|$)/gi, "");
+  const opens = new Map<string, number>();
+  const closes = new Map<string, number>();
+  for (const m of code.matchAll(/<(\/?)([a-z][a-z0-9-]*)\b[^>]*>/gi)) {
+    const tag = m[2]!.toLowerCase();
+    if (VOID.has(tag) || m[0].endsWith("/>")) continue;
+    const map = m[1] ? closes : opens;
+    map.set(tag, (map.get(tag) ?? 0) + 1);
   }
-  return undefined;
+  // The usual slip: "<li>Drawing<li>", a start tag typed where the closing tag should be, at the end of a line.
+  const swapped = new Map<string, { count: number; line: number }>();
+  source.split("\n").forEach((text, i) => {
+    const m = /<([a-z][a-z0-9-]*)\b[^>]*>[^<]+<\1>\s*$/i.exec(text);
+    if (!m) return;
+    const tag = m[1]!.toLowerCase();
+    const seen = swapped.get(tag);
+    swapped.set(tag, { count: (seen?.count ?? 0) + 1, line: seen?.line ?? i + 1 });
+  });
+  const out: { tag: string; missing: number; line?: number }[] = [];
+  for (const [tag, open] of opens) {
+    const close = closes.get(tag) ?? 0;
+    const swap = swapped.get(tag);
+    if (swap && !VOID.has(tag)) out.push({ tag, missing: swap.count, line: swap.line });
+    else if (close > 0 && open > close && !["html", "head", "body"].includes(tag)) out.push({ tag, missing: open - close });
+  }
+  return out;
 }
 
 // Every element in the document, in source order.
