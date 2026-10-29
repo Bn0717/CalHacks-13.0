@@ -186,7 +186,12 @@ export const LessonSchema = z
     learns: z.array(z.string().min(1)).describe("What they'll learn, in a few words each."),
     estimate: EstimateSchema,
     simpler: z
-      .object({ title: z.string().min(1), estimate: EstimateSchema, why: z.string().min(1) })
+      .object({
+        title: z.string().min(1),
+        estimate: EstimateSchema,
+        why: z.string().min(1),
+        stepIds: z.array(z.string().min(1)).optional().describe("The steps of the smaller version, in order."),
+      })
       .optional()
       .describe("A smaller version to offer first when the lesson is long."),
     files: z.array(ProjectFileSchema).min(1).describe("The finished reference project."),
@@ -258,6 +263,19 @@ export function estimateMinutes(steps: Step[]): number {
 export function estimateFor(steps: Step[]): Estimate {
   const linesToType = steps.filter((s) => s.who === "learner").reduce((sum, s) => sum + linesIn(s.expected), 0);
   return { minutes: estimateMinutes(steps), linesToType, steps: steps.length };
+}
+
+// The smaller version of a lesson (its `simpler` offer) as a lesson of its own, or null when it can't be made from these
+// steps (no offer, or the offer doesn't say which steps it keeps).
+export function smallerLesson(lesson: Lesson): Lesson | null {
+  const ids = lesson.simpler?.stepIds;
+  if (!lesson.simpler || !ids || ids.length === 0) return null;
+  const keep = new Set(ids);
+  const steps = lesson.steps.filter((s) => keep.has(s.id));
+  if (steps.length === 0 || steps.length >= lesson.steps.length) return null;
+  const chapters = lesson.chapters.filter((c) => steps.some((s) => s.chapter === c.id));
+  const { simpler, ...rest } = lesson;
+  return { ...rest, id: `${lesson.id}-core`, title: simpler.title, steps, chapters, estimate: estimateFor(steps) };
 }
 
 // The input a 'stride' step passes to its tool.

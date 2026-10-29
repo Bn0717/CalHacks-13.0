@@ -115,7 +115,7 @@ const TOO_BIG: { test: RegExp; named?: boolean; why: string; smaller: (match: st
     test: /\b(instagram|facebook|tiktok|twitter|snapchat|pinterest|reddit|linkedin)\b/i,
     named: true,
     why: "needs accounts, servers and a database to store everyone's posts",
-    smaller: (m) => `a profile page with a grid of photos, like a ${title(m)} profile`,
+    smaller: (m) => `a profile page with a grid of photos, like ${/^[aeiou]/i.test(m) ? "an" : "a"} ${title(m)} profile`,
   },
   {
     test: /\b(youtube|netflix|spotify|amazon|ebay|uber|airbnb|whatsapp|discord)\b/i,
@@ -414,7 +414,12 @@ function merge(kept: Check[], fresh: Check[]): Check[] {
 }
 
 // A smaller one-page version to offer first: the model picks the core steps, and code works out their real estimate.
-async function simplerOffer(project: ProjectAnswer, steps: Step[], full: Estimate, deps: IdeaDeps): Promise<{ title: string; estimate: Estimate; why: string } | undefined> {
+async function simplerOffer(
+  project: ProjectAnswer,
+  steps: Step[],
+  full: Estimate,
+  deps: IdeaDeps,
+): Promise<{ title: string; estimate: Estimate; why: string; stepIds: string[] } | undefined> {
   const ids = steps.map((s) => s.id);
   const schema = SimplerAnswerSchema.superRefine((a, ctx) => {
     const unknown = a.stepIds.filter((id) => !ids.includes(id));
@@ -432,7 +437,8 @@ sections (about 30-45 minutes), in order, keeping every step those depend on (th
       maxTokens: 4000,
     });
     const chosen = new Set(answer.stepIds);
-    return { title: answer.title, why: answer.why, estimate: estimateFor(steps.filter((s) => chosen.has(s.id))) };
+    const kept = steps.filter((s) => chosen.has(s.id)); // in lesson order, so the smaller version still builds up step by step
+    return { title: answer.title, why: answer.why, estimate: estimateFor(kept), stepIds: kept.map((s) => s.id) };
   } catch {
     return undefined; // the full lesson is still fine without the offer
   }
@@ -450,6 +456,7 @@ const MAC_BROWSERS = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/opt/pw-browsers/chromium", // Playwright's own Chromium on Linux (cloud sessions), the same list the checker uses
 ];
 
 // Writes the project to a temporary folder and opens every page in a hidden browser. Anything that would reach the
