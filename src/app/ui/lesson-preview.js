@@ -37,7 +37,11 @@
     const a = step.anchor || {};
     let at = lines.length;
     if (a.afterLine !== undefined) at = Math.min(a.afterLine, lines.length);
-    else if (a.inside) { const i = lines.findIndex((l) => l.includes("<" + a.inside)); at = i >= 0 ? i + 1 : lines.length; }
+    else if (a.inside) { // at the end of the tag, just before its closing tag (like src/learn/anchor.ts)
+      const close = lines.findIndex((l) => l.includes("</" + a.inside));
+      const open = lines.findIndex((l) => l.includes("<" + a.inside));
+      at = close >= 0 ? close : open >= 0 ? open + 1 : lines.length;
+    }
     else if (a.after) { const i = lines.findIndex((l) => l.includes(a.after)); at = i >= 0 ? i + 1 : lines.length; }
     if (text !== "") lines.splice(at, 0, ...add);
     files[step.file] = lines.length ? lines.join("\n") + "\n" : "";
