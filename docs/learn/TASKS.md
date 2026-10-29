@@ -151,3 +151,57 @@ Branch: `learn/t6-vscode` · Files: `extensions/vscode/` (its own `package.json`
 
 Done when: the bridge is unit-tested with a fake client; the extension compiles and its message handling is unit-tested;
 `npx vsce package` produces a `.vsix`. (Running it inside VS Code is tested later on the Mac.)
+
+---
+
+# Round 2 — make it usable and prove quality (cloud)
+
+T0–T6 are merged. These need real keys: `ANTHROPIC_API_KEY` (and `GEMINI_API_KEY` for videos) set as environment
+variables on the cloud environment. If a key is missing or a host is blocked by the network, say so clearly and stop that
+part — don't fake it.
+
+## C1 — Terminal version of a whole lesson
+
+Branch: `learn/c1-terminal` · PR into `feat/learn-mode`
+
+A student can run a complete lesson **without the Mac UI**:
+
+```
+npm run learn -- "a page about me"            # idea
+npm run learn -- --picture ./ref.png "a page like this"
+npm run learn -- --video https://youtu.be/...  # video
+npm run learn -- --resume                      # continue the last lesson
+```
+
+- `src/cli/learn.ts`: asks `questionsFor()` questions as numbered choices; shows the `tooBig` / `simpler` offers and lets the
+  student pick; builds the lesson with the **real** builders (Opus 5.5) and the cache; prints the estimate first.
+- Creates the project folder (default `~/stride-lessons/<slug>`, `--dir` to override), prints its path and the step card:
+  `Step 3/18 · 🧑 Your turn`, instruction, why, concept, video timestamp link for video lessons.
+- Watches the folder (`fs.watch`, debounced) and feeds edits/saves/idle into the real runner + checker (with the hidden
+  browser render). Keys: `h` hint, `s` show me (writes the expected code into the file at the anchor), `n` skip,
+  `p` toggle pace, `q` quit (progress saved). `who:"stride"` steps that only create files/folders are done directly;
+  anything else is printed as "Stride would do this on the Mac app" and skipped.
+- The VS Code bridge is optional: if a VS Code helper connects, also highlight the target line.
+- Ends with the summary.
+- Log every model call's tokens and estimated $ (Opus 5.5 $4/$20 per M, Haiku 5.5 $0.10/$0.50 per M) to
+  `~/stride-lessons/<slug>/cost.json` and print the total at the end.
+
+Done when: a real run of "a page about me" works end to end in the cloud, with the student's edits simulated by a small
+script that writes each step's `expected` code (one wrong attempt first on two steps, to exercise hints). Save that run's
+transcript to `docs/learn/runs/about-me.md`. Unit tests for the CLI glue with fakes. Total real API spend for this task under $3.
+
+## C2 — Real quality test and prompt fixes
+
+Branch: `learn/c2-quality` · PR into `feat/learn-mode` · Do after C1 is merged.
+
+- `src/cli/learn-eval.ts` (`npm run learn:eval`): builds real lessons for
+  ideas: "a page about me", "a website for my small bakery", "make me Instagram" (must be `tooBig` + a small offer),
+  "a page like this picture" (use a simple generated mockup PNG in `tests/learn/fixtures/`);
+  videos: pick 3 popular beginner HTML/CSS YouTube tutorials (10–30 min, public, with captions) and list their URLs.
+- Automatic grading per lesson: valid `Lesson`; every check passes on the reference and the first fails on an empty project;
+  steps are 3–10 lines; 🧑 steps are the learning parts and 🤖 steps are only setup; estimate within a sensible range;
+  each concept explained in one plain sentence; hints get stronger and the third doesn't give the full answer.
+- A second, separate Opus call grades each lesson 1–5 on: beginner-friendly wording, step size, teaching order, hint quality,
+  fidelity to the video. Write `docs/learn/eval/report.md` with scores, the worst examples, and cost.
+- Improve the builder prompts where scores are low, re-run, and show before/after in the report.
+- Hard cap: stop if real API spend for this task passes $8.
