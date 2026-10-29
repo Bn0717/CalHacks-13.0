@@ -128,4 +128,19 @@ describe("report", () => {
     expect(f.join(" ")).toMatch(/2 real Haiku check call\(s\), average \$0\.0002, most expensive \$0\.0002 — passes/);
     expect(reportMarkdown({ ...base, hintChecks })).toContain("| x | s1 | no: I can't see your list yet. | 1500 / 60 | $0.0002 |");
   });
+
+  it("shows a case whose earlier build failed as failed before, and the summary first", () => {
+    const earlier: EvalReport = { ...base, cases: [{ name: "x", kind: "idea", status: "error", note: "The answer was cut off at 20000 tokens. (more)", usd: 0.49 }] };
+    const j = { scores: { wording: 4, stepSize: 4, order: 4, hints: 4, fidelity: 5 }, worst: [], summary: "s" };
+    const now: EvalReport = {
+      ...base,
+      claude: { usable: true, note: "working" },
+      summary: ["All builds work now."],
+      cases: [{ name: "x", kind: "idea", status: "graded", source: "built", grade: { name: "x", kind: "lesson", criteria: [], passed: 7, total: 9 }, judgement: j, usd: 0.46 }],
+      before: beforeRunFrom(earlier),
+    };
+    const md = reportMarkdown(now);
+    expect(md).toContain("| x | build failed: The answer was cut off at 20000 tokens. → 7/9 | — | 4 · 4 · 4 · 4 · 5 | — → 4.2 | $0.49 lost → $0.46 |");
+    expect(md.indexOf("## Summary")).toBeLessThan(md.indexOf("## Lessons"));
+  });
 });

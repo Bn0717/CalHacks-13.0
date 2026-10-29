@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-10-29T07:06:34.147Z",
+  "ranAt": "2026-10-29T07:19:23.050Z",
   "claude": {
     "usable": true,
     "note": "a key is set"
@@ -117,7 +117,7 @@
       "name": "a page about me",
       "kind": "idea",
       "status": "graded",
-      "source": "built",
+      "source": "cached",
       "grade": {
         "name": "a page about me",
         "kind": "lesson",
@@ -229,7 +229,7 @@
       "name": "a website for my small bakery",
       "kind": "idea",
       "status": "graded",
-      "source": "built",
+      "source": "cached",
       "grade": {
         "name": "a website for my small bakery",
         "kind": "lesson",
@@ -365,7 +365,7 @@
       "name": "a page like this picture",
       "kind": "idea",
       "status": "graded",
-      "source": "built",
+      "source": "cached",
       "grade": {
         "name": "a page like this picture",
         "kind": "lesson",
@@ -476,23 +476,335 @@
     {
       "name": "Create Your First HTML/CSS Project",
       "kind": "video",
-      "status": "error",
-      "note": "The lesson breaks Stride's step rules. (Step bold needs a video part (start and end in seconds).)",
-      "usd": 0.9352159999999999
+      "status": "graded",
+      "source": "built",
+      "grade": {
+        "name": "Create Your First HTML/CSS Project",
+        "kind": "lesson",
+        "lessonId": "video-wzWmZYi4qMg",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": false,
+            "examples": [
+              "Step banner-image adds 1 line.",
+              "Step link-css adds 1 line.",
+              "Step banner-padding adds 1 line."
+            ]
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": false,
+            "examples": [
+              "70 min with no smaller version offered first."
+            ]
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": []
+          }
+        ],
+        "passed": 7,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 70,
+        "linesToType": 57,
+        "steps": 22
+      },
+      "usd": 0.44898830000000006,
+      "judgement": {
+        "scores": {
+          "wording": 3,
+          "stepSize": 4,
+          "order": 4,
+          "hints": 3,
+          "fidelity": 4
+        },
+        "worst": [
+          {
+            "stepId": "head-info",
+            "problem": "Asks for three meta lines, but neither the instruction nor any hint gives their values ('width=device-width, initial-scale=1.0', 'ie=edge', 'UTF-8'), so a beginner cannot produce the expected code."
+          },
+          {
+            "stepId": "gritter-start",
+            "problem": "Says to write a paragraph 'about Gritty's social media' but never gives the exact sentence the expected answer requires, and packs a comment, div, span, id and class into one step."
+          },
+          {
+            "stepId": "head-info",
+            "problem": "Hint 3 leaves every meta value as '…', so even the strongest hint can't get a stuck learner past this step."
+          },
+          {
+            "stepId": "body-banner",
+            "problem": "class=\"banner\", id=\"gritter\", class=\"bold\" and id=\"small-gritty\" are added long before the video does, so the clips (e.g. 498-525, 525-576) show different code than the learner is typing."
+          },
+          {
+            "stepId": "watch-image",
+            "problem": "Unclear whether the learner must supply a picture ('put any picture you like') or whether one already exists, since the project 'already has the same layout'."
+          }
+        ],
+        "summary": "Small, well-paced steps with plain explanations of each tag and CSS property follow the video's build closely, and most third hints are good code skeletons. Some steps demand exact text or values the learner is never given (the meta tags, the Gritter sentence), and the early ids and classes make the code drift from what the clips show."
+      }
     },
     {
       "name": "HTML Tutorial for Beginners",
       "kind": "video",
-      "status": "error",
-      "note": "The answer was cut off at 32000 tokens.",
-      "usd": 0.687456
+      "status": "graded",
+      "source": "cached",
+      "grade": {
+        "name": "HTML Tutorial for Beginners",
+        "kind": "lesson",
+        "lessonId": "video-WOvg00FnmsU",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": false,
+            "examples": [
+              "index.html: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file)."
+            ]
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": false,
+            "examples": [
+              "Step main-section: hint 3 repeats nearly every line of the answer."
+            ]
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": []
+          }
+        ],
+        "passed": 7,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 33,
+        "linesToType": 26,
+        "steps": 12
+      },
+      "usd": 0.35995479999999996,
+      "judgement": {
+        "scores": {
+          "wording": 4,
+          "stepSize": 3,
+          "order": 4,
+          "hints": 4,
+          "fidelity": 4
+        },
+        "worst": [
+          {
+            "stepId": "em-comment-br",
+            "problem": "Packs three new ideas into one step: comments, em and br. It also has the learner jump back above the h2 and then down below the bold paragraph."
+          },
+          {
+            "stepId": "head-info",
+            "problem": "Asks a beginner to type a long, unexplained meta viewport line full of jargon (charset, UTF-8, viewport, initial-scale). Its video range 162-247 overlaps the skeleton step."
+          },
+          {
+            "stepId": "header-footer",
+            "problem": "Wrapping existing code is hard to picture, and the expected snippet shows an empty <header></header>. A literal-minded beginner might think the h1 should be removed. Two concepts (header and footer) are also bundled together."
+          },
+          {
+            "stepId": "body-heading",
+            "problem": "The video range 288-316 cuts off the presenter adding the intro paragraph (done by 344). The watch-elements range 316-403 then starts with that coding instead of the block/inline explanation."
+          },
+          {
+            "stepId": "skeleton",
+            "problem": "The attribute lang=\"en\" is introduced without explaining what an attribute is. The expected indentation is inconsistent with later steps (e.g. h1 at 6 spaces under a 2-space body)."
+          }
+        ],
+        "summary": "The lesson closely follows the video's code. Its learner hints get stronger well and the third hint never gives the full answer. Some steps are crammed (em-comment-br, head-info), and the expected snippets for wrapping steps and their indentation could confuse a first-time coder."
+      }
     },
     {
       "name": "How to Code Your First Website",
       "kind": "video",
-      "status": "error",
-      "note": "The lesson breaks Stride's step rules. (Step words needs a video part (start and end in seconds).)",
-      "usd": 0.29589600000000005
+      "status": "graded",
+      "source": "cached",
+      "grade": {
+        "name": "How to Code Your First Website",
+        "kind": "lesson",
+        "lessonId": "video-zMTId2CUClw",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": false,
+            "examples": [
+              "Step heading: hint 3 isn't the strongest (shows 0% → 100% → 78% of the answer's code)."
+            ]
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": []
+          }
+        ],
+        "passed": 8,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 26,
+        "linesToType": 19,
+        "steps": 9
+      },
+      "usd": 0.186476,
+      "judgement": {
+        "scores": {
+          "wording": 4,
+          "stepSize": 3,
+          "order": 4,
+          "hints": 3,
+          "fidelity": 3
+        },
+        "worst": [
+          {
+            "stepId": "style-body",
+            "problem": "Too much new at once: the style tag, CSS, selectors, curly brackets, properties and semicolons all arrive in one step, though the video splits this at 1091s and the step could be split too."
+          },
+          {
+            "stepId": "para-strong",
+            "problem": "The video clip (352-720) shows the presenter bolding 'hello world!!!!!' with no <p> tags, so it does not match the paragraph-with-bold-name task the learner types."
+          },
+          {
+            "stepId": "para-strong",
+            "problem": "Three new ideas in one step: what a tag is, the <p> tag, and the <strong> tag, plus multi-line nesting."
+          },
+          {
+            "stepId": "style-body",
+            "problem": "Hint 2 uses the word 'property' without ever explaining it."
+          },
+          {
+            "stepId": "intro",
+            "problem": "Watch-step hints ('Nothing to type', 'Move on when you're ready') are filler and don't get stronger; outro also lacks its 1385-1421 video range."
+          }
+        ],
+        "summary": "Its biggest strength is clear, friendly wording with short typed chunks that end in exactly the video's final code. Its biggest weakness is that the reordered HTML steps no longer match their video clips, and the CSS step crams in too many new ideas at once."
+      }
     }
   ],
   "videoNotes": [
@@ -543,13 +855,13 @@
     }
   ],
   "spend": {
-    "thisRun": 3.5245768000000006,
-    "allRuns": 6.6134129999999995,
+    "thisRun": 0.5261397999999999,
+    "allRuns": 7.7920495999999995,
     "cap": 8
   },
   "findings": [
-    "GOAL C3 (build under $0.50): 3 real build(s), most expensive $0.51 — FAILS.",
-    "GOAL C3 (hint under $0.01): 3 real Haiku check call(s), average $0.0002, most expensive $0.0002 — passes. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; only a check the code can't decide calls Haiku.",
+    "GOAL C3 (build under $0.50): 6 real build(s), average $0.41, most expensive $0.51 (a page about me) — FAILS for a page about me $0.51. Video builds add the Gemini notes on top (below).",
+    "GOAL C3 (hint under $0.01): 6 real Haiku check call(s), average $0.0002, most expensive $0.0002 — passes. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; only a check the code can't decide calls Haiku.",
     "Reading one 19-24 minute video with Gemini (low resolution) cost $0.22-$0.29 (average $0.25, upper-bound price). That is part of a video lesson's build, so it leaves about $0.25 of the $0.50 budget for the Opus steps call (projection, not measured).",
     "The 3 videos were picked as beginner HTML/CSS step-by-step builds; youtube.com is blocked here, so view counts and captions couldn't be checked. Gemini read two titles differently from the ones noted when picking them (\"HTML Tutorial for Beginners - Full Course\", \"How to Code Your FIRST Website (in 10 minutes)\"); the report shows what Gemini read.",
     "Found by this test: in wzWmZYi4qMg's real notes Gemini escaped the code twice (every line break arrived as a typed \\\\n, so each file was one long line). src/learn/gemini.ts now turns that back into real lines (unescapeCode); without it that video's lesson would have been built from 11 one-line code blobs."
@@ -646,32 +958,81 @@
       "where": "checker: Haiku judge",
       "change": "Reasons in plain words for a 14-year-old, never DOM/selector/element/parse.",
       "why": "B1."
+    },
+    {
+      "where": "idea: project (round 2)",
+      "change": "First projects of 30-70 lines (up to ~120 for big asks); only what the student asked for, no surprise JavaScript or extras; few common tags/properties; the <head> is just charset, title and the CSS link.",
+      "why": "Run 1: 'a page about me' came back at 116 lines / 102 min with a face-switcher nobody asked for; the picture page at 139 lines / 113 min; bakery so big its steps were cut off."
+    },
+    {
+      "where": "idea + video: steps (round 2)",
+      "change": "At most 2 new tags or CSS properties per step, each named and explained in plain words; long CSS rules split over steps; say exactly what to type when a beginner can't guess it.",
+      "why": "Run 1 Opus review: 'faces: arrays, let, if, functions, addEventListener… all at once', 'flex, vh, line-height never explained', 'viewport would mean nothing'."
+    },
+    {
+      "where": "idea + video: hints (round 2)",
+      "change": "Hints about the whole step; hint 2 names every tag/property with values a beginner can't guess; hint 3 is the outline with the student's own parts as …",
+      "why": "Run 1 review: 'hints only cover the <link>', 'hint 3 is basically the full answer'."
+    },
+    {
+      "where": "idea + video: steps (round 2)",
+      "change": "Each step closes every tag it opens; an idea lesson gets a 'look at your page' step after the HTML.",
+      "why": "The real C1 run: a step opened <main> whose </main> came later, so the right answer stayed 'Still typing?'. Also fixed in code (rebuild.ts)."
+    },
+    {
+      "where": "code, not prompt (round 2)",
+      "change": "Late closing tags, drifting anchors, a give-away hint 3 and a video part past the end are repaired in code; checks are proven on the files as they are right after each step.",
+      "why": "Asking Opus again costs $0.20-0.50 a time; run 1 lost $1.06 on three failed builds."
     }
   ],
   "hintChecks": [
     {
       "lesson": "a page about me",
       "stepId": "skeleton",
-      "answer": "yes: Your page has the starting line, the outer wrapper, and both the head and body sections, all properly closed. The extra content inside is fine for this step.",
+      "answer": "yes: Your page has the starting DOCTYPE line, an html wrapper, and both head and body sections, with every tag closed. That's exactly the skeleton this step asked for.",
       "inputTokens": 1272,
-      "outputTokens": 61,
-      "usd": 0.00015769999999999998
+      "outputTokens": 70,
+      "usd": 0.00016219999999999999
     },
     {
       "lesson": "a website for my small bakery",
       "stepId": "skeleton",
-      "answer": "yes: Your index.html starts with the <!DOCTYPE html> line, then an html part that holds a head part and a body part, which is exactly the basic page start this step asks for.",
+      "answer": "yes: Your index.html starts with the <!DOCTYPE html> line, then has an html part holding a head part and a body part, which is exactly the start every web page needs.",
       "inputTokens": 1612,
-      "outputTokens": 69,
-      "usd": 0.0001957
+      "outputTokens": 66,
+      "usd": 0.0001942
     },
     {
       "lesson": "a page like this picture",
       "stepId": "skeleton",
-      "answer": "yes: Your index.html starts with the DOCTYPE line, wraps everything in html tags, and has a head part and a body part each with its own closing tag, so this step is done.",
+      "answer": "yes: Your index.html starts with the DOCTYPE line, wraps everything in html tags, and has a head part and a body part, each closed properly, so this step is done.",
       "inputTokens": 1559,
-      "outputTokens": 68,
-      "usd": 0.0001899
+      "outputTokens": 66,
+      "usd": 0.0001889
+    },
+    {
+      "lesson": "Create Your First HTML/CSS Project",
+      "stepId": "html-start",
+      "answer": "yes: You have the DOCTYPE line, the html tag with lang=\"en\", and a head tag. The head isn't empty, but it holds extra details like the title and links, which is fine for this step.",
+      "inputTokens": 1292,
+      "outputTokens": 76,
+      "usd": 0.00016720000000000003
+    },
+    {
+      "lesson": "HTML Tutorial for Beginners",
+      "stepId": "skeleton",
+      "answer": "yes: Your page starts with the modern page label, opens the html tag with lang set to English, and has a head section inside, which is all this step asks for.",
+      "inputTokens": 1035,
+      "outputTokens": 58,
+      "usd": 0.0001325
+    },
+    {
+      "lesson": "How to Code Your First Website",
+      "stepId": "para-strong",
+      "answer": "no: I can't see 'My name is' with your name in bold yet. Your paragraph only has a line about coding, and it's not at the top of the page.",
+      "inputTokens": 729,
+      "outputTokens": 59,
+      "usd": 0.00010240000000000001
     }
   ],
   "before": {
@@ -679,6 +1040,7 @@
     "cases": [
       {
         "name": "about-me fixture (hand-written)",
+        "status": "graded",
         "grade": {
           "name": "about-me fixture (hand-written)",
           "kind": "lesson",
@@ -783,6 +1145,7 @@
       },
       {
         "name": "a page about me",
+        "status": "graded",
         "grade": {
           "name": "a page about me",
           "kind": "lesson",
@@ -889,7 +1252,15 @@
         }
       },
       {
+        "name": "a website for my small bakery",
+        "status": "error",
+        "note": "The answer was cut off at 20000 tokens.",
+        "usd": 0.49298
+      },
+      {
         "name": "make me Instagram",
+        "status": "graded",
+        "note": "The full Instagram needs accounts, servers and a database to store everyone's posts, which is a lot for a first project. How about a profile page with a grid of photos, like an Instagram profile?",
         "grade": {
           "name": "make me Instagram",
           "kind": "tooBig",
@@ -908,6 +1279,7 @@
       },
       {
         "name": "a page like this picture",
+        "status": "graded",
         "grade": {
           "name": "a page like this picture",
           "kind": "lesson",
@@ -997,6 +1369,7 @@
       },
       {
         "name": "Create Your First HTML/CSS Project",
+        "status": "graded",
         "grade": {
           "name": "Create Your First HTML/CSS Project",
           "kind": "lesson",
@@ -1102,7 +1475,26 @@
           "linesToType": 58,
           "steps": 17
         }
+      },
+      {
+        "name": "HTML Tutorial for Beginners",
+        "status": "error",
+        "note": "The answer was cut off at 16000 tokens.",
+        "usd": 0.367004
+      },
+      {
+        "name": "How to Code Your First Website",
+        "status": "error",
+        "note": "The lesson breaks Stride's step rules.",
+        "usd": 0.204988
       }
     ]
-  }
+  },
+  "summary": [
+    "Four real runs with Opus 5.5 (builder and separate reviewer) and Haiku 5.5 (checks): run 1 = the C2 prompts (report-before.json); runs 2-4 = the round-2 prompt and code changes below, run 3 only the 3 videos, run 4 only 'Create Your First HTML/CSS Project' (run 2's rebuild of it had failed, so run 3 still graded its run-1 lesson). Spend: run 1 $2.35, run 2 $3.52, run 3 $0.65, run 4 $0.53, plus $0.74 of Gemini notes = $7.79 of the $8 cap. Nothing else can run without passing the cap.",
+    "Before: 3 of 6 real builds failed (bakery and the 24-minute video cut off at the token limit, one video broke the step rules twice: $1.06 lost). After: all 6 build. Opus review average (wording, step size, order, hints, fidelity): about me 3.2 → 3.4, picture 3.4 → 4.0, 'Create Your First HTML/CSS Project' 2.8 → 3.6; bakery, 'HTML Tutorial' and 'How to Code Your First Website' failed before and score 4.2, 3.8 and 3.4 now.",
+    "Biggest fixes came from code, not prompts: the lesson answer shape broke the API's structured-output limits (400), steps left tags open across steps and anchors drifted (found by the real C1 run), and small rule breaks (a give-away hint 3, a missing or late video part) sent a whole $0.20-0.50 lesson back to Opus. All are repaired in code now (schema-limit.ts, rebuild.ts, rules.ts).",
+    "Worst left (Opus review): hint 2 often gave the full code in the run-2 idea lessons, so 'hints' scored 2-3 (fixed in prompt and code after run 2 — strongerHints — but not re-measured: no budget left); steps that need exact values a beginner can't guess (meta viewport) with hint 3 blanking them out; some steps still bring in 3+ new tags; idea lessons still run 68-100 min, so the smaller version is offered first; 2 video lessons don't rebuild their files exactly ('buildsUp').",
+    "Cost per lesson build (Opus, real): idea lessons $0.46-$0.51, video lessons $0.19-$0.45 for Opus plus $0.22-$0.29 of Gemini notes ($0.42-$0.67 in all). GOAL C3 '< $0.50' holds for 2 of 3 idea builds and 1 of 3 video builds. Cost per hint: the hint text is part of the lesson (free); a check the code can't decide calls Haiku: $0.0001-$0.0002 each (every call in cost.json), well under $0.01."
+  ]
 }

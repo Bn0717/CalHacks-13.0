@@ -24,6 +24,7 @@ import {
   BudgetError,
   capped,
   EVAL_CASES,
+  EVAL_SUMMARY,
   findingsFor,
   GEMINI_PRICE_NOTE,
   MOCKUP_PATH,
@@ -195,6 +196,7 @@ async function main(): Promise<void> {
     const report: EvalReport = {
       ...saved,
       promptChanges: PROMPT_CHANGES,
+      summary: EVAL_SUMMARY,
       findings: [...findingsFor({ ...saved, hintChecks: saved.hintChecks ?? [] }), ...VIDEO_NOTES_CAVEATS],
       ...(args.before ? { before: beforeRunFrom(JSON.parse(await readFile(args.before, "utf8")) as EvalReport) } : {}),
     };
@@ -403,6 +405,7 @@ async function main(): Promise<void> {
     messageExamples: messageExamples(),
     promptChanges: PROMPT_CHANGES,
     hintChecks,
+    summary: EVAL_SUMMARY,
     ...(before ? { before } : {}),
   };
   await writeFile(join(args.out, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");

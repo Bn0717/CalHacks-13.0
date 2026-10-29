@@ -120,19 +120,20 @@ export type EvalReport = {
   promptChanges: { where: string; change: string; why: string }[];
   hintChecks?: HintCheckCost[]; // real Haiku check calls made while a student is stuck (GOAL C3: under $0.01 each)
   before?: BeforeRun; // the earlier run these results are compared with
+  summary?: string[]; // a hand-written account of the runs (EVAL_SUMMARY), shown first
 };
 
 // One real Haiku check call, the kind made when a step needs the AI to decide (an 'ai' check, or levels 1-2 can't).
 export type HintCheckCost = { lesson: string; stepId: string; answer: string; inputTokens: number; outputTokens: number; usd: number };
 
 // The scores of an earlier run, for the before/after table.
-export type BeforeRun = { ranAt: string; cases: Pick<CaseResult, "name" | "grade" | "judgement" | "usd" | "estimate">[] };
+export type BeforeRun = { ranAt: string; cases: Pick<CaseResult, "name" | "status" | "note" | "grade" | "judgement" | "usd" | "estimate">[] };
 
 // The before part of an earlier report.json (only what the comparison needs).
 export function beforeRunFrom(r: Pick<EvalReport, "ranAt" | "cases">): BeforeRun {
   return {
     ranAt: r.ranAt,
-    cases: r.cases.filter((c) => c.grade).map((c) => ({ name: c.name, ...(c.grade ? { grade: c.grade } : {}), ...(c.judgement ? { judgement: c.judgement } : {}), ...(c.usd !== undefined ? { usd: c.usd } : {}), ...(c.estimate ? { estimate: c.estimate } : {}) })),
+    cases: r.cases.map((c) => ({ name: c.name, status: c.status, ...(c.note ? { note: c.note } : {}), ...(c.grade ? { grade: c.grade } : {}), ...(c.judgement ? { judgement: c.judgement } : {}), ...(c.usd !== undefined ? { usd: c.usd } : {}), ...(c.estimate ? { estimate: c.estimate } : {}) })),
   };
 }
 
@@ -167,6 +168,29 @@ export const PROMPT_CHANGES: EvalReport["promptChanges"] = [
   { where: "idea + video: hints (round 2)", change: "Hints about the whole step; hint 2 names every tag/property with values a beginner can't guess; hint 3 is the outline with the student's own parts as …", why: "Run 1 review: 'hints only cover the <link>', 'hint 3 is basically the full answer'." },
   { where: "idea + video: steps (round 2)", change: "Each step closes every tag it opens; an idea lesson gets a 'look at your page' step after the HTML.", why: "The real C1 run: a step opened <main> whose </main> came later, so the right answer stayed 'Still typing?'. Also fixed in code (rebuild.ts)." },
   { where: "code, not prompt (round 2)", change: "Late closing tags, drifting anchors, a give-away hint 3 and a video part past the end are repaired in code; checks are proven on the files as they are right after each step.", why: "Asking Opus again costs $0.20-0.50 a time; run 1 lost $1.06 on three failed builds." },
+];
+
+// What happened over the real runs (2026-10-29), in words. Numbers come from report-before.json, this report and cost.json.
+export const EVAL_SUMMARY: string[] = [
+  "Four real runs with Opus 5.5 (builder and separate reviewer) and Haiku 5.5 (checks): run 1 = the C2 prompts (report-before.json); " +
+    "runs 2-4 = the round-2 prompt and code changes below, run 3 only the 3 videos, run 4 only 'Create Your First HTML/CSS Project' " +
+    "(run 2's rebuild of it had failed, so run 3 still graded its run-1 lesson). Spend: run 1 $2.35, run 2 $3.52, run 3 $0.65, " +
+    "run 4 $0.53, plus $0.74 of Gemini notes = $7.79 of the $8 cap. Nothing else can run without passing the cap.",
+  "Before: 3 of 6 real builds failed (bakery and the 24-minute video cut off at the token limit, one video broke the step rules twice: " +
+    "$1.06 lost). After: all 6 build. Opus review average (wording, step size, order, hints, fidelity): about me 3.2 → 3.4, " +
+    "picture 3.4 → 4.0, 'Create Your First HTML/CSS Project' 2.8 → 3.6; bakery, 'HTML Tutorial' and 'How to Code Your First " +
+    "Website' failed before and score 4.2, 3.8 and 3.4 now.",
+  "Biggest fixes came from code, not prompts: the lesson answer shape broke the API's structured-output limits (400), steps left " +
+    "tags open across steps and anchors drifted (found by the real C1 run), and small rule breaks (a give-away hint 3, a missing or " +
+    "late video part) sent a whole $0.20-0.50 lesson back to Opus. All are repaired in code now (schema-limit.ts, rebuild.ts, rules.ts).",
+  "Worst left (Opus review): hint 2 often gave the full code in the run-2 idea lessons, so 'hints' scored 2-3 (fixed in prompt and " +
+    "code after run 2 — strongerHints — but not re-measured: no budget left); steps that need exact values a beginner can't guess " +
+    "(meta viewport) with hint 3 blanking them out; some steps still bring in 3+ new tags; idea lessons still run 68-100 min, so " +
+    "the smaller version is offered first; 2 video lessons don't rebuild their files exactly ('buildsUp').",
+  "Cost per lesson build (Opus, real): idea lessons $0.46-$0.51, video lessons $0.19-$0.45 for Opus plus $0.22-$0.29 of Gemini " +
+    "notes ($0.42-$0.67 in all). GOAL C3 '< $0.50' holds for 2 of 3 idea builds and 1 of 3 video builds. Cost per hint: the hint " +
+    "text is part of the lesson (free); a check the code can't decide calls Haiku: $0.0001-$0.0002 each (every call in cost.json), " +
+    "well under $0.01.",
 ];
 
 // What a set of video notes holds, for the report.
@@ -244,6 +268,11 @@ export function reportMarkdown(r: EvalReport): string {
   out.push("# Stride Learn: lesson quality test (C2)", "");
   out.push(`Ran ${r.ranAt} with \`npm run learn:eval\`. The raw results are in \`report.json\` next to this file.`, "");
   out.push(`**Claude:** ${r.claude.usable ? "working" : "not usable"}: ${r.claude.note}`, "");
+  if (r.summary && r.summary.length > 0) {
+    out.push("## Summary", "");
+    for (const line of r.summary) out.push(`- ${line}`);
+    out.push("");
+  }
 
   out.push("## Lessons", "");
   out.push("| Lesson | Source | Status | Automatic grade | Opus scores (1-5) | Estimate | Build cost |", "|---|---|---|---|---|---|---|");
@@ -323,13 +352,18 @@ export function reportMarkdown(r: EvalReport): string {
   if (r.before) {
     out.push(`Before = the run of ${r.before.ranAt}; after = this run. Opus scores are wording · step size · order · hints · fidelity (1-5), then their average.`, "");
     out.push("| Lesson | Automatic grade before → after | Opus scores before | Opus scores after | Average before → after | Build cost before → after |", "|---|---|---|---|---|---|");
+    const short = (j?: LessonJudgement) => (j ? `${j.scores.wording} · ${j.scores.stepSize} · ${j.scores.order} · ${j.scores.hints} · ${j.scores.fidelity}` : "—");
+    const avg = (j?: LessonJudgement) => (averageScore(j) === undefined ? "—" : averageScore(j)!.toFixed(1));
+    const g = (x?: Grade) => (x ? `${x.passed}/${x.total}` : "—");
+    const usd = (x?: number) => (x === undefined ? "—" : dollars(x));
     for (const c of r.cases.filter((x) => x.grade?.kind === "lesson")) {
       const b = r.before.cases.find((x) => x.name === c.name);
       if (!b) continue;
-      const short = (j?: LessonJudgement) => (j ? `${j.scores.wording} · ${j.scores.stepSize} · ${j.scores.order} · ${j.scores.hints} · ${j.scores.fidelity}` : "—");
-      const avg = (j?: LessonJudgement) => (averageScore(j) === undefined ? "—" : averageScore(j)!.toFixed(1));
-      const g = (x?: Grade) => (x ? `${x.passed}/${x.total}` : "—");
-      const usd = (x?: number) => (x === undefined ? "—" : dollars(x));
+      if (!b.grade) {
+        const why = `build failed${b.note ? `: ${b.note.split(" (")[0]}` : ""}`;
+        out.push(`| ${cell(c.name)} | ${cell(why)} → ${c.grade!.passed}/${c.grade!.total} | — | ${c.judgement ? short(c.judgement) : "—"} | — → ${avg(c.judgement)} | ${usd(b.usd)} lost → ${usd(c.usd)} |`);
+        continue;
+      }
       out.push(`| ${cell(c.name)} | ${g(b.grade)} → ${g(c.grade)} | ${short(b.judgement)} | ${short(c.judgement)} | ${avg(b.judgement)} → ${avg(c.judgement)} | ${usd(b.usd)} → ${usd(c.usd)} |`);
     }
     out.push("");

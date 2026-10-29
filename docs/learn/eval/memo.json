@@ -226,5 +226,110 @@
       ],
       "summary": "The lesson matches the picture very closely, building every section with sensible, well-explained HTML and CSS in a clear order. Its weakest point is the hints: hint 2 usually dictates the full answer while hint 3 is a vaguer template, so they get weaker instead of stronger, and a few terms (hex colours, px, two-value padding) are never or only belatedly explained."
     }
+  },
+  "video-WOvg00FnmsU@2026-10-29T07:12:20.451Z": {
+    "usd": 0.35995479999999996,
+    "judgement": {
+      "scores": {
+        "wording": 4,
+        "stepSize": 3,
+        "order": 4,
+        "hints": 4,
+        "fidelity": 4
+      },
+      "worst": [
+        {
+          "stepId": "em-comment-br",
+          "problem": "Packs three new ideas into one step: comments, em and br. It also has the learner jump back above the h2 and then down below the bold paragraph."
+        },
+        {
+          "stepId": "head-info",
+          "problem": "Asks a beginner to type a long, unexplained meta viewport line full of jargon (charset, UTF-8, viewport, initial-scale). Its video range 162-247 overlaps the skeleton step."
+        },
+        {
+          "stepId": "header-footer",
+          "problem": "Wrapping existing code is hard to picture, and the expected snippet shows an empty <header></header>. A literal-minded beginner might think the h1 should be removed. Two concepts (header and footer) are also bundled together."
+        },
+        {
+          "stepId": "body-heading",
+          "problem": "The video range 288-316 cuts off the presenter adding the intro paragraph (done by 344). The watch-elements range 316-403 then starts with that coding instead of the block/inline explanation."
+        },
+        {
+          "stepId": "skeleton",
+          "problem": "The attribute lang=\"en\" is introduced without explaining what an attribute is. The expected indentation is inconsistent with later steps (e.g. h1 at 6 spaces under a 2-space body)."
+        }
+      ],
+      "summary": "The lesson closely follows the video's code. Its learner hints get stronger well and the third hint never gives the full answer. Some steps are crammed (em-comment-br, head-info), and the expected snippets for wrapping steps and their indentation could confuse a first-time coder."
+    }
+  },
+  "video-zMTId2CUClw@2026-10-29T07:13:52.594Z": {
+    "usd": 0.186476,
+    "judgement": {
+      "scores": {
+        "wording": 4,
+        "stepSize": 3,
+        "order": 4,
+        "hints": 3,
+        "fidelity": 3
+      },
+      "worst": [
+        {
+          "stepId": "style-body",
+          "problem": "Too much new at once: the style tag, CSS, selectors, curly brackets, properties and semicolons all arrive in one step, though the video splits this at 1091s and the step could be split too."
+        },
+        {
+          "stepId": "para-strong",
+          "problem": "The video clip (352-720) shows the presenter bolding 'hello world!!!!!' with no <p> tags, so it does not match the paragraph-with-bold-name task the learner types."
+        },
+        {
+          "stepId": "para-strong",
+          "problem": "Three new ideas in one step: what a tag is, the <p> tag, and the <strong> tag, plus multi-line nesting."
+        },
+        {
+          "stepId": "style-body",
+          "problem": "Hint 2 uses the word 'property' without ever explaining it."
+        },
+        {
+          "stepId": "intro",
+          "problem": "Watch-step hints ('Nothing to type', 'Move on when you're ready') are filler and don't get stronger; outro also lacks its 1385-1421 video range."
+        }
+      ],
+      "summary": "Its biggest strength is clear, friendly wording with short typed chunks that end in exactly the video's final code. Its biggest weakness is that the reordered HTML steps no longer match their video clips, and the CSS step crams in too many new ideas at once."
+    }
+  },
+  "video-wzWmZYi4qMg@2026-10-29T07:18:51.859Z": {
+    "usd": 0.44898830000000006,
+    "judgement": {
+      "scores": {
+        "wording": 3,
+        "stepSize": 4,
+        "order": 4,
+        "hints": 3,
+        "fidelity": 4
+      },
+      "worst": [
+        {
+          "stepId": "head-info",
+          "problem": "Asks for three meta lines, but neither the instruction nor any hint gives their values ('width=device-width, initial-scale=1.0', 'ie=edge', 'UTF-8'), so a beginner cannot produce the expected code."
+        },
+        {
+          "stepId": "gritter-start",
+          "problem": "Says to write a paragraph 'about Gritty's social media' but never gives the exact sentence the expected answer requires, and packs a comment, div, span, id and class into one step."
+        },
+        {
+          "stepId": "head-info",
+          "problem": "Hint 3 leaves every meta value as '…', so even the strongest hint can't get a stuck learner past this step."
+        },
+        {
+          "stepId": "body-banner",
+          "problem": "class=\"banner\", id=\"gritter\", class=\"bold\" and id=\"small-gritty\" are added long before the video does, so the clips (e.g. 498-525, 525-576) show different code than the learner is typing."
+        },
+        {
+          "stepId": "watch-image",
+          "problem": "Unclear whether the learner must supply a picture ('put any picture you like') or whether one already exists, since the project 'already has the same layout'."
+        }
+      ],
+      "summary": "Small, well-paced steps with plain explanations of each tag and CSS property follow the video's build closely, and most third hints are good code skeletons. Some steps demand exact text or values the learner is never given (the meta tags, the Gritter sentence), and the early ids and classes make the code drift from what the clips show."
+    }
   }
 }

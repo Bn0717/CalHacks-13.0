@@ -703,12 +703,324 @@
       "inputTokens": 6930,
       "outputTokens": 5357,
       "usd": 0.13486
+    },
+    {
+      "at": "2026-10-29T07:09:08.264Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 660,
+      "outputTokens": 65,
+      "usd": 0.0000985
+    },
+    {
+      "at": "2026-10-29T07:09:16.123Z",
+      "job": "hint-check:a page about me",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1272,
+      "outputTokens": 78,
+      "usd": 0.0001662
+    },
+    {
+      "at": "2026-10-29T07:09:24.849Z",
+      "job": "hint-check:a website for my small bakery",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1612,
+      "outputTokens": 65,
+      "usd": 0.00019370000000000002
+    },
+    {
+      "at": "2026-10-29T07:09:25.688Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 630,
+      "outputTokens": 53,
+      "usd": 0.0000895
+    },
+    {
+      "at": "2026-10-29T07:09:31.133Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 708,
+      "outputTokens": 49,
+      "usd": 0.0000953
+    },
+    {
+      "at": "2026-10-29T07:09:32.417Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 722,
+      "outputTokens": 58,
+      "usd": 0.00010120000000000001
+    },
+    {
+      "at": "2026-10-29T07:09:33.374Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 700,
+      "outputTokens": 65,
+      "usd": 0.0001025
+    },
+    {
+      "at": "2026-10-29T07:09:41.985Z",
+      "job": "hint-check:a page like this picture",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1559,
+      "outputTokens": 69,
+      "usd": 0.0001904
+    },
+    {
+      "at": "2026-10-29T07:09:45.047Z",
+      "job": "hint-check:Create Your First HTML/CSS Project",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1320,
+      "outputTokens": 103,
+      "usd": 0.0001835
+    },
+    {
+      "at": "2026-10-29T07:12:18.281Z",
+      "job": "video:HTML Tutorial for Beginners",
+      "model": "claude-opus-5-5",
+      "inputTokens": 8038,
+      "outputTokens": 16384,
+      "usd": 0.359832
+    },
+    {
+      "at": "2026-10-29T07:12:20.447Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 978,
+      "outputTokens": 50,
+      "usd": 0.0001228
+    },
+    {
+      "at": "2026-10-29T07:12:21.954Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 978,
+      "outputTokens": 56,
+      "usd": 0.00012580000000000002
+    },
+    {
+      "at": "2026-10-29T07:12:37.379Z",
+      "job": "judge:HTML Tutorial for Beginners",
+      "model": "claude-opus-5-5",
+      "inputTokens": 8331,
+      "outputTokens": 1261,
+      "usd": 0.058544
+    },
+    {
+      "at": "2026-10-29T07:12:40.192Z",
+      "job": "hint-check:HTML Tutorial for Beginners",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1035,
+      "outputTokens": 58,
+      "usd": 0.0001325
+    },
+    {
+      "at": "2026-10-29T07:13:51.556Z",
+      "job": "video:How to Code Your First Website",
+      "model": "claude-opus-5-5",
+      "inputTokens": 6894,
+      "outputTokens": 7945,
+      "usd": 0.186476
+    },
+    {
+      "at": "2026-10-29T07:14:06.850Z",
+      "job": "judge:How to Code Your First Website",
+      "model": "claude-opus-5-5",
+      "inputTokens": 5518,
+      "outputTokens": 1193,
+      "usd": 0.045932
+    },
+    {
+      "at": "2026-10-29T07:14:08.521Z",
+      "job": "hint-check:How to Code Your First Website",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 729,
+      "outputTokens": 76,
+      "usd": 0.00011090000000000001
+    },
+    {
+      "at": "2026-10-29T07:15:04.072Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 660,
+      "outputTokens": 58,
+      "usd": 0.000095
+    },
+    {
+      "at": "2026-10-29T07:15:14.303Z",
+      "job": "hint-check:a page about me",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1272,
+      "outputTokens": 70,
+      "usd": 0.00016219999999999999
+    },
+    {
+      "at": "2026-10-29T07:15:24.771Z",
+      "job": "hint-check:a website for my small bakery",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1612,
+      "outputTokens": 66,
+      "usd": 0.0001942
+    },
+    {
+      "at": "2026-10-29T07:15:25.620Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 630,
+      "outputTokens": 60,
+      "usd": 0.000093
+    },
+    {
+      "at": "2026-10-29T07:15:32.788Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 708,
+      "outputTokens": 45,
+      "usd": 0.00009329999999999999
+    },
+    {
+      "at": "2026-10-29T07:15:34.806Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 722,
+      "outputTokens": 63,
+      "usd": 0.0001037
+    },
+    {
+      "at": "2026-10-29T07:15:35.692Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 700,
+      "outputTokens": 69,
+      "usd": 0.0001045
+    },
+    {
+      "at": "2026-10-29T07:15:44.094Z",
+      "job": "hint-check:a page like this picture",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1559,
+      "outputTokens": 66,
+      "usd": 0.0001889
+    },
+    {
+      "at": "2026-10-29T07:18:41.404Z",
+      "job": "video:Create Your First HTML/CSS Project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 8547,
+      "outputTokens": 20722,
+      "usd": 0.448628
+    },
+    {
+      "at": "2026-10-29T07:18:43.018Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 625,
+      "outputTokens": 45,
+      "usd": 0.000085
+    },
+    {
+      "at": "2026-10-29T07:18:43.984Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 612,
+      "outputTokens": 64,
+      "usd": 0.0000932
+    },
+    {
+      "at": "2026-10-29T07:18:47.087Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 600,
+      "outputTokens": 54,
+      "usd": 0.000087
+    },
+    {
+      "at": "2026-10-29T07:18:48.573Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 581,
+      "outputTokens": 74,
+      "usd": 0.0000951
+    },
+    {
+      "at": "2026-10-29T07:18:53.324Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 625,
+      "outputTokens": 42,
+      "usd": 0.0000835
+    },
+    {
+      "at": "2026-10-29T07:18:54.406Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 612,
+      "outputTokens": 59,
+      "usd": 0.00009070000000000001
+    },
+    {
+      "at": "2026-10-29T07:18:55.630Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 600,
+      "outputTokens": 49,
+      "usd": 0.0000845
+    },
+    {
+      "at": "2026-10-29T07:18:57.109Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 581,
+      "outputTokens": 75,
+      "usd": 0.00009559999999999999
+    },
+    {
+      "at": "2026-10-29T07:19:16.034Z",
+      "job": "judge:Create Your First HTML/CSS Project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 11988,
+      "outputTokens": 1364,
+      "usd": 0.075232
+    },
+    {
+      "at": "2026-10-29T07:19:16.980Z",
+      "job": "hint-check:Create Your First HTML/CSS Project",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1292,
+      "outputTokens": 76,
+      "usd": 0.00016720000000000003
+    },
+    {
+      "at": "2026-10-29T07:19:18.361Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 978,
+      "outputTokens": 61,
+      "usd": 0.0001283
+    },
+    {
+      "at": "2026-10-29T07:19:20.577Z",
+      "job": "hint-check:HTML Tutorial for Beginners",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1035,
+      "outputTokens": 58,
+      "usd": 0.0001325
+    },
+    {
+      "at": "2026-10-29T07:19:22.972Z",
+      "job": "hint-check:How to Code Your First Website",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 729,
+      "outputTokens": 59,
+      "usd": 0.00010240000000000001
     }
   ],
   "total": {
-    "calls": 88,
-    "inputTokens": 600394,
-    "outputTokens": 278916,
-    "usd": 6.6134129999999995
+    "calls": 127,
+    "inputTokens": 679346,
+    "outputTokens": 329843,
+    "usd": 7.7920495999999995
   }
 }
