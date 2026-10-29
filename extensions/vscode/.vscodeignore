@@ -1,0 +1,9 @@
+# Only the bundled dist/extension.js, package.json and README go into the .vsix.
+src/**
+tests/**
+scripts/**
+node_modules/**
+dist/**/*.map
+tsconfig.json
+*.vsix
+.gitignore
