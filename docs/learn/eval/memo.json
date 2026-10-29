@@ -1,0 +1,125 @@
+{
+  "about-me@2026-10-29T12:00:00.000Z": {
+    "judgement": {
+      "scores": {
+        "wording": 3,
+        "stepSize": 3,
+        "order": 3,
+        "hints": 3,
+        "fidelity": 4
+      },
+      "worst": [
+        {
+          "stepId": "link-css",
+          "problem": "Three unrelated new ideas in one step: a description meta, a viewport meta and the CSS link. The 'why' and all three hints only cover the <link>."
+        },
+        {
+          "stepId": "skeleton",
+          "problem": "The expected code has <meta charset=\"utf-8\"> and lang=\"en\", but neither the instruction nor the hints mention them. Doctype, html, head, title and body are also too many new ideas for one first step."
+        },
+        {
+          "stepId": "style",
+          "problem": "It never says to create style.css. 'font-family', 'sans-serif' and 'margin' go unexplained, and the hints only cover the h1 color, not the body rule."
+        },
+        {
+          "stepId": "intro",
+          "problem": "No step ever opens index.html in a browser, so the learner never sees their page or checks that the CSS link works."
+        },
+        {
+          "stepId": "link-css",
+          "problem": "Words like 'viewport' and 'initial-scale=1' (inside a 'line that makes it fit phone screens') would mean nothing to a first-time coder."
+        }
+      ],
+      "summary": "The content steps (intro, hobbies) are well-sized and match exactly what the student asked for: their name and hobbies. The head-related steps (skeleton, link-css) ask for unexplained code that the hints never cover, and the learner is never shown how to view the page."
+    }
+  },
+  "idea-a-page-about-me-f542fedb@2026-10-29T06:25:34.117Z": {
+    "usd": 0.35611079999999995,
+    "judgement": {
+      "scores": {
+        "wording": 3,
+        "stepSize": 3,
+        "order": 3,
+        "hints": 3,
+        "fidelity": 4
+      },
+      "worst": [
+        {
+          "stepId": "faces",
+          "problem": "Far too big for one step: arrays, let, if, functions, addEventListener, .length and textContent all at once, with code split between two places in the file."
+        },
+        {
+          "stepId": "faces",
+          "problem": "Uses an array before the idea is explained; the 'Lists in code' concept only comes later, in facts-list."
+        },
+        {
+          "stepId": "head-info",
+          "problem": "Four new tags with unexplained jargon ('letter set (UTF-8)', viewport, rel=stylesheet). Hint 2 names the tags but never shows the attributes a beginner can't guess."
+        },
+        {
+          "stepId": "card",
+          "problem": "Brings in main, div, h1, p, class and id together. Words like 'main part' and 'box' don't tell a beginner which tag to type."
+        },
+        {
+          "stepId": "skeleton",
+          "problem": "Hint 3 is basically the full answer, missing only </body>, so there's nothing left to work out."
+        }
+      ],
+      "summary": "The lesson builds steadily from bare HTML to styling to interactivity, with well-placed 'look at it' checkpoints and friendly personal content that matches what the student asked for. But the JavaScript jumps badly at 'faces' (many new ideas at once, arrays used before they're taught), CSS terms like flex, vh and line-height are never explained, and the face-switching extra plus the emoji standing in for a real photo drift slightly from the request."
+    }
+  },
+  "idea-a-warm-one-page-site-with-cards-d867b900@2026-10-29T06:32:21.522Z": {
+    "usd": 0.43734300000000004,
+    "judgement": {
+      "scores": {
+        "wording": 3,
+        "stepSize": 3,
+        "order": 4,
+        "hints": 3,
+        "fidelity": 4
+      },
+      "worst": [
+        {
+          "stepId": "click-card",
+          "problem": "Packs a variable, querySelectorAll, forEach, a function, addEventListener and classList into one step, but the only concept note covers clicks; none of the others is explained to a first-time coder."
+        }
+      ],
+      "summary": "x"
+    }
+  },
+  "video-wzWmZYi4qMg@2026-10-29T06:34:49.829Z": {
+    "usd": 0.292464,
+    "judgement": {
+      "scores": {
+        "wording": 3,
+        "stepSize": 3,
+        "order": 2,
+        "hints": 3,
+        "fidelity": 3
+      },
+      "worst": [
+        {
+          "stepId": "skeleton",
+          "problem": "The stylesheet link is typed before any CSS exists or is explained, while the video adds it at 724s. The later 'link-check' watch step then shows typing that the learner has already done."
+        },
+        {
+          "stepId": "banner",
+          "problem": "The learner types class=\"banner\", id=\"small-gritty\" and the full relative image path here. These come before the 'paths' step explains paths and before any styling gives classes and ids a purpose; the video adds them later, at 525s, 644s and 778s."
+        },
+        {
+          "stepId": "gritter",
+          "problem": "This one step introduces a span, an id, a class, a form and two kinds of input across 9 lines. It is too many new ideas at once, and class=\"bold\" means nothing until the 'bold' step."
+        },
+        {
+          "stepId": "posts",
+          "problem": "The nested <div><div><span> is never explained, and the third hint gives that exact structure, leaving only the sentence to fill in."
+        },
+        {
+          "stepId": "meta",
+          "problem": "It shares the 332-498 video clip with 'skeleton', where the video auto-generates the boilerplate, and it asks a beginner to type X-UA-Compatible/ie=edge with no meaningful explanation."
+        }
+      ],
+      "summary": "The lesson follows the video's project closely, with friendly 'why' lines and a clear split between watching and typing. Its biggest weakness is front-loading the link tag and the class/id names into the HTML steps, which breaks the video's order and asks beginners to type things before they mean anything."
+    }
+  }
+}

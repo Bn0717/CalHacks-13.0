@@ -23,12 +23,428 @@
       "inputTokens": 129351,
       "outputTokens": 4177,
       "usd": 0.2316195
+    },
+    {
+      "at": "2026-10-29T06:23:02.583Z",
+      "job": "judge:about-me fixture (hand-written)",
+      "model": "claude-opus-5-5",
+      "inputTokens": 2864,
+      "outputTokens": 863,
+      "usd": 0.028716
+    },
+    {
+      "at": "2026-10-29T06:23:21.051Z",
+      "job": "project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 948,
+      "outputTokens": 2017,
+      "usd": 0.044132
+    },
+    {
+      "at": "2026-10-29T06:25:15.761Z",
+      "job": "steps",
+      "model": "claude-opus-5-5",
+      "inputTokens": 5780,
+      "outputTokens": 14135,
+      "usd": 0.30582
+    },
+    {
+      "at": "2026-10-29T06:25:21.397Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1155,
+      "outputTokens": 47,
+      "usd": 0.000139
+    },
+    {
+      "at": "2026-10-29T06:25:22.283Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 898,
+      "outputTokens": 58,
+      "usd": 0.00011880000000000001
+    },
+    {
+      "at": "2026-10-29T06:25:23.661Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 587,
+      "outputTokens": 57,
+      "usd": 0.0000872
+    },
+    {
+      "at": "2026-10-29T06:25:25.133Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1033,
+      "outputTokens": 78,
+      "usd": 0.00014230000000000002
+    },
+    {
+      "at": "2026-10-29T06:25:26.109Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 722,
+      "outputTokens": 65,
+      "usd": 0.0001047
+    },
+    {
+      "at": "2026-10-29T06:25:27.557Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 927,
+      "outputTokens": 50,
+      "usd": 0.0001177
+    },
+    {
+      "at": "2026-10-29T06:25:28.875Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 616,
+      "outputTokens": 58,
+      "usd": 0.00009059999999999999
+    },
+    {
+      "at": "2026-10-29T06:25:30.377Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 928,
+      "outputTokens": 59,
+      "usd": 0.00012230000000000002
+    },
+    {
+      "at": "2026-10-29T06:25:31.591Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 617,
+      "outputTokens": 61,
+      "usd": 0.0000922
+    },
+    {
+      "at": "2026-10-29T06:25:34.115Z",
+      "job": "simpler",
+      "model": "claude-opus-5-5",
+      "inputTokens": 791,
+      "outputTokens": 99,
+      "usd": 0.005144
+    },
+    {
+      "at": "2026-10-29T06:25:40.335Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1155,
+      "outputTokens": 47,
+      "usd": 0.000139
+    },
+    {
+      "at": "2026-10-29T06:25:41.268Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 898,
+      "outputTokens": 56,
+      "usd": 0.00011780000000000002
+    },
+    {
+      "at": "2026-10-29T06:25:42.845Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 587,
+      "outputTokens": 69,
+      "usd": 0.0000932
+    },
+    {
+      "at": "2026-10-29T06:25:44.215Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1033,
+      "outputTokens": 82,
+      "usd": 0.0001443
+    },
+    {
+      "at": "2026-10-29T06:25:45.194Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 722,
+      "outputTokens": 65,
+      "usd": 0.0001047
+    },
+    {
+      "at": "2026-10-29T06:25:46.579Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 927,
+      "outputTokens": 47,
+      "usd": 0.0001162
+    },
+    {
+      "at": "2026-10-29T06:25:47.859Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 616,
+      "outputTokens": 59,
+      "usd": 0.00009109999999999999
+    },
+    {
+      "at": "2026-10-29T06:25:49.330Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 928,
+      "outputTokens": 54,
+      "usd": 0.00011980000000000001
+    },
+    {
+      "at": "2026-10-29T06:25:50.421Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 617,
+      "outputTokens": 66,
+      "usd": 0.0000947
+    },
+    {
+      "at": "2026-10-29T06:26:03.863Z",
+      "job": "judge:a page about me",
+      "model": "claude-opus-5-5",
+      "inputTokens": 8583,
+      "outputTokens": 1121,
+      "usd": 0.056752
+    },
+    {
+      "at": "2026-10-29T06:26:04.841Z",
+      "job": "hint-check:a page about me",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1865,
+      "outputTokens": 59,
+      "usd": 0.000216
+    },
+    {
+      "at": "2026-10-29T06:26:31.175Z",
+      "job": "project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 957,
+      "outputTokens": 3186,
+      "usd": 0.067548
+    },
+    {
+      "at": "2026-10-29T06:29:16.420Z",
+      "job": "steps",
+      "model": "claude-opus-5-5",
+      "inputTokens": 6358,
+      "outputTokens": 20000,
+      "usd": 0.425432
+    },
+    {
+      "at": "2026-10-29T06:29:22.958Z",
+      "job": "picture",
+      "model": "claude-opus-5-5",
+      "inputTokens": 2312,
+      "outputTokens": 394,
+      "usd": 0.017128
+    },
+    {
+      "at": "2026-10-29T06:29:40.665Z",
+      "job": "project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 1313,
+      "outputTokens": 2087,
+      "usd": 0.046992
+    },
+    {
+      "at": "2026-10-29T06:31:56.923Z",
+      "job": "steps",
+      "model": "claude-opus-5-5",
+      "inputTokens": 5806,
+      "outputTokens": 16951,
+      "usd": 0.362244
+    },
+    {
+      "at": "2026-10-29T06:32:02.086Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 784,
+      "outputTokens": 58,
+      "usd": 0.00010740000000000001
+    },
+    {
+      "at": "2026-10-29T06:32:10.623Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1208,
+      "outputTokens": 53,
+      "usd": 0.0001473
+    },
+    {
+      "at": "2026-10-29T06:32:11.562Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1184,
+      "outputTokens": 71,
+      "usd": 0.0001539
+    },
+    {
+      "at": "2026-10-29T06:32:12.784Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 647,
+      "outputTokens": 52,
+      "usd": 0.00009070000000000001
+    },
+    {
+      "at": "2026-10-29T06:32:13.823Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 597,
+      "outputTokens": 68,
+      "usd": 0.0000937
+    },
+    {
+      "at": "2026-10-29T06:32:15.085Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 645,
+      "outputTokens": 54,
+      "usd": 0.0000915
+    },
+    {
+      "at": "2026-10-29T06:32:16.827Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 615,
+      "outputTokens": 98,
+      "usd": 0.0001105
+    },
+    {
+      "at": "2026-10-29T06:32:21.521Z",
+      "job": "simpler",
+      "model": "claude-opus-5-5",
+      "inputTokens": 861,
+      "outputTokens": 337,
+      "usd": 0.010184
+    },
+    {
+      "at": "2026-10-29T06:32:28.689Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 784,
+      "outputTokens": 59,
+      "usd": 0.00010790000000000001
+    },
+    {
+      "at": "2026-10-29T06:32:37.274Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1208,
+      "outputTokens": 51,
+      "usd": 0.0001463
+    },
+    {
+      "at": "2026-10-29T06:32:38.276Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1184,
+      "outputTokens": 67,
+      "usd": 0.0001519
+    },
+    {
+      "at": "2026-10-29T06:32:39.544Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 647,
+      "outputTokens": 56,
+      "usd": 0.0000927
+    },
+    {
+      "at": "2026-10-29T06:32:40.453Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 597,
+      "outputTokens": 61,
+      "usd": 0.0000902
+    },
+    {
+      "at": "2026-10-29T06:32:41.385Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 645,
+      "outputTokens": 55,
+      "usd": 0.000092
+    },
+    {
+      "at": "2026-10-29T06:32:43.005Z",
+      "job": "check",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 615,
+      "outputTokens": 64,
+      "usd": 0.0000935
+    },
+    {
+      "at": "2026-10-29T06:32:52.777Z",
+      "job": "judge:a page like this picture",
+      "model": "claude-opus-5-5",
+      "inputTokens": 9671,
+      "outputTokens": 758,
+      "usd": 0.053844
+    },
+    {
+      "at": "2026-10-29T06:32:56.552Z",
+      "job": "hint-check:a page like this picture",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1966,
+      "outputTokens": 74,
+      "usd": 0.0002336
+    },
+    {
+      "at": "2026-10-29T06:34:47.764Z",
+      "job": "video:Create Your First HTML/CSS Project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 8431,
+      "outputTokens": 12937,
+      "usd": 0.292464
+    },
+    {
+      "at": "2026-10-29T06:35:04.833Z",
+      "job": "judge:Create Your First HTML/CSS Project",
+      "model": "claude-opus-5-5",
+      "inputTokens": 9914,
+      "outputTokens": 1069,
+      "usd": 0.061036
+    },
+    {
+      "at": "2026-10-29T06:35:08.617Z",
+      "job": "hint-check:Create Your First HTML/CSS Project",
+      "model": "claude-haiku-5-5",
+      "inputTokens": 1320,
+      "outputTokens": 74,
+      "usd": 0.000169
+    },
+    {
+      "at": "2026-10-29T06:37:11.507Z",
+      "job": "video:HTML Tutorial for Beginners",
+      "model": "claude-opus-5-5",
+      "inputTokens": 11751,
+      "outputTokens": 16000,
+      "usd": 0.367004
+    },
+    {
+      "at": "2026-10-29T06:37:43.578Z",
+      "job": "video:How to Code Your First Website",
+      "model": "claude-opus-5-5",
+      "inputTokens": 6781,
+      "outputTokens": 3772,
+      "usd": 0.102564
+    },
+    {
+      "at": "2026-10-29T06:38:14.480Z",
+      "job": "video:How to Code Your First Website",
+      "model": "claude-opus-5-5",
+      "inputTokens": 6816,
+      "outputTokens": 3758,
+      "usd": 0.102424
     }
   ],
   "total": {
-    "calls": 3,
-    "inputTokens": 366301,
-    "outputTokens": 20637,
-    "usd": 0.7351845
+    "calls": 55,
+    "inputTokens": 487715,
+    "outputTokens": 122273,
+    "usd": 3.0888362000000003
   }
 }

@@ -1,0 +1,652 @@
+{
+  "ranAt": "2026-10-29T06:38:14.579Z",
+  "claude": {
+    "usable": true,
+    "note": "a key is set"
+  },
+  "geminiPrice": "Gemini priced at $1.50 per million input tokens and $9.00 per million output + thinking tokens (Google Cloud's published 'Global' price for Gemini 3.5 Flash, Oct 2026; ai.google.dev was blocked from here, so the Gemini API's own page wasn't checked). Gemini actually served gemini-3.6-flash, which the same price list shows at an introductory $0.75 / $3.75 until 31 Dec 2026, so the real bill is likely about half of what is shown. Treat these as upper-bound estimates.",
+  "cases": [
+    {
+      "name": "about-me fixture (hand-written)",
+      "kind": "idea",
+      "status": "graded",
+      "source": "fixture",
+      "grade": {
+        "name": "about-me fixture (hand-written)",
+        "kind": "lesson",
+        "lessonId": "about-me",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": [],
+            "skipped": "Not a video lesson."
+          }
+        ],
+        "passed": 9,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 24,
+        "linesToType": 28,
+        "steps": 6
+      },
+      "judgement": {
+        "scores": {
+          "wording": 3,
+          "stepSize": 3,
+          "order": 3,
+          "hints": 3,
+          "fidelity": 4
+        },
+        "worst": [
+          {
+            "stepId": "link-css",
+            "problem": "Three unrelated new ideas in one step: a description meta, a viewport meta and the CSS link. The 'why' and all three hints only cover the <link>."
+          },
+          {
+            "stepId": "skeleton",
+            "problem": "The expected code has <meta charset=\"utf-8\"> and lang=\"en\", but neither the instruction nor the hints mention them. Doctype, html, head, title and body are also too many new ideas for one first step."
+          },
+          {
+            "stepId": "style",
+            "problem": "It never says to create style.css. 'font-family', 'sans-serif' and 'margin' go unexplained, and the hints only cover the h1 color, not the body rule."
+          },
+          {
+            "stepId": "intro",
+            "problem": "No step ever opens index.html in a browser, so the learner never sees their page or checks that the CSS link works."
+          },
+          {
+            "stepId": "link-css",
+            "problem": "Words like 'viewport' and 'initial-scale=1' (inside a 'line that makes it fit phone screens') would mean nothing to a first-time coder."
+          }
+        ],
+        "summary": "The content steps (intro, hobbies) are well-sized and match exactly what the student asked for: their name and hobbies. The head-related steps (skeleton, link-css) ask for unexplained code that the hints never cover, and the learner is never shown how to view the page."
+      }
+    },
+    {
+      "name": "a page about me",
+      "kind": "idea",
+      "status": "graded",
+      "source": "built",
+      "grade": {
+        "name": "a page about me",
+        "kind": "lesson",
+        "lessonId": "idea-a-page-about-me-f542fedb",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": false,
+            "examples": [
+              "index.html: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file)."
+            ]
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": [],
+            "skipped": "Not a video lesson."
+          }
+        ],
+        "passed": 8,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 102,
+        "linesToType": 116,
+        "steps": 20
+      },
+      "usd": 0.35611079999999995,
+      "judgement": {
+        "scores": {
+          "wording": 3,
+          "stepSize": 3,
+          "order": 3,
+          "hints": 3,
+          "fidelity": 4
+        },
+        "worst": [
+          {
+            "stepId": "faces",
+            "problem": "Far too big for one step: arrays, let, if, functions, addEventListener, .length and textContent all at once, with code split between two places in the file."
+          },
+          {
+            "stepId": "faces",
+            "problem": "Uses an array before the idea is explained; the 'Lists in code' concept only comes later, in facts-list."
+          },
+          {
+            "stepId": "head-info",
+            "problem": "Four new tags with unexplained jargon ('letter set (UTF-8)', viewport, rel=stylesheet). Hint 2 names the tags but never shows the attributes a beginner can't guess."
+          },
+          {
+            "stepId": "card",
+            "problem": "Brings in main, div, h1, p, class and id together. Words like 'main part' and 'box' don't tell a beginner which tag to type."
+          },
+          {
+            "stepId": "skeleton",
+            "problem": "Hint 3 is basically the full answer, missing only </body>, so there's nothing left to work out."
+          }
+        ],
+        "summary": "The lesson builds steadily from bare HTML to styling to interactivity, with well-placed 'look at it' checkpoints and friendly personal content that matches what the student asked for. But the JavaScript jumps badly at 'faces' (many new ideas at once, arrays used before they're taught), CSS terms like flex, vh and line-height are never explained, and the face-switching extra plus the emoji standing in for a real photo drift slightly from the request."
+      }
+    },
+    {
+      "name": "a website for my small bakery",
+      "kind": "idea",
+      "status": "error",
+      "note": "The answer was cut off at 20000 tokens.",
+      "usd": 0.49298
+    },
+    {
+      "name": "make me Instagram",
+      "kind": "idea",
+      "status": "graded",
+      "source": "built",
+      "grade": {
+        "name": "make me Instagram",
+        "kind": "tooBig",
+        "criteria": [
+          {
+            "id": "tooBig",
+            "title": "A huge ask gets a small offer, not a flat no",
+            "pass": true,
+            "examples": []
+          }
+        ],
+        "passed": 1,
+        "total": 1
+      },
+      "usd": 0,
+      "note": "The full Instagram needs accounts, servers and a database to store everyone's posts, which is a lot for a first project. How about a profile page with a grid of photos, like an Instagram profile?"
+    },
+    {
+      "name": "a page like this picture",
+      "kind": "idea",
+      "status": "graded",
+      "source": "built",
+      "grade": {
+        "name": "a page like this picture",
+        "kind": "lesson",
+        "lessonId": "idea-a-warm-one-page-site-with-cards-d867b900",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": [],
+            "skipped": "Not a video lesson."
+          }
+        ],
+        "passed": 9,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 113,
+        "linesToType": 139,
+        "steps": 24
+      },
+      "usd": 0.43734300000000004,
+      "judgement": {
+        "scores": {
+          "wording": 3,
+          "stepSize": 3,
+          "order": 4,
+          "hints": 3,
+          "fidelity": 4
+        },
+        "worst": [
+          {
+            "stepId": "click-card",
+            "problem": "Packs a variable, querySelectorAll, forEach, a function, addEventListener and classList into one step, but the only concept note covers clicks; none of the others is explained to a first-time coder."
+          }
+        ],
+        "summary": "x"
+      }
+    },
+    {
+      "name": "Create Your First HTML/CSS Project",
+      "kind": "video",
+      "status": "graded",
+      "source": "built",
+      "grade": {
+        "name": "Create Your First HTML/CSS Project",
+        "kind": "lesson",
+        "lessonId": "video-wzWmZYi4qMg",
+        "criteria": [
+          {
+            "id": "valid",
+            "title": "Valid lesson",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "checks",
+            "title": "Every check passes on the finished project; the first fails on an empty one",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "buildsUp",
+            "title": "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
+            "pass": false,
+            "examples": [
+              "resources/css/index.css: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file)."
+            ]
+          },
+          {
+            "id": "stepSize",
+            "title": "Every 🧑 step adds 3-10 lines",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "whoTypes",
+            "title": "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "estimate",
+            "title": "Estimate matches the steps and is in a sensible range",
+            "pass": false,
+            "examples": [
+              "61 min with no smaller version offered first."
+            ]
+          },
+          {
+            "id": "concepts",
+            "title": "Each concept: one plain sentence, no jargon, with a link",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "hints",
+            "title": "Hints get stronger, and hint 3 isn't the whole answer",
+            "pass": true,
+            "examples": []
+          },
+          {
+            "id": "video",
+            "title": "Video steps link to a real part of the video",
+            "pass": true,
+            "examples": []
+          }
+        ],
+        "passed": 7,
+        "total": 9
+      },
+      "estimate": {
+        "minutes": 61,
+        "linesToType": 58,
+        "steps": 17
+      },
+      "usd": 0.292464,
+      "judgement": {
+        "scores": {
+          "wording": 3,
+          "stepSize": 3,
+          "order": 2,
+          "hints": 3,
+          "fidelity": 3
+        },
+        "worst": [
+          {
+            "stepId": "skeleton",
+            "problem": "The stylesheet link is typed before any CSS exists or is explained, while the video adds it at 724s. The later 'link-check' watch step then shows typing that the learner has already done."
+          },
+          {
+            "stepId": "banner",
+            "problem": "The learner types class=\"banner\", id=\"small-gritty\" and the full relative image path here. These come before the 'paths' step explains paths and before any styling gives classes and ids a purpose; the video adds them later, at 525s, 644s and 778s."
+          },
+          {
+            "stepId": "gritter",
+            "problem": "This one step introduces a span, an id, a class, a form and two kinds of input across 9 lines. It is too many new ideas at once, and class=\"bold\" means nothing until the 'bold' step."
+          },
+          {
+            "stepId": "posts",
+            "problem": "The nested <div><div><span> is never explained, and the third hint gives that exact structure, leaving only the sentence to fill in."
+          },
+          {
+            "stepId": "meta",
+            "problem": "It shares the 332-498 video clip with 'skeleton', where the video auto-generates the boilerplate, and it asks a beginner to type X-UA-Compatible/ie=edge with no meaningful explanation."
+          }
+        ],
+        "summary": "The lesson follows the video's project closely, with friendly 'why' lines and a clear split between watching and typing. Its biggest weakness is front-loading the link tag and the class/id names into the HTML steps, which breaks the video's order and asks beginners to type things before they mean anything."
+      }
+    },
+    {
+      "name": "HTML Tutorial for Beginners",
+      "kind": "video",
+      "status": "error",
+      "note": "The answer was cut off at 16000 tokens.",
+      "usd": 0.367004
+    },
+    {
+      "name": "How to Code Your First Website",
+      "kind": "video",
+      "status": "error",
+      "note": "The lesson breaks Stride's step rules.",
+      "usd": 0.204988
+    }
+  ],
+  "videoNotes": [
+    {
+      "videoId": "wzWmZYi4qMg",
+      "url": "https://www.youtube.com/watch?v=wzWmZYi4qMg",
+      "status": "reused",
+      "model": "gemini-3.6-flash",
+      "title": "Create Your First HTML/CSS Project",
+      "chapters": 5,
+      "segments": 17,
+      "codeSegments": 11,
+      "codeLines": 145,
+      "endSeconds": 1156,
+      "inputTokens": 105242,
+      "outputTokens": 6515,
+      "usd": 0.216498
+    },
+    {
+      "videoId": "WOvg00FnmsU",
+      "url": "https://www.youtube.com/watch?v=WOvg00FnmsU",
+      "status": "reused",
+      "model": "gemini-3.6-flash",
+      "title": "HTML Tutorial for Beginners - Full Course",
+      "chapters": 6,
+      "segments": 30,
+      "codeSegments": 21,
+      "codeLines": 284,
+      "endSeconds": 1446,
+      "inputTokens": 131708,
+      "outputTokens": 9945,
+      "usd": 0.287067
+    },
+    {
+      "videoId": "zMTId2CUClw",
+      "url": "https://www.youtube.com/watch?v=zMTId2CUClw",
+      "status": "reused",
+      "model": "gemini-3.6-flash",
+      "title": "How to Code Your FIRST Website (in 10 minutes)",
+      "chapters": 5,
+      "segments": 13,
+      "codeSegments": 8,
+      "codeLines": 41,
+      "endSeconds": 1421,
+      "inputTokens": 129351,
+      "outputTokens": 4177,
+      "usd": 0.2316195
+    }
+  ],
+  "spend": {
+    "thisRun": 2.3536517000000003,
+    "allRuns": 3.0888362000000003,
+    "cap": 8
+  },
+  "findings": [
+    "GOAL C3 (build under $0.50): 3 real build(s), most expensive $0.44 — passes.",
+    "GOAL C3 (hint under $0.01): 3 real Haiku check call(s), average $0.0002, most expensive $0.0002 — passes. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; only a check the code can't decide calls Haiku.",
+    "Reading one 19-24 minute video with Gemini (low resolution) cost $0.22-$0.29 (average $0.25, upper-bound price). That is part of a video lesson's build, so it leaves about $0.25 of the $0.50 budget for the Opus steps call (projection, not measured).",
+    "The 3 videos were picked as beginner HTML/CSS step-by-step builds; youtube.com is blocked here, so view counts and captions couldn't be checked. Gemini read two titles differently from the ones noted when picking them (\"HTML Tutorial for Beginners - Full Course\", \"How to Code Your FIRST Website (in 10 minutes)\"); the report shows what Gemini read.",
+    "Found by this test: in wzWmZYi4qMg's real notes Gemini escaped the code twice (every line break arrived as a typed \\\\n, so each file was one long line). src/learn/gemini.ts now turns that back into real lines (unescapeCode); without it that video's lesson would have been built from 11 one-line code blobs."
+  ],
+  "messageExamples": [
+    {
+      "before": "I can't find \"body h1\" yet.",
+      "after": "I can't see a big heading (<h1>) inside the page yet."
+    },
+    {
+      "before": "I see 2 \"ul li\", but this step needs 3.",
+      "after": "I see 2 list items (<li>) inside the bullet list (<ul>), but this step needs 3."
+    },
+    {
+      "before": "\"title\" should say \"about me\".",
+      "after": "The page title (<title>) should say \"about me\"."
+    },
+    {
+      "before": "\"head link\" needs href=\"style.css\".",
+      "after": "The link to a style file (<link>) inside the head part (<head>) needs href=\"style.css\"."
+    },
+    {
+      "before": "\"img\" needs a alt attribute.",
+      "after": "The picture (<img>) still needs a short description of the picture (alt)."
+    },
+    {
+      "before": "\"h1\" doesn't have the right color yet.",
+      "after": "The big heading (<h1>) doesn't have the right text colour yet."
+    },
+    {
+      "before": "I can't find \".card h3\" yet.",
+      "after": "I can't see a small heading (<h3>) inside the part with class=\"card\" yet."
+    },
+    {
+      "before": "style.css doesn't exist yet.",
+      "after": "There's no file called style.css in your project folder yet."
+    },
+    {
+      "before": "The <ul> isn't closed yet.",
+      "after": "The <ul> you started still needs its closing </ul>."
+    },
+    {
+      "before": "The page also shows an error: Uncaught ReferenceError: x is not defined",
+      "after": "Your page also shows a problem when it opens, so check the code you just typed for a typo."
+    }
+  ],
+  "promptChanges": [
+    {
+      "where": "idea: project",
+      "change": "No code comments in the finished site.",
+      "why": "Every line is typed by the student; comments are lines typed for nothing and inflate the estimate."
+    },
+    {
+      "where": "idea + video: steps",
+      "change": "3-10 non-blank lines, never more than 10; split long parts.",
+      "why": "A4 / grader 'stepSize'. Now also enforced in code: steps over 12 lines are sent back."
+    },
+    {
+      "where": "idea: steps",
+      "change": "Explicit teaching order: skeleton, then HTML content, then CSS, then JS; one new idea per step.",
+      "why": "Judge 'teaching order'; A4."
+    },
+    {
+      "where": "idea + video: steps",
+      "change": "'watch' steps add no code; every line of the finished project is typed in some learner step.",
+      "why": "A4 '🤖 steps are only setup'; grader 'whoTypes'. Enforced in code too."
+    },
+    {
+      "where": "idea + video: steps",
+      "change": "Instructions say what to add and where in words, for a 14-year-old who never coded.",
+      "why": "B1 / judge 'beginner wording'."
+    },
+    {
+      "where": "idea + video: hints",
+      "change": "Each hint stronger: words only, then the spot + tag name, then part of the code with … gaps; hint 3 never the whole 'expected'.",
+      "why": "A6. Enforced in code: a hint 3 holding the whole answer is sent back."
+    },
+    {
+      "where": "idea + video: concepts",
+      "change": "ONE plain sentence under 25 words, banned jargon list, at least one MDN link.",
+      "why": "A7; the about-me fixture's concepts are all 2 sentences. Links are now required by the schema."
+    },
+    {
+      "where": "idea + video: checks",
+      "change": "Optional plain 'say' wording per check, no code words.",
+      "why": "B1: the student never sees a CSS selector. The checker words one itself when it's missing."
+    },
+    {
+      "where": "video: timestamps",
+      "change": "Every learner step has a video part from the notes' times, start < end, inside the video, in order.",
+      "why": "A7 'video steps link to the right timestamp'. Enforced in code: parts past the video's end are sent back."
+    },
+    {
+      "where": "checker: Haiku judge",
+      "change": "Reasons in plain words for a 14-year-old, never DOM/selector/element/parse.",
+      "why": "B1."
+    }
+  ],
+  "hintChecks": [
+    {
+      "lesson": "a page about me",
+      "stepId": "skeleton",
+      "answer": "yes: Your index.html starts with the web page line, wraps everything in the html part, and has the head and body parts in place, so the basic frame is there.",
+      "inputTokens": 1865,
+      "outputTokens": 59,
+      "usd": 0.000216
+    },
+    {
+      "lesson": "a page like this picture",
+      "stepId": "skeleton",
+      "answer": "yes: Your page starts with the doctype line, the html tag, and a head that has the character set, screen-size line, the My Site title, and the link to style.css, and the head and html are both closed properly.",
+      "inputTokens": 1966,
+      "outputTokens": 74,
+      "usd": 0.0002336
+    },
+    {
+      "lesson": "Create Your First HTML/CSS Project",
+      "stepId": "skeleton",
+      "answer": "no: Your page skeleton looks great, but the body isn't empty yet. The step asked for an empty body, and yours already has the banner and gritter sections filled in, which is coming in a later step.",
+      "inputTokens": 1320,
+      "outputTokens": 74,
+      "usd": 0.000169
+    }
+  ]
+}

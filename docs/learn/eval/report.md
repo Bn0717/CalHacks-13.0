@@ -1,26 +1,27 @@
 # Stride Learn: lesson quality test (C2)
 
-Ran 2026-10-29T05:56:40.941Z with `npm run learn:eval`. The raw results are in `report.json` next to this file.
+Ran 2026-10-29T06:38:14.579Z with `npm run learn:eval`. The raw results are in `report.json` next to this file.
 
-**Claude:** not usable: no Claude key is set (ANTHROPIC_API_KEY / STRIDE_ANTHROPIC_API_KEY)
+**Claude:** working: a key is set
 
 ## Lessons
 
 | Lesson | Source | Status | Automatic grade | Opus scores (1-5) | Estimate | Build cost |
 |---|---|---|---|---|---|---|
-| about-me fixture (hand-written) | fixture | graded | 8/8 pass | blocked (no Claude key) | 24 min · 28 lines · 6 steps | — |
-| a page about me | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
-| a website for my small bakery | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
+| about-me fixture (hand-written) | fixture | graded | 9/9 pass | wording 3 · step size 3 · order 3 · hints 3 · fidelity 4 | 24 min · 28 lines · 6 steps | — |
+| a page about me | built | graded | 8/9 pass | wording 3 · step size 3 · order 3 · hints 3 · fidelity 4 | 102 min · 116 lines · 20 steps | $0.36 |
+| a website for my small bakery | — | error: The answer was cut off at 20000 tokens. | — | — | — | $0.49 |
 | make me Instagram | built | graded: The full Instagram needs accounts, servers and a database to store everyone's posts, which is a lot for a first project. How about a profile page with a grid of photos, like an Instagram profile? | 1/1 pass | n/a | — | $0.0000 |
-| a page like this picture | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
-| Create Your First HTML/CSS Project | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
-| HTML Tutorial for Beginners | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
-| How to Code Your First Website | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
+| a page like this picture | built | graded | 9/9 pass | wording 3 · step size 3 · order 4 · hints 3 · fidelity 4 | 113 min · 139 lines · 24 steps | $0.44 |
+| Create Your First HTML/CSS Project | built | graded | 7/9 pass | wording 3 · step size 3 · order 2 · hints 3 · fidelity 3 | 61 min · 58 lines · 17 steps | $0.29 |
+| HTML Tutorial for Beginners | — | error: The answer was cut off at 16000 tokens. | — | — | — | $0.37 |
+| How to Code Your First Website | — | error: The lesson breaks Stride's step rules. | — | — | — | $0.20 |
 
 ### about-me fixture (hand-written) (fixture)
 
 - ✅ Valid lesson
 - ✅ Every check passes on the finished project; the first fails on an empty one
+- ✅ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
 - ✅ Every 🧑 step adds 3-10 lines
 - ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
 - ✅ Estimate matches the steps and is in a sensible range
@@ -28,32 +29,80 @@ Ran 2026-10-29T05:56:40.941Z with `npm run learn:eval`. The raw results are in `
 - ✅ Hints get stronger, and hint 3 isn't the whole answer
 - ➖ Video steps link to a real part of the video — Not a video lesson.
 
+Opus review: wording 3 · step size 3 · order 3 · hints 3 · fidelity 4. The content steps (intro, hobbies) are well-sized and match exactly what the student asked for: their name and hobbies. The head-related steps (skeleton, link-css) ask for unexplained code that the hints never cover, and the learner is never shown how to view the page.
+  - link-css: Three unrelated new ideas in one step: a description meta, a viewport meta and the CSS link. The 'why' and all three hints only cover the <link>.
+  - skeleton: The expected code has <meta charset="utf-8"> and lang="en", but neither the instruction nor the hints mention them. Doctype, html, head, title and body are also too many new ideas for one first step.
+  - style: It never says to create style.css. 'font-family', 'sans-serif' and 'margin' go unexplained, and the hints only cover the h1 color, not the body rule.
+  - intro: No step ever opens index.html in a browser, so the learner never sees their page or checks that the CSS link works.
+  - link-css: Words like 'viewport' and 'initial-scale=1' (inside a 'line that makes it fit phone screens') would mean nothing to a first-time coder.
+
+### a page about me (built)
+
+- ✅ Valid lesson
+- ✅ Every check passes on the finished project; the first fails on an empty one
+- ❌ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
+  - index.html: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file).
+- ✅ Every 🧑 step adds 3-10 lines
+- ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
+- ✅ Estimate matches the steps and is in a sensible range
+- ✅ Each concept: one plain sentence, no jargon, with a link
+- ✅ Hints get stronger, and hint 3 isn't the whole answer
+- ➖ Video steps link to a real part of the video — Not a video lesson.
+
+Opus review: wording 3 · step size 3 · order 3 · hints 3 · fidelity 4. The lesson builds steadily from bare HTML to styling to interactivity, with well-placed 'look at it' checkpoints and friendly personal content that matches what the student asked for. But the JavaScript jumps badly at 'faces' (many new ideas at once, arrays used before they're taught), CSS terms like flex, vh and line-height are never explained, and the face-switching extra plus the emoji standing in for a real photo drift slightly from the request.
+  - faces: Far too big for one step: arrays, let, if, functions, addEventListener, .length and textContent all at once, with code split between two places in the file.
+  - faces: Uses an array before the idea is explained; the 'Lists in code' concept only comes later, in facts-list.
+  - head-info: Four new tags with unexplained jargon ('letter set (UTF-8)', viewport, rel=stylesheet). Hint 2 names the tags but never shows the attributes a beginner can't guess.
+  - card: Brings in main, div, h1, p, class and id together. Words like 'main part' and 'box' don't tell a beginner which tag to type.
+  - skeleton: Hint 3 is basically the full answer, missing only </body>, so there's nothing left to work out.
+
 ### make me Instagram (built)
 
 - ✅ A huge ask gets a small offer, not a flat no
 
+### a page like this picture (built)
+
+- ✅ Valid lesson
+- ✅ Every check passes on the finished project; the first fails on an empty one
+- ✅ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
+- ✅ Every 🧑 step adds 3-10 lines
+- ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
+- ✅ Estimate matches the steps and is in a sensible range
+- ✅ Each concept: one plain sentence, no jargon, with a link
+- ✅ Hints get stronger, and hint 3 isn't the whole answer
+- ➖ Video steps link to a real part of the video — Not a video lesson.
+
+Opus review: wording 3 · step size 3 · order 4 · hints 3 · fidelity 4. x
+  - click-card: Packs a variable, querySelectorAll, forEach, a function, addEventListener and classList into one step, but the only concept note covers clicks; none of the others is explained to a first-time coder.
+
+### Create Your First HTML/CSS Project (built)
+
+- ✅ Valid lesson
+- ✅ Every check passes on the finished project; the first fails on an empty one
+- ❌ Typing the steps in order rebuilds the finished project, and no step leaves a tag open
+  - resources/css/index.css: typing every step's code at its anchor, in order, doesn't give the finished file (an anchor puts code in the wrong place, or a step's code isn't copied exactly from the finished file).
+- ✅ Every 🧑 step adds 3-10 lines
+- ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
+- ❌ Estimate matches the steps and is in a sensible range
+  - 61 min with no smaller version offered first.
+- ✅ Each concept: one plain sentence, no jargon, with a link
+- ✅ Hints get stronger, and hint 3 isn't the whole answer
+- ✅ Video steps link to a real part of the video
+
+Opus review: wording 3 · step size 3 · order 2 · hints 3 · fidelity 3. The lesson follows the video's project closely, with friendly 'why' lines and a clear split between watching and typing. Its biggest weakness is front-loading the link tag and the class/id names into the HTML steps, which breaks the video's order and asks beginners to type things before they mean anything.
+  - skeleton: The stylesheet link is typed before any CSS exists or is explained, while the video adds it at 724s. The later 'link-check' watch step then shows typing that the learner has already done.
+  - banner: The learner types class="banner", id="small-gritty" and the full relative image path here. These come before the 'paths' step explains paths and before any styling gives classes and ids a purpose; the video adds them later, at 525s, 644s and 778s.
+  - gritter: This one step introduces a span, an id, a class, a form and two kinds of input across 9 lines. It is too many new ideas at once, and class="bold" means nothing until the 'bold' step.
+  - posts: The nested <div><div><span> is never explained, and the third hint gives that exact structure, leaving only the sentence to fill in.
+  - meta: It shares the 332-498 video clip with 'skeleton', where the video auto-generates the boilerplate, and it asks a beginner to type X-UA-Compatible/ie=edge with no meaningful explanation.
+
 ## Findings
 
-- GOAL C3 (build under $0.50, hint under $0.01): no real Claude call ran, so there is no real lesson-build or hint cost yet. The about-me fixture is hand-written, so it has no cost data at all; it only gives the estimate shown above.
+- GOAL C3 (build under $0.50): 3 real build(s), most expensive $0.44 — passes.
+- GOAL C3 (hint under $0.01): 3 real Haiku check call(s), average $0.0002, most expensive $0.0002 — passes. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; only a check the code can't decide calls Haiku.
 - Reading one 19-24 minute video with Gemini (low resolution) cost $0.22-$0.29 (average $0.25, upper-bound price). That is part of a video lesson's build, so it leaves about $0.25 of the $0.50 budget for the Opus steps call (projection, not measured).
 - The 3 videos were picked as beginner HTML/CSS step-by-step builds; youtube.com is blocked here, so view counts and captions couldn't be checked. Gemini read two titles differently from the ones noted when picking them ("HTML Tutorial for Beginners - Full Course", "How to Code Your FIRST Website (in 10 minutes)"); the report shows what Gemini read.
 - Found by this test: in wzWmZYi4qMg's real notes Gemini escaped the code twice (every line break arrived as a typed \\n, so each file was one long line). src/learn/gemini.ts now turns that back into real lines (unescapeCode); without it that video's lesson would have been built from 11 one-line code blobs.
-
-## Blocked: no working Claude key
-
-These need the Claude API and did not run. Nothing below is faked; run `npm run learn:eval` with a valid
-`ANTHROPIC_API_KEY` (or `STRIDE_ANTHROPIC_API_KEY`) in `.env` to fill them in:
-
-- Building real lessons (Opus) for: "a page about me", "a website for my small bakery", "a page like this picture"
-  (reads `tests/learn/fixtures/mockup.png` first), and the 3 videos (Gemini notes are already recorded, so only Opus runs).
-  Expected: each comes back as a valid lesson, graded on every criterion above; the bakery lesson over 60 min carries a
-  smaller offer; build cost per lesson under $0.50 (GOAL C3), logged per call in `docs/learn/eval/cost.json`.
-- The separate Opus grading call (`src/learn/judge-lesson.ts`) for each lesson: scores 1-5 on wording, step size,
-  order, hints and fidelity, plus the worst steps.
-- Haiku hint/check calls (`ai` checks) and their cost per hint (GOAL C3: under $0.01).
-- Before/after for the prompt changes: compare this report with the first run's.
-- Already done without Claude: "make me Instagram" (code-only scope check), the about-me fixture's automatic grade
-  with the real hidden-browser checker, and the Gemini notes for all 3 videos.
 
 ## Video notes (Gemini, real calls)
 
@@ -67,11 +116,19 @@ Gemini total for these notes: $0.74 (low media resolution). Gemini priced at $1.
 
 ## Spend
 
-This run: $0.0000. All eval runs so far (cost.json): $0.74. Hard cap: $8.00.
+This run: $2.35. All eval runs so far (cost.json): $3.09. Hard cap: $8.00.
+
+## Hint-time checks (Haiku, real calls)
+
+| Lesson | Step | Haiku said | Tokens in / out | Cost |
+|---|---|---|---|---|
+| a page about me | skeleton | yes: Your index.html starts with the web page line, wraps everything in the html part, and has the head and body parts in place, so the basic frame is there. | 1865 / 59 | $0.0002 |
+| a page like this picture | skeleton | yes: Your page starts with the doctype line, the html tag, and a head that has the character set, screen-size line, the My Site title, and the link to style.css, and the head and html are both closed properly. | 1966 / 74 | $0.0002 |
+| Create Your First HTML/CSS Project | skeleton | no: Your page skeleton looks great, but the body isn't empty yet. The step asked for an empty body, and yours already has the banner and gritter sections filled in, which is coming in a later step. | 1320 / 74 | $0.0002 |
 
 ## Prompt changes
 
-Before/after: pending a real run with a working Claude key.
+Before/after: this is the first run with these prompts; the next run compares against it (`--before`).
 
 | Where | Change | Why |
 |---|---|---|

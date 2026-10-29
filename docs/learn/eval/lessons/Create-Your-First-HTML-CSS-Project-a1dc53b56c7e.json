@@ -1,0 +1,710 @@
+{
+  "id": "video-wzWmZYi4qMg",
+  "source": {
+    "kind": "video",
+    "url": "https://www.youtube.com/watch?v=wzWmZYi4qMg",
+    "videoId": "wzWmZYi4qMg",
+    "title": "Create Your First HTML/CSS Project"
+  },
+  "title": "Build Your First Web Page: Gritt-ify",
+  "summary": "Make a small fan page for Gritty from scratch. You will set up project folders, write the page's content, connect a style file, and add colors, sizes and spacing.",
+  "outcome": "A two-part web page with a purple banner, a small Gritty picture, a big Gritter title, a message form and a list of funny posts.",
+  "learns": [
+    "Setting up project folders",
+    "The basic shape of a web page",
+    "Headings, pictures, buttons and lists",
+    "Linking files with paths",
+    "Connecting a style file",
+    "Colors, sizes and spacing",
+    "Reusable style labels"
+  ],
+  "estimate": {
+    "minutes": 61,
+    "linesToType": 58,
+    "steps": 17
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n    <title>Gritt-ify</title>\n    <link rel=\"stylesheet\" href=\"./resources/css/index.css\">\n</head>\n<body>\n    <!-- Banner section -->\n    <div class=\"banner\">\n        <h1>Gritty's landing banner</h1>\n        <img id=\"small-gritty\" src=\"./resources/images/better_than_drake.png\" alt=\"\">\n        <p>Cause everything's better with Gritty's face on it.</p>\n        <button>Subscribe to me or I'll eat you</button>\n    </div>\n\n    <!-- Gritter section -->\n    <div>\n        <span id=\"gritter\">Gritter</span>\n        <p class=\"bold\">Social media dedicated to Gritty... and only Gritty... cause he's a psycho.</p>\n        <form action=\"\">\n            <input type=\"text\">\n            <input type=\"submit\" value=\"Submit\">\n        </form>\n        <ul>\n            <li>\n                <div><div><span>Hey there, it's Gritty again.</span></div></div>\n            </li>\n            <li>\n                <div><div><span>I haven't eaten any other mascots since yesterday.</span></div></div>\n            </li>\n            <li>\n                <div><div><span>Burp.</span></div></div>\n            </li>\n        </ul>\n    </div>\n</body>\n</html>\n"
+    },
+    {
+      "path": "resources/css/index.css",
+      "content": ".banner {\n    background-color: #4D00FF;\n    color: white;\n    margin-top: 75px;\n    text-align: center;\n    padding: 100px 0;\n}\n\n#small-gritty {\n    height: 100px;\n    width: 100px;\n}\n\n#gritter {\n    color: #4D00FF;\n    font-size: 100px;\n}\n\n.bold {\n    font-weight: 900;\n}\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "overview",
+      "title": "Overview"
+    },
+    {
+      "id": "setup",
+      "title": "Setup"
+    },
+    {
+      "id": "html",
+      "title": "Create the HTML Page"
+    },
+    {
+      "id": "css",
+      "title": "Basic Style Sheets"
+    },
+    {
+      "id": "wrap",
+      "title": "Conclusion"
+    }
+  ],
+  "steps": [
+    {
+      "id": "intro",
+      "chapter": "overview",
+      "title": "What we're building",
+      "instruction": "Watch the introduction to see the Gritty fan page you will build and what you will learn.",
+      "why": "Knowing the goal makes each step make sense.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch this part.",
+        "Notice the two parts of the page: a banner and a social feed.",
+        "Nothing to type yet."
+      ],
+      "video": {
+        "start": 0,
+        "end": 121
+      }
+    },
+    {
+      "id": "folders",
+      "chapter": "setup",
+      "title": "Make the project folders",
+      "instruction": "Watch how the project folder is made. Inside it there is a file called index.html and a folder called resources, which holds a css folder (with an empty index.css file) and an images folder.",
+      "why": "A tidy folder layout makes it easy to point files at each other.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch and copy the folder layout on your computer.",
+        "You need index.html, resources/css/index.css and resources/images.",
+        "Nothing to type in the code yet."
+      ],
+      "concept": {
+        "title": "Project folders",
+        "explain": "A website is just files in folders, and keeping pictures and styles in their own folders keeps things tidy.",
+        "links": [
+          {
+            "title": "MDN: Dealing with files",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/Dealing_with_files"
+          }
+        ]
+      },
+      "video": {
+        "start": 121,
+        "end": 299
+      }
+    },
+    {
+      "id": "image-file",
+      "chapter": "setup",
+      "title": "Add the Gritty picture",
+      "instruction": "Watch the picture file better_than_drake.png get copied into the resources/images folder. Put any picture with that name there yourself.",
+      "why": "The page will show this picture, so it has to live inside the project.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch this part.",
+        "The picture goes in resources/images.",
+        "Name it better_than_drake.png."
+      ],
+      "video": {
+        "start": 299,
+        "end": 332
+      }
+    },
+    {
+      "id": "skeleton",
+      "chapter": "html",
+      "title": "The page skeleton",
+      "instruction": "In index.html, type the basic shape of a web page: the first line saying it's HTML, an html wrapper, a head with the page title Gritt-ify and a link to your style file, and an empty body.",
+      "why": "Every web page needs this frame before any content goes in.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <title>Gritt-ify</title>\n    <link rel=\"stylesheet\" href=\"./resources/css/index.css\">\n</head>\n<body>\n</body>\n</html>",
+      "checks": [
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "I can't see the page title Gritt-ify yet.",
+          "selector": "title",
+          "text": "Gritt"
+        },
+        {
+          "type": "attribute",
+          "file": "index.html",
+          "say": "Your page isn't connected to the style file yet.",
+          "selector": "link[rel=\"stylesheet\"]",
+          "name": "href",
+          "value": "./resources/css/index.css"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't find the body part of your page.",
+          "selector": "body"
+        }
+      ],
+      "hints": [
+        "Start with the line that tells the browser this is an HTML page, then build a head and a body inside an html wrapper.",
+        "The title tag goes inside head, and so does a link tag pointing to ./resources/css/index.css.",
+        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <title>…</title>\n    <link rel=\"stylesheet\" href=\"…\">\n</head>\n…"
+      ],
+      "concept": {
+        "title": "Head and body",
+        "explain": "The head holds information about the page, like its title, while the body holds everything people actually see.",
+        "links": [
+          {
+            "title": "MDN: What's in the head?",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/The_head_metadata_in_HTML"
+          }
+        ],
+        "imageQuery": "html page structure head body diagram",
+        "videoQuery": "html boilerplate explained"
+      },
+      "video": {
+        "start": 332,
+        "end": 498
+      }
+    },
+    {
+      "id": "meta",
+      "chapter": "html",
+      "title": "Page settings",
+      "instruction": "Right after the opening head line, add three meta lines: one for the text format, one so the page fits phones, and one for older browsers.",
+      "why": "These settings make text show correctly and the page fit any screen.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "<head>"
+      },
+      "expected": "    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see the text format setting yet.",
+          "selector": "meta[charset]"
+        },
+        {
+          "type": "attribute",
+          "file": "index.html",
+          "say": "The setting that makes the page fit phones is missing.",
+          "selector": "meta[name=\"viewport\"]",
+          "name": "content"
+        }
+      ],
+      "hints": [
+        "Add three small setting lines at the top of the head.",
+        "Each is a meta tag; the first sets charset to UTF-8.",
+        "<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"…\">\n<meta http-equiv=\"…\" content=\"ie=edge\">"
+      ],
+      "concept": {
+        "title": "Meta tags",
+        "explain": "Meta tags are hidden settings that tell the browser how to read and size your page.",
+        "links": [
+          {
+            "title": "MDN: The meta tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta"
+          }
+        ]
+      },
+      "video": {
+        "start": 332,
+        "end": 498
+      }
+    },
+    {
+      "id": "banner",
+      "chapter": "html",
+      "title": "The banner section",
+      "instruction": "Inside the body, add a note saying Banner section, then a box (div) labelled with the class banner. Inside it put a big heading, the Gritty picture with the id small-gritty, a short sentence, and a button.",
+      "why": "This is the first thing visitors see at the top of the page.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "expected": "    <!-- Banner section -->\n    <div class=\"banner\">\n        <h1>Gritty's landing banner</h1>\n        <img id=\"small-gritty\" src=\"./resources/images/better_than_drake.png\" alt=\"\">\n        <p>Cause everything's better with Gritty's face on it.</p>\n        <button>Subscribe to me or I'll eat you</button>\n    </div>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see the banner box with its big heading yet.",
+          "selector": "div.banner h1"
+        },
+        {
+          "type": "attribute",
+          "file": "index.html",
+          "say": "The Gritty picture isn't pointing at the picture file yet.",
+          "selector": "img#small-gritty",
+          "name": "src",
+          "value": "./resources/images/better_than_drake.png"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "The button is missing from the banner.",
+          "selector": ".banner button"
+        }
+      ],
+      "hints": [
+        "Make one box that holds a heading, a picture, a sentence and a button.",
+        "Use a div with class=\"banner\", then h1, img, p and button inside it.",
+        "<div class=\"banner\">\n    <h1>…</h1>\n    <img id=\"small-gritty\" src=\"./resources/images/…\" alt=\"\">\n    …\n</div>"
+      ],
+      "concept": {
+        "title": "Classes and ids",
+        "explain": "A class or id is a name tag on part of your page, so you can style it later.",
+        "links": [
+          {
+            "title": "MDN: The class attribute",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/class"
+          },
+          {
+            "title": "MDN: The id attribute",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/id"
+          }
+        ]
+      },
+      "video": {
+        "start": 498,
+        "end": 509
+      }
+    },
+    {
+      "id": "gritter",
+      "chapter": "html",
+      "title": "The Gritter section",
+      "instruction": "Below the banner, add a note saying Gritter section, then a new box. Inside it put the word Gritter with the id gritter, a sentence with the class bold, and a form with a text box and a Submit button.",
+      "why": "This section is a pretend social feed just for Gritty.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "expected": "    <!-- Gritter section -->\n    <div>\n        <span id=\"gritter\">Gritter</span>\n        <p class=\"bold\">Social media dedicated to Gritty... and only Gritty... cause he's a psycho.</p>\n        <form action=\"\">\n            <input type=\"text\">\n            <input type=\"submit\" value=\"Submit\">\n        </form>\n    </div>",
+      "checks": [
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "I can't see the Gritter title yet.",
+          "selector": "span#gritter",
+          "text": "Gritter"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "The form with a Submit button is missing.",
+          "selector": "form input[type=\"submit\"]"
+        },
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "The sentence with the bold label isn't there yet.",
+          "selector": "p.bold"
+        }
+      ],
+      "hints": [
+        "Make a second box under the banner with a title, a sentence and a little form.",
+        "Use span id=\"gritter\", p class=\"bold\", and a form with two input tags.",
+        "<div>\n    <span id=\"gritter\">Gritter</span>\n    <p class=\"bold\">…</p>\n    <form action=\"\">\n        <input type=\"…\">\n        …\n    </form>\n</div>"
+      ],
+      "concept": {
+        "title": "Forms",
+        "explain": "A form lets visitors type something and press a button to send it.",
+        "links": [
+          {
+            "title": "MDN: Your first form",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Forms/Your_first_form"
+          }
+        ]
+      },
+      "video": {
+        "start": 509,
+        "end": 525
+      }
+    },
+    {
+      "id": "posts",
+      "chapter": "html",
+      "title": "The first post",
+      "instruction": "Right after the form ends, add a bulleted list with one item holding Gritty's first post: Hey there, it's Gritty again.",
+      "why": "A list is a natural way to show a feed of posts.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</form>"
+      },
+      "expected": "        <ul>\n            <li>\n                <div><div><span>Hey there, it's Gritty again.</span></div></div>\n            </li>\n        </ul>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see the list of posts yet.",
+          "selector": "ul li span"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Gritty's first post isn't showing yet.",
+          "selector": "ul",
+          "text": "Gritty again"
+        }
+      ],
+      "hints": [
+        "Add a list under the form with one post in it.",
+        "Use ul for the list and li for each item; the post text goes in a span.",
+        "<ul>\n    <li>\n        <div><div><span>…</span></div></div>\n    </li>\n…"
+      ],
+      "concept": {
+        "title": "Lists",
+        "explain": "A ul makes a bulleted list, and each li inside it is one bullet point.",
+        "links": [
+          {
+            "title": "MDN: The ul tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/ul"
+          }
+        ]
+      },
+      "video": {
+        "start": 509,
+        "end": 525
+      }
+    },
+    {
+      "id": "paths",
+      "chapter": "html",
+      "title": "Relative paths",
+      "instruction": "Watch how the picture's address ./resources/images/better_than_drake.png works: it starts from where index.html is and walks into the folders.",
+      "why": "Paths are how one file finds another in your project.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch this part.",
+        "The dot means start from this folder.",
+        "Each slash steps into the next folder."
+      ],
+      "concept": {
+        "title": "Relative paths",
+        "explain": "A relative path is directions to a file, starting from the file you're writing in.",
+        "links": [
+          {
+            "title": "MDN: What is a URL?",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/What_is_a_URL"
+          }
+        ]
+      },
+      "video": {
+        "start": 525,
+        "end": 576
+      }
+    },
+    {
+      "id": "browser",
+      "chapter": "html",
+      "title": "Open it in the browser",
+      "instruction": "Watch the page get opened in Chrome. Open your index.html in your browser too and look at the plain, unstyled page.",
+      "why": "Checking in the browser shows what you've built so far.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch, then try it yourself.",
+        "Double-click index.html or drag it into a browser.",
+        "It looks plain because there are no styles yet."
+      ],
+      "video": {
+        "start": 576,
+        "end": 611
+      }
+    },
+    {
+      "id": "more-posts",
+      "chapter": "html",
+      "title": "More posts",
+      "instruction": "After the first post's list item, add two more list items: one saying I haven't eaten any other mascots since yesterday. and one saying Burp.",
+      "why": "A feed with a few posts looks more real.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</li>"
+      },
+      "expected": "            <li>\n                <div><div><span>I haven't eaten any other mascots since yesterday.</span></div></div>\n            </li>\n            <li>\n                <div><div><span>Burp.</span></div></div>\n            </li>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "Your list should have three posts in it.",
+          "selector": "ul li",
+          "count": 3
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "I can't see the Burp post yet.",
+          "selector": "ul",
+          "text": "Burp"
+        }
+      ],
+      "hints": [
+        "Copy the shape of the first post twice, with new words.",
+        "Add two more li items inside the ul, right after the first one.",
+        "<li>\n    <div><div><span>I haven't eaten …</span></div></div>\n</li>\n…"
+      ],
+      "video": {
+        "start": 611,
+        "end": 644
+      }
+    },
+    {
+      "id": "banner-style",
+      "chapter": "css",
+      "title": "Style the banner",
+      "instruction": "Open resources/css/index.css. Write a rule for the banner class that makes the background purple (#4D00FF), the text white, adds 75px of space above, and centers the text. Refresh the browser to see it.",
+      "why": "This is your first style rule, and it changes how the banner looks.",
+      "who": "learner",
+      "file": "resources/css/index.css",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": ".banner {\n    background-color: #4D00FF;\n    color: white;\n    margin-top: 75px;\n    text-align: center;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The banner isn't purple yet.",
+          "selector": ".banner",
+          "property": "background-color",
+          "value": "rgb(77, 0, 255)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The banner text isn't centered yet.",
+          "selector": ".banner",
+          "property": "text-align",
+          "value": "center"
+        }
+      ],
+      "hints": [
+        "Start with the banner's name, then list the looks you want between curly brackets.",
+        "A class rule starts with a dot: .banner, then background-color, color, margin-top and text-align.",
+        ".banner {\n    background-color: #4D00FF;\n    color: …;\n    …\n}"
+      ],
+      "concept": {
+        "title": "A style rule",
+        "explain": "A style rule names what to change, then lists looks like color and size inside curly brackets.",
+        "links": [
+          {
+            "title": "MDN: CSS basics",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/CSS_basics"
+          }
+        ],
+        "imageQuery": "css rule anatomy diagram",
+        "videoQuery": "css basics for beginners"
+      },
+      "video": {
+        "start": 644,
+        "end": 724
+      }
+    },
+    {
+      "id": "link-check",
+      "chapter": "css",
+      "title": "How the style file connects",
+      "instruction": "Watch how the link line in the head connects index.css to the page, using a path just like the picture did.",
+      "why": "Without that link, the page never sees your styles.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch this part.",
+        "Look at the link line you typed in the head.",
+        "Its address points to ./resources/css/index.css."
+      ],
+      "concept": {
+        "title": "Linking a style file",
+        "explain": "The link tag in the head tells the page which style file to use.",
+        "links": [
+          {
+            "title": "MDN: The link tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/link"
+          }
+        ]
+      },
+      "video": {
+        "start": 724,
+        "end": 778
+      }
+    },
+    {
+      "id": "small-gritty",
+      "chapter": "css",
+      "title": "Shrink Gritty and add space",
+      "instruction": "Inside the banner rule, add 100px of padding on the top and bottom. Then below the banner rule, write a rule for the id small-gritty that makes the picture 100px tall and 100px wide.",
+      "why": "A smaller picture and some breathing room make the banner look neat.",
+      "who": "learner",
+      "file": "resources/css/index.css",
+      "expected": "    padding: 100px 0;\n}\n\n#small-gritty {\n    height: 100px;\n    width: 100px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The Gritty picture isn't small yet.",
+          "selector": "#small-gritty",
+          "property": "width",
+          "value": "100px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The banner needs more space at the top and bottom.",
+          "selector": ".banner",
+          "property": "padding-top",
+          "value": "100px"
+        }
+      ],
+      "hints": [
+        "Give the banner padding, then make a new rule for the picture's id.",
+        "An id rule starts with #: #small-gritty with height and width. Padding goes inside .banner.",
+        "#small-gritty {\n    height: …;\n    …\n}"
+      ],
+      "concept": {
+        "title": "Ids and padding",
+        "explain": "A # picks one named part of the page, and padding adds space inside its edges.",
+        "links": [
+          {
+            "title": "MDN: ID selectors",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/ID_selectors"
+          },
+          {
+            "title": "MDN: padding",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/padding"
+          }
+        ]
+      },
+      "video": {
+        "start": 778,
+        "end": 955
+      }
+    },
+    {
+      "id": "gritter-style",
+      "chapter": "css",
+      "title": "Big Gritter title",
+      "instruction": "Below the small-gritty rule, write a rule for the id gritter that makes the text purple (#4D00FF) and 100px big.",
+      "why": "A huge colorful title makes the Gritter section stand out.",
+      "who": "learner",
+      "file": "resources/css/index.css",
+      "anchor": {
+        "afterLine": 12
+      },
+      "expected": "#gritter {\n    color: #4D00FF;\n    font-size: 100px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The Gritter title isn't big yet.",
+          "selector": "#gritter",
+          "property": "font-size",
+          "value": "100px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The Gritter title isn't purple yet.",
+          "selector": "#gritter",
+          "property": "color",
+          "value": "rgb(77, 0, 255)"
+        }
+      ],
+      "hints": [
+        "Make a new rule for the Gritter title's id.",
+        "Use #gritter with color and font-size.",
+        "#gritter {\n    color: …;\n    …\n}"
+      ],
+      "video": {
+        "start": 955,
+        "end": 1003
+      }
+    },
+    {
+      "id": "bold",
+      "chapter": "css",
+      "title": "A reusable bold style",
+      "instruction": "At the bottom, write a rule for the class bold that sets the font weight to 900, the thickest.",
+      "why": "A class can be reused on as many parts of the page as you like.",
+      "who": "learner",
+      "file": "resources/css/index.css",
+      "anchor": {
+        "afterLine": 17
+      },
+      "expected": ".bold {\n    font-weight: 900;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The bold sentence isn't extra thick yet.",
+          "selector": ".bold",
+          "property": "font-weight",
+          "value": "900"
+        }
+      ],
+      "hints": [
+        "Make a rule for the bold label you put on the Gritter sentence.",
+        "Class rules start with a dot: .bold, using font-weight.",
+        ".bold {\n    font-weight: …;\n}"
+      ],
+      "concept": {
+        "title": "Reusable classes",
+        "explain": "Unlike an id, one class can be put on many parts of a page to share the same look.",
+        "links": [
+          {
+            "title": "MDN: Class selectors",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Class_selectors"
+          }
+        ]
+      },
+      "video": {
+        "start": 1003,
+        "end": 1078
+      }
+    },
+    {
+      "id": "outro",
+      "chapter": "wrap",
+      "title": "Wrap-up",
+      "instruction": "Watch the summary of everything you built and learned.",
+      "why": "Looking back helps the ideas stick.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch.",
+        "Think about which part was newest to you.",
+        "Try changing a color in index.css to experiment."
+      ],
+      "video": {
+        "start": 1078,
+        "end": 1156
+      }
+    }
+  ],
+  "createdAt": "2026-10-29T06:34:49.829Z",
+  "version": 1
+}
