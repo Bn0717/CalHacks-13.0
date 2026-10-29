@@ -16,8 +16,8 @@ const fakeCheck: StepChecker = async (step, files) => {
   const content = files.find((f) => f.path === (step.file ?? "index.html"))?.content ?? "";
   const ok = hasCode(content, step.expected);
   return ok
-    ? { status: "pass", failed: [], hintIndex: 0, message: "Nice, that works!" }
-    : { status: "fail", failed: step.checks, hintIndex: 0, message: "Not quite yet." };
+    ? { status: "pass", failed: [], message: "Nice, that works!" }
+    : { status: "fail", failed: step.checks, message: "Not quite yet." };
 };
 
 async function setup(opts: { lesson?: Lesson; dir?: string; pace?: Pace; editor?: EditorLink; check?: StepChecker; screen?: boolean } = {}) {
@@ -108,6 +108,27 @@ describe("LessonSession", () => {
     await t.session.settle();
     expect(t.text()).toContain("💡 Hint 2/3:");
     expect(t.session.state.progress.steps.skeleton?.hintsUsed).toBe(2);
+  });
+
+  it("a file saved just as it was when the step opened is still 'your turn': no 'not quite', no hint", async () => {
+    const t = await setup({ screen: true });
+    await typeStep(t, t.lesson.steps[1]!); // skeleton done
+    await t.wait(TIMING.settleMs + 500 + TIMING.cheerMs + 500);
+    expect(t.session.state.progress.stepIndex).toBe(2); // intro
+    const opened = await t.read("index.html");
+    await t.write("index.html", opened); // saved, nothing typed
+    await t.wait(TIMING.settleMs + 500 + TIMING.firstHintMs);
+    expect(t.text()).not.toContain("🤔");
+    expect(t.text()).not.toContain("Hint 1/3");
+    expect(t.views.at(-1)).toMatchObject({ screen: "step", status: "your-turn", hints: [] });
+  });
+
+  it("hint 1 comes with what's wrong right now", async () => {
+    const reasoned: StepChecker = async (step, files) => ({ ...(await fakeCheck(step, files)), reason: "I can't see a big heading (<h1>) yet." });
+    const t = await setup({ check: reasoned });
+    await typeStep(t, t.lesson.steps[1]!, "<p>hello</p>\n");
+    await t.wait(TIMING.settleMs + 500 + TIMING.firstHintMs);
+    expect(t.text()).toContain("   What's wrong: I can't see a big heading (<h1>) yet.\n💡 Hint 1/3:");
   });
 
   it("keeps Show me for after the hints in Learn more, and types the code at the anchor", async () => {
@@ -258,10 +279,10 @@ describe("LessonSession: the Mac lesson screen (onView)", () => {
   // Passes the right code; "on the right track" when only the first line is there; otherwise not yet.
   const tracking: StepChecker = async (step, files) => {
     const content = files.find((f) => f.path === (step.file ?? "index.html"))?.content ?? "";
-    if (hasCode(content, step.expected)) return { status: "pass", failed: [], hintIndex: 0, message: "Nice, that works!" };
+    if (hasCode(content, step.expected)) return { status: "pass", failed: [], message: "Nice, that works!" };
     const first = step.expected.split("\n")[0]!;
-    if (content.includes(first.trim())) return { status: "partial", failed: step.checks.slice(0, 1), hintIndex: 0, message: "The first line is there. Keep going." };
-    return { status: "fail", failed: step.checks, hintIndex: 0, message: "Not quite yet." };
+    if (content.includes(first.trim())) return { status: "partial", failed: step.checks.slice(0, 1), message: "The first line is there. Keep going." };
+    return { status: "fail", failed: step.checks, message: "Not quite yet." };
   };
 
   it("a walk through a step sends: your turn → typing → checking → partial → stuck → hint 1 → passed", async () => {

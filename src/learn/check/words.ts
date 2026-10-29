@@ -173,7 +173,10 @@ function complexWords(c: Complex): Described {
   const containers = c.compounds.slice(0, -1).reverse();
   const own = compoundWords(target, true);
   // Only the nearest container that says something: "a link (<a>) inside the menu (<nav>)". <html> and <body> are "the page".
-  const near = containers.find((k) => k.tag !== "html" && k.tag !== "body") ?? containers.find((k) => k.tag === "body" || k.tag === "html");
+  // Tags that only ever live in the head don't need "inside the head part": it just makes the message long.
+  const near = HEAD_ONLY.has(target.tag ?? "")
+    ? undefined
+    : (containers.find((k) => k.tag !== "html" && k.tag !== "body") ?? containers.find((k) => k.tag === "body" || k.tag === "html"));
   let where = "";
   if (near) where = near.tag === "html" || (near.tag === "body" && !hasExtras(near)) ? " inside the page" : ` inside the ${compoundWords(near, false).bare}`;
   return { bare: own.bare + where, bareMany: own.bareMany + where, article: own.article };
@@ -183,7 +186,15 @@ function hasExtras(c: Compound): boolean {
   return c.id !== undefined || c.classes.length > 0 || c.attrs.length > 0 || c.pseudos.length > 0;
 }
 
+const HEAD_ONLY = new Set(["meta", "title", "link", "base"]);
+
 function compoundWords(c: Compound, isTarget: boolean): Described {
+  // A named page info line reads best by its name: "a description line (<meta name="description">)".
+  const named = c.tag === "meta" && c.attrs.length === 1 && c.attrs[0]!.name === "name" && c.attrs[0]!.value ? c.attrs[0]!.value : undefined;
+  if (named && !c.id && c.classes.length === 0 && c.pseudos.length === 0) {
+    const tag = `(<meta name="${named}">)`;
+    return { bare: `${named} line ${tag}`, bareMany: `${named} lines ${tag}`, article: /^[aeiou]/i.test(named) ? "an" : "a" };
+  }
   const known = c.tag ? TAGS[c.tag] : undefined;
   let one: string;
   let many: string;
@@ -220,5 +231,30 @@ export function capital(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// "a list item (<li>)" or "2 list items (<li>)", for messages about one tag.
+export function tagWords(tag: string, n = 1): string {
+  const known = TAGS[tag.toLowerCase()];
+  const word = known ? (n === 1 ? known.one : known.many) : n === 1 ? "part" : "parts";
+  return `${n === 1 ? (/^[aeiou]/i.test(word) ? "an" : "a") : n} ${word} (<${tag.toLowerCase()}>)`;
+}
+
 // Words the student should never see in a message (B1 in docs/learn/GOAL.md).
 export const JARGON = /\b(DOM|selectors?|pars(e|es|ed|ing|er)|runner|element tree|elements?|AST|syntax tree|node ?list)\b/i;
+
+// Raw CSS selectors written outside <…> brackets and quotes: ".card", "#main", "ul > li", "meta[name=description]",
+// "a:hover", "body h1", or a rule's "{". Inside <…> it's the tag the student types, which is fine.
+const RAW_SELECTOR = [
+  /(^|[\s(,])[.#][a-z][\w-]*/i, // .card or #main
+  /\b[a-z][\w-]*\[[\w-]+([~|^$*]?=[^\]]*)?\]/i, // meta[name=description]
+  /[\w\])]\s*[>+~]\s*[a-z.#[]/i, // ul > li
+  /\b[a-z][\w-]*::?(hover|focus|before|after|first-child|last-child|nth-child)\b/i, // a:hover
+  /\b(h[1-6]|ul|ol|li|div|span|img|td|tr|th|nav|body|html)\s+(h[1-6]|ul|ol|li|div|span|img|td|tr|th|a|p)\b/, // body h1
+  /[{}]/, // a CSS rule
+];
+
+// Does this text have a code word or a raw CSS selector a beginner shouldn't have to read?
+export function hasJargon(text: string): boolean {
+  if (JARGON.test(text)) return true;
+  const outside = text.replace(/<[^<>]*>/g, " ").replace(/"[^"]*"|“[^”]*”/g, " ");
+  return RAW_SELECTOR.some((re) => re.test(outside));
+}

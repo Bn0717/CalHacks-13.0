@@ -10,22 +10,29 @@ export const TIMING = {
   firstHintMs: 10_000, // after a failed check, show hint 1 this long later
   nextHintMs: 30_000, // then the next hint after this long without progress
   offerHintMs: 30_000, // ask "Want a hint?" after this long without progress
+  settledStuckMs: 30_000, // half-typed or "closer" code left alone this long counts as stuck (so hints come)
   cheerMs: 1_500, // how long the ✅ stays before the next step opens
   tickMs: 500, // how often the driver tells the machine time has passed
 } as const;
 
 // What the checker (T4) says about a step. Kept local so this file doesn't depend on the checker's code.
+// partial means half-typed code (never judged). A "fail" can still count as progress: see `remaining`.
 export interface CheckOutcome {
   status: "pass" | "partial" | "fail";
   failed: Check[];
-  hintIndex: number;
   message: string;
+  reason?: string; // the first thing that's wrong, in plain words (shown next to hint 1)
+  untouched?: boolean; // nothing typed in the step's file yet: still "your turn"
+  remaining?: number; // how much is left (defaults to the number of failed checks); less than ever before = progress
+  passed?: number; // checks passing
+  total?: number; // checks in the step
 }
 
 export type Pace = Progress["pace"];
 
-// waiting: step open, nothing typed yet · typing: the student is typing · settled: checked, on the right track, keep going
-// checking: a check is running · passed: ✅ shown, next step soon · stuck: the last check failed (hints come from here)
+// waiting: step open, nothing typed yet · typing: the student is typing · settled: checked, half-typed or closer than
+// ever, keep going · checking: a check is running · passed: ✅ shown, next step soon · stuck: the last check found
+// something wrong and no progress (hints come from here)
 export type Phase = "waiting" | "typing" | "settled" | "checking" | "passed" | "stuck";
 
 export interface RunnerState {
@@ -39,7 +46,10 @@ export interface RunnerState {
   lastProgressAt: number; // when the student last got closer (step opened, fewer failed checks, a hint)
   firstFailAt?: number;
   lastHintAt?: number;
-  lastFailedCount?: number;
+  bestRemaining?: number; // the least left so far on this step: only beating it counts as progress
+  settledWhy?: "typing" | "closer"; // why the phase is "settled": half-typed code, or closer than ever
+  settledAt?: number;
+  lastCheck?: { passed: number; total: number; reason?: string }; // the last look that wasn't a pass
   passedAt?: number;
   hintOffered: boolean;
   doneForMe: boolean; // "do this one for me" is on for this step
@@ -65,7 +75,7 @@ export type RunnerEvent =
 export type Effect =
   | { type: "openStep"; index: number; step: Step; welcomeBack: boolean }
   | { type: "runCheck"; checkId: number; step: Step }
-  | { type: "showHint"; level: number; text: string }
+  | { type: "showHint"; level: number; text: string; reason?: string } // reason: what's wrong right now, shown with it
   | { type: "offerHint" }
   | { type: "typeCode"; step: Step } // Stride types the step's code for the student
   | { type: "revertCode"; step: Step } // undo what Stride typed ("let me try")
@@ -159,7 +169,7 @@ export function reduce(lesson: Lesson, prev: RunnerState, event: RunnerEvent, no
     state.lastProgressAt = now;
     const sp = stepProgress(state, step);
     setStep(state, step, { hintsUsed: Math.max(sp.hintsUsed, level), status: sp.status === "todo" ? "hinted" : sp.status }, now);
-    effects.push({ type: "showHint", level, text: step.hints[level - 1] });
+    effects.push({ type: "showHint", level, text: step.hints[level - 1], ...(state.lastCheck?.reason ? { reason: state.lastCheck.reason } : {}) });
     save();
   };
 
@@ -227,11 +237,27 @@ export function reduce(lesson: Lesson, prev: RunnerState, event: RunnerEvent, no
         save();
         break;
       }
-      const failedCount = outcome.failed.length;
-      if (state.lastFailedCount === undefined || failedCount < state.lastFailedCount) state.lastProgressAt = now;
-      state.lastFailedCount = failedCount;
-      if (outcome.status === "partial") {
-        state.phase = "settled"; // on the right track: keep waiting quietly
+      if (outcome.untouched) {
+        state.phase = "waiting"; // nothing typed yet: still their turn, not wrong
+        state.lastCheck = undefined;
+        break;
+      }
+      state.lastCheck = {
+        passed: outcome.passed ?? 0,
+        total: outcome.total ?? step.checks.length,
+        ...(outcome.reason ? { reason: outcome.reason } : {}),
+      };
+      // Progress means less left than on any look before (so going back and forth never counts twice).
+      // (A look that broke has no failed checks and says nothing about progress.)
+      const remaining = outcome.remaining ?? (outcome.failed.length > 0 ? outcome.failed.length : undefined);
+      const closer = remaining !== undefined && state.bestRemaining !== undefined && remaining < state.bestRemaining - 1e-9;
+      if (remaining !== undefined && (state.bestRemaining === undefined || remaining < state.bestRemaining)) state.bestRemaining = remaining;
+      if (closer) state.lastProgressAt = now;
+      if (outcome.status === "partial" || closer) {
+        // Half-typed, or closer than ever: keep waiting quietly.
+        state.phase = "settled";
+        state.settledWhy = outcome.status === "partial" ? "typing" : "closer";
+        state.settledAt = now;
         break;
       }
       state.phase = "stuck";
@@ -309,6 +335,7 @@ export function reduce(lesson: Lesson, prev: RunnerState, event: RunnerEvent, no
       state.lastEditAt = shift(state.lastEditAt);
       state.firstFailAt = shift(state.firstFailAt);
       state.lastHintAt = shift(state.lastHintAt);
+      state.settledAt = shift(state.settledAt);
       state.passedAt = shift(state.passedAt);
       break;
     }
@@ -334,7 +361,10 @@ function freshStepFields(now: number): Partial<RunnerState> {
     lastProgressAt: now,
     firstFailAt: undefined,
     lastHintAt: undefined,
-    lastFailedCount: undefined,
+    bestRemaining: undefined,
+    settledWhy: undefined,
+    settledAt: undefined,
+    lastCheck: undefined,
     passedAt: undefined,
     hintOffered: false,
     doneForMe: false,
@@ -371,6 +401,12 @@ function onTime(
   if (state.phase === "typing") {
     if (now - (state.lastEditAt ?? now) >= TIMING.settleMs) act.startCheck();
     return; // never interrupt typing with hints
+  }
+  // Left half-typed (or "closer") with no more typing for a while: it's probably a real slip, so hints start.
+  if (state.phase === "settled" && now - (state.settledAt ?? now) >= TIMING.settledStuckMs) {
+    state.phase = "stuck";
+    state.settledWhy = undefined;
+    state.firstFailAt ??= now;
   }
   if (state.phase === "stuck") {
     if (state.hintLevel === 0 && now - (state.firstFailAt ?? now) >= TIMING.firstHintMs) act.showHint(1);
@@ -511,7 +547,8 @@ export class LessonRunner {
         this.track(
           this.typing.then(() => this.deps.check(effect.step, this.lesson)).then(
             (outcome) => this.send({ type: "checkResult", checkId: effect.checkId, outcome }),
-            () => this.send({ type: "checkResult", checkId: effect.checkId, outcome: { status: "fail", failed: [], hintIndex: 0, message: "" } }),
+            () => this.send({ type: "checkResult", checkId: effect.checkId, outcome: { status: "fail", failed: [], message: "" } }),
+
           ),
         );
         break;

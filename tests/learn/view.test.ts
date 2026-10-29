@@ -94,9 +94,9 @@ describe("lesson view: the other screens", () => {
   });
 
   it("estimate: the simple option lists what the simple version teaches, not the whole lesson's list", () => {
-    // From the simple version's own steps: skeleton and hobbies bring "The parts of an HTML page" and "Lists".
+    // From the simple version's own steps: skeleton, intro and hobbies bring their new ideas (in step order).
     const core = { ...lesson, simpler: { title: "Just a hello", why: "Quick win first.", estimate: { minutes: 8, linesToType: 6, steps: 3 }, stepIds: ["open-editor", "skeleton", "intro", "hobbies"] } };
-    const ideas = ["skeleton", "hobbies"].map((id) => lesson.steps.find((s) => s.id === id)!.concept!.title);
+    const ideas = ["skeleton", "intro", "hobbies"].map((id) => lesson.steps.find((s) => s.id === id)!.concept!.title);
     const v = estimateView(core) as Extract<ReturnType<typeof estimateView>, { screen: "estimate" }>;
     expect(v.simpler?.learns).toEqual(ideas);
     expect(v.simpler?.learns).not.toContain(lesson.learns[2]); // "linking a CSS file" is only in the full lesson

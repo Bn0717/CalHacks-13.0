@@ -38,9 +38,9 @@ export function fakeClock(start = START): FakeClock {
   };
 }
 
-export const pass: CheckOutcome = { status: "pass", failed: [], hintIndex: 0, message: "Nice!" };
-export const partial: CheckOutcome = { status: "partial", failed: [{ type: "parses" }], hintIndex: 0, message: "Getting there" };
-export const fail: CheckOutcome = { status: "fail", failed: [{ type: "parses" }, { type: "parses" }], hintIndex: 0, message: "Not yet" };
+export const pass: CheckOutcome = { status: "pass", failed: [], message: "Nice!" };
+export const partial: CheckOutcome = { status: "partial", failed: [{ type: "parses" }], message: "Getting there" };
+export const fail: CheckOutcome = { status: "fail", failed: [{ type: "parses" }, { type: "parses" }], message: "Not yet" };
 
 // A runner on fakes. Queue check results per step id; anything not queued passes.
 export function harness(lesson: Lesson, opts: { progress?: LessonRunner["state"]["progress"]; strideOk?: boolean } = {}) {

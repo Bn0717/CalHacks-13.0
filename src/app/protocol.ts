@@ -252,8 +252,8 @@ export interface LessonProgressView {
 
 /**
  * The step card's status:
- * your-turn (open, nothing typed) · typing (never judged) · checking (looking at the code) · passed (✅) · partial (on the
- * right track) · stuck (the last look found a problem) · showing (Stride types it for them) · stride-working / stride-failed
+ * your-turn (open, nothing typed) · typing (never judged) · checking (looking at the code) · passed (✅) · partial (half-typed,
+ * or closer than before) · stuck (the last look found a problem) · showing (Stride types it for them) · stride-working / stride-failed
  * (a setup step Stride does) · watch (a part to watch).
  */
 export type LessonStepStatus =
@@ -293,6 +293,8 @@ export interface LessonStepView {
   doneForMe: boolean; // "Do this one for me" is on (so "Let me try" is offered)
   pace: "learn" | "fast";
   note?: string; // a short line from the app, e.g. what's still missing
+  partial?: "typing" | "closer"; // with status "partial": the code is half-typed, or it's closer than any try before
+  parts?: { done: number; total: number }; // with "partial" or "stuck": how many parts of the step are right so far
   open?: "concept" | "hints" | "video"; // ask the screen to open this panel (e.g. the first time a concept comes up)
 }
 
