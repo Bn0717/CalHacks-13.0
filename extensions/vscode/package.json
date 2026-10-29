@@ -1,0 +1,50 @@
+{
+  "name": "stride-learn-helper",
+  "displayName": "Stride Learn Helper",
+  "description": "Lets Stride follow along while you learn to code: it sees your edits and error underlines, highlights the line to work on, and types code when you ask \"Show me\".",
+  "version": "0.1.0",
+  "publisher": "stride",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bn0717/CalHacks-13.0"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Education"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "copy-protocol": "node scripts/copy-protocol.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/extension.js --external:vscode --external:bufferutil --external:utf-8-validate --minify --sourcemap",
+    "compile": "npm run copy-protocol && npm run typecheck && npm run bundle",
+    "vscode:prepublish": "npm run compile",
+    "test": "vitest run",
+    "package": "vsce package"
+  },
+  "vsce": {
+    "dependencies": false,
+    "skipLicense": true
+  },
+  "dependencies": {
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/vscode": "~1.90.0",
+    "@types/ws": "^8.18.2",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
