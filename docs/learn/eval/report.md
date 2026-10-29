@@ -1,6 +1,6 @@
 # Stride Learn: lesson quality test (C2)
 
-Ran 2026-10-29T05:49:18.084Z with `npm run learn:eval`. The raw results are in `report.json` next to this file.
+Ran 2026-10-29T05:56:40.941Z with `npm run learn:eval`. The raw results are in `report.json` next to this file.
 
 **Claude:** not usable: no Claude key is set (ANTHROPIC_API_KEY / STRIDE_ANTHROPIC_API_KEY)
 
@@ -8,7 +8,7 @@ Ran 2026-10-29T05:49:18.084Z with `npm run learn:eval`. The raw results are in `
 
 | Lesson | Source | Status | Automatic grade | Opus scores (1-5) | Estimate | Build cost |
 |---|---|---|---|---|---|---|
-| about-me fixture (hand-written) | fixture | graded | 6/8 pass | blocked (no Claude key) | 22 min · 25 lines · 6 steps | — |
+| about-me fixture (hand-written) | fixture | graded | 8/8 pass | blocked (no Claude key) | 24 min · 28 lines · 6 steps | — |
 | a page about me | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
 | a website for my small bakery | — | blocked: needs a working Claude key | — | blocked (no Claude key) | — | — |
 | make me Instagram | built | graded: The full Instagram needs accounts, servers and a database to store everyone's posts, which is a lot for a first project. How about a profile page with a grid of photos, like an Instagram profile? | 1/1 pass | n/a | — | $0.0000 |
@@ -21,15 +21,10 @@ Ran 2026-10-29T05:49:18.084Z with `npm run learn:eval`. The raw results are in `
 
 - ✅ Valid lesson
 - ✅ Every check passes on the finished project; the first fails on an empty one
-- ❌ Every 🧑 step adds 3-10 lines
-  - Step link-css adds 1 line.
-  - Step intro adds 2 lines.
+- ✅ Every 🧑 step adds 3-10 lines
 - ✅ 🧑 steps hold all the code to learn; 🤖/👀 steps add none
 - ✅ Estimate matches the steps and is in a sensible range
-- ❌ Each concept: one plain sentence, no jargon, with a link
-  - skeleton "The parts of an HTML page": 2 sentences: "The <head> holds information about the page, like its title. The <body> holds what people see."
-  - hobbies "Lists": 2 sentences: "<ul> makes a bullet list. Each thing in it goes in its own <li> (list item)."
-  - link-css "Linking CSS": 2 sentences: "CSS is a separate file that says how the page looks. <link> connects it to the HTML."
+- ✅ Each concept: one plain sentence, no jargon, with a link
 - ✅ Hints get stronger, and hint 3 isn't the whole answer
 - ➖ Video steps link to a real part of the video — Not a video lesson.
 

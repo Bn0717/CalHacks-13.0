@@ -37,7 +37,11 @@
     const a = step.anchor || {};
     let at = lines.length;
     if (a.afterLine !== undefined) at = Math.min(a.afterLine, lines.length);
-    else if (a.inside) { const i = lines.findIndex((l) => l.includes("<" + a.inside)); at = i >= 0 ? i + 1 : lines.length; }
+    else if (a.inside) { // at the end of the tag, just before its closing tag (like src/learn/anchor.ts)
+      const close = lines.findIndex((l) => l.includes("</" + a.inside));
+      const open = lines.findIndex((l) => l.includes("<" + a.inside));
+      at = close >= 0 ? close : open >= 0 ? open + 1 : lines.length;
+    }
     else if (a.after) { const i = lines.findIndex((l) => l.includes(a.after)); at = i >= 0 ? i + 1 : lines.length; }
     if (text !== "") lines.splice(at, 0, ...add);
     files[step.file] = lines.length ? lines.join("\n") + "\n" : "";
@@ -178,18 +182,13 @@
     const I = lesson.steps[intro];
     const H = lesson.steps[hobbies];
     const fullEst = lesson.estimate;
-    const simplerOffer = { title: "Just your name and a hello", why: "One heading and one sentence. You'll be done in a few minutes, then we can add the rest.", estimate: { minutes: 8, linesToType: 6, steps: 3 } };
+    const simplerOffer = { title: "Just your name and a hello", why: "One heading and one sentence. You'll be done in a few minutes, then we can add the rest.", estimate: { minutes: 8, linesToType: 6, steps: 3 }, learns: ["The parts of an HTML page", "Headings and paragraphs"] };
     const sumLearner = learnerSteps().length;
     const S = {};
     const add = (name, def) => { S[name] = def; };
 
-    add("building", { view: { screen: "building", what: lesson.title, stages: [
-      { label: "Reading what you asked for", status: "done" },
-      { label: "Building the finished page out of sight", status: "done" },
-      { label: "Trying it in a hidden browser", status: "running" },
-      { label: "Cutting it into small steps", status: "todo" },
-      { label: "Working out how long it takes", status: "todo" },
-    ] } });
+    // Like the app will send it from the lesson builder's stages: the labels and the one running now.
+    add("building", { view: { screen: "building", what: lesson.title, labels: BUILD_STAGES, stage: 2, time: BUILD_TIME } });
     add("question", { view: { screen: "question", id: "purpose", number: 1, total: 3, question: "What's it for?", options: ["Just for me", "Show my work", "For job applications", "Share with friends"], multi: false, picked: [] } });
     add("question-multi", { view: { screen: "question", id: "contents", number: 2, total: 3, question: "What should it have?", options: ["My name and a short intro", "My hobbies", "My projects", "Photos", "How to contact me"], multi: true, picked: ["My name and a short intro", "My hobbies"] } });
     add("question-look", { view: { screen: "question", id: "look", number: 3, total: 3, question: "A look you like?", options: ["Clean and simple", "Warm and friendly", "Bold and colourful", "Dark and modern"], multi: false, picked: [], extras: ["addPicture", "showStyles"] } });
@@ -234,15 +233,20 @@
     const quiz = lesson.steps[style].quiz;
     add("quiz", { view: { screen: "quiz", chapterTitle: "Make it look nice", question: quiz.question, options: quiz.options, progress: progress(style + 1) } });
     add("quiz-answered", { view: { screen: "quiz", chapterTitle: "Make it look nice", question: quiz.question, options: quiz.options, picked: 0, answer: quiz.answer, explain: quiz.explain, progress: progress(style + 1) } });
-    add("paused", { view: { screen: "paused", reason: "break", lessonTitle: lesson.title, step: { number: hobbies + 1, total: lesson.steps.length, title: H.title }, hintsUsed: 2, progress: progress(hobbies) } });
-    add("welcome-back", { view: { screen: "paused", reason: "welcome-back", lessonTitle: lesson.title, step: { number: hobbies + 1, total: lesson.steps.length, title: H.title }, hintsUsed: 2, progress: progress(hobbies, { intro: "hinted" }) } });
+    // Behind the break screens: the student's code so far (the steps before this one, and what they'd typed of it).
+    add("paused", { view: { screen: "paused", reason: "break", lessonTitle: lesson.title, step: { number: hobbies + 1, total: lesson.steps.length, title: H.title }, hintsUsed: 2, progress: progress(hobbies) }, editor: [hobbies, typo(H.expected)] });
+    add("welcome-back", { view: { screen: "paused", reason: "welcome-back", lessonTitle: lesson.title, step: { number: hobbies + 1, total: lesson.steps.length, title: H.title }, hintsUsed: 2, progress: progress(hobbies, { intro: "hinted" }) }, editor: [hobbies, typo(H.expected)] });
     add("error-no-key", { view: { screen: "error", kind: "no-key", saved: true } });
     add("error-no-internet", { view: { screen: "error", kind: "no-internet", saved: true } });
     add("error-video", { view: { screen: "error", kind: "video-unreadable" } });
     add("error-other", { view: { screen: "error", kind: "other", message: "I couldn't save your progress just now.", saved: false } });
-    add("finished", { view: { screen: "finished", title: lesson.title, outcome: lesson.outcome, picture: finishedMock(), learned: ["The parts of an HTML page", "Lists", "Linking CSS"], steps: sumLearner, alone: 3, hinted: 1, shown: 1, skipped: 0, minutes: 24, next: { title: "Add a photo of you", why: "Learn the <img> tag and make the page feel like yours.", minutes: 20 } } });
+    add("finished", { view: { screen: "finished", title: lesson.title, outcome: lesson.outcome, picture: finishedMock(), learned: ["The parts of an HTML page", "Lists", "Linking CSS"], steps: sumLearner, allSteps: lesson.steps.length, alone: 3, hinted: 1, shown: 1, skipped: 0, minutes: 24, next: { title: "Add a photo of you", why: "Learn the <img> tag and make the page feel like yours.", minutes: 20 } } });
     return S;
   }
+
+  // The idea builder's stages and build time, as in src/learn/stages.ts (tests/learn/view.test.ts keeps them the same).
+  const BUILD_STAGES = ["Checking how big your idea is", "Writing the finished website", "Testing it in a hidden browser", "Cutting it into small steps", "Making sure every step can be checked", "Working out how long it takes"];
+  const BUILD_TIME = "usually a minute or two";
 
   // A small drawing of a reference picture (SVG as a data: URL, so it works without files).
   function pictureMock() {
@@ -278,9 +282,8 @@
     else setEditor(0, null);
     const view = JSON.parse(JSON.stringify(def.view));
     if (view.screen === "step" && view.step.line !== undefined && line) view.step.line = line; // the line the fake editor highlights
+    emit("lesson", { screen: "hidden" }); // each picked state arrives fresh, as if just sent (so a hint on it is "new")
     show(view);
-    const body = $("l-body");
-    if (body) body.scrollTop = 0; // each picked state starts at the top
     for (const b of document.querySelectorAll("#lp-states button")) b.setAttribute("aria-pressed", String(b.dataset.state === name));
     return true;
   }
@@ -372,8 +375,8 @@
     // Build
     scenes.push(() => {
       setEditor(0, null);
-      const labels = ["Reading what you asked for", "Building the finished page out of sight", "Trying it in a hidden browser", "Cutting it into small steps", "Working out how long it takes"];
-      const push = (doneUpTo) => show({ screen: "building", what: lesson.title, stages: labels.map((l, i) => ({ label: l, status: i < doneUpTo ? "done" : i === doneUpTo ? "running" : "todo" })) });
+      const labels = BUILD_STAGES;
+      const push = (stage) => show({ screen: "building", what: lesson.title, labels, stage, time: BUILD_TIME }); // as a builder's onStage would drive it
       labels.forEach((_, i) => at(i * 650, () => push(i)));
       at(labels.length * 650, next);
     });

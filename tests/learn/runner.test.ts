@@ -262,7 +262,47 @@ describe("lesson runner rules", () => {
     expect(runner.state.phase).toBe("stuck");
   });
 
+  it("checks right when the quiet time ends after the last edit, not on the next half-second tick", async () => {
+    const h = harness(fromSkeleton());
+    h.runner.start();
+    await h.runner.settle();
+    h.clock.advance(130); // an edit between two ticks
+    h.runner.send({ type: "edit" });
+    h.clock.advance(TIMING.settleMs - 1);
+    await h.runner.settle();
+    expect(h.checked).toEqual([]); // still quiet time: never looked at while typing
+    h.clock.advance(1);
+    await h.runner.settle();
+    expect(h.checked).toEqual(["skeleton"]);
+    expect(h.runner.state.phase).toBe("passed");
+  });
+
+  it("counts the quiet time from when the edit really happened, and starts again on every edit", async () => {
+    const h = harness(fromSkeleton());
+    h.runner.start();
+    await h.runner.settle();
+    h.runner.send({ type: "edit" });
+    h.clock.advance(1_000);
+    h.runner.send({ type: "edit" }); // typed again: the timer starts over
+    h.clock.advance(1_000);
+    await h.runner.settle();
+    expect(h.checked).toEqual([]);
+    h.clock.advance(TIMING.settleMs - 1_000);
+    await h.runner.settle();
+    expect(h.checked).toEqual(["skeleton"]);
+
+    const late = harness(fromSkeleton());
+    late.runner.start();
+    await late.runner.settle();
+    const at = late.clock.now();
+    late.clock.advance(200); // the folder watcher noticed the change 200 ms late
+    late.runner.send({ type: "edit", at });
+    late.clock.advance(TIMING.settleMs - 200);
+    await late.runner.settle();
+    expect(late.checked).toEqual(["skeleton"]);
+  });
+
   it("keeps all timing rules in one object", () => {
-    expect(TIMING).toMatchObject({ settleMs: 2_000, firstHintMs: 10_000, nextHintMs: 30_000, offerHintMs: 30_000 });
+    expect(TIMING).toMatchObject({ settleMs: 1_500, firstHintMs: 10_000, nextHintMs: 30_000, offerHintMs: 30_000 });
   });
 });

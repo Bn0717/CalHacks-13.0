@@ -84,8 +84,33 @@ describe("lesson model: words", () => {
       expect(e.title.length).toBeGreaterThan(5);
       expect(e.line).toMatch(/\b(tap|try|tell|adds|Settings)\b/i);
       expect(e.actions.filter((a: any) => a.kind === "primary")).toHaveLength(1);
+      // The same layout on every error: the fix first, then one way out.
+      expect(e.actions.map((a: any) => a.kind)).toEqual(["primary", "secondary"]);
     }
     expect(M.errorCopy({ screen: "error", kind: "no-internet", saved: true }).line).toContain("progress is saved");
+  });
+
+  it("while Stride types it for them, the badge says Watch me, and the line is plain", () => {
+    const v = step({ status: "showing", doneForMe: true });
+    expect(M.whoBadge(v.step.who, v.status).text).toBe("Watch me");
+    expect(M.whoBadge("learner", "typing").text).toBe("Your turn");
+    expect(M.stepStatus(v).line).toBe("Watch it appear in index.html. Next time, you try.");
+  });
+
+  it("adds a few plain words after tricky ones, once, and never inside code", () => {
+    expect(M.explainTerms("Type the doctype, then <html>.")).toBe("Type the doctype (the first line, which tells the browser it's a web page), then <html>.");
+    expect(M.explainTerms("Every page starts with <!DOCTYPE html>.")).toBe("Every page starts with <!DOCTYPE html> (the line that tells the browser it's a web page).");
+    expect(M.explainTerms("Testing it in a hidden browser")).toContain("a web browser you can't see");
+    expect(M.explainTerms("Use `doctype` here")).toBe("Use `doctype` here");
+    const once = M.explainTerms("the doctype and the doctype");
+    expect(once.match(/web page/g)).toHaveLength(1);
+  });
+
+  it("the building screen works from stage labels and the one running now", () => {
+    expect(M.buildingStages({ screen: "building", what: "x", labels: ["a", "b", "c"], stage: 1 }).map((s: any) => s.status)).toEqual(["done", "running", "todo"]);
+    expect(M.buildingStages({ screen: "building", what: "x", labels: ["a", "b"], stage: 2 }).map((s: any) => s.status)).toEqual(["done", "done"]);
+    const sent = [{ label: "a", status: "done" }];
+    expect(M.buildingStages({ screen: "building", what: "x", stages: sent })).toEqual(sent);
   });
 });
 

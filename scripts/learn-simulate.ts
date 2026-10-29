@@ -2,7 +2,8 @@
 //   npx tsx scripts/learn-simulate.ts [lesson.json] [transcript.md]
 // It starts `npm run learn -- --lesson <file>` (the real runner, checker and hidden browser), reads what it prints, and
 // "types" each step by writing the step's expected code into the file at its anchor. Two steps get a wrong try first,
-// to bring out the hints, and one gets a half-typed save first, to show half-typed code isn't called wrong.
+// to bring out the hints, one an almost-right try (so the hidden browser looks twice), and one gets a half-typed save
+// first, to show half-typed code isn't called wrong.
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,6 +18,10 @@ const transcriptFile = process.argv[3] ? resolve(process.argv[3]) : undefined;
 const WRONG: Record<string, string> = {
   intro: "    <h2>Hi, I'm Sam</h2>\n", // a smaller heading, and no paragraph yet
   "link-css": "    <style>style.css</style>\n", // the tag from the quiz's wrong answer
+};
+// An almost-right first try: the hidden browser has to look at the page, then looks again (warm) when it's fixed.
+const ALMOST: Record<string, string> = {
+  style: "h1 {\n  color: blue;\n}\n", // the wrong colour
 };
 const HALF: Record<string, string> = {
   hobbies: "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li", // stopped mid-tag
@@ -40,6 +45,10 @@ const child = spawn("npx", ["tsx", "src/cli/learn.ts", "--lesson", lessonFile, "
 let output = "";
 let cursor = 0;
 let partial = "";
+// How long after the student's last write each ✅ came (A5: within ~2 s, without pressing anything).
+let lastWriteAt = 0;
+let lastWriteStep = "";
+const confirmed: { step: string; ms: number }[] = [];
 const onOut = (chunk: Buffer) => {
   const text = chunk.toString("utf8");
   output += text;
@@ -47,7 +56,10 @@ const onOut = (chunk: Buffer) => {
   partial += text;
   const lines = partial.split("\n");
   partial = lines.pop()!;
-  for (const l of lines) log.push(`${stamp()} ${l}`);
+  for (const l of lines) {
+    log.push(`${stamp()} ${l}`);
+    if (l.includes("✅ Nice, that works!") && lastWriteAt) confirmed.push({ step: lastWriteStep, ms: Date.now() - lastWriteAt });
+  }
 };
 child.stdout.on("data", onOut);
 child.stderr.on("data", onOut);
@@ -78,6 +90,8 @@ async function writeStep(step: Step, before: string, code: string, what: string)
   const file = join(dir, step.file!);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, insertAtAnchor(before, step.anchor, code).content);
+  lastWriteAt = Date.now();
+  lastWriteStep = step.id;
   student(`${what} in ${step.file}`);
 }
 
@@ -108,6 +122,12 @@ try {
       await writeStep(step, before, HALF[step.id]!, "saves half-typed code (stops mid-tag)");
       await waitFor(/⏳|🤔/, 20_000);
       await sleep(4000); // stays away a bit: no hint should come for half-typed code
+    }
+    if (ALMOST[step.id]) {
+      stats.wrong++;
+      await writeStep(step, before, ALMOST[step.id]!, "types an almost-right first try (the wrong colour)");
+      await waitFor(/⏳|🤔/, 20_000);
+      await sleep(2000);
     }
     if (WRONG[step.id]) {
       stats.wrong++;
@@ -154,8 +174,9 @@ if (transcriptFile) {
     "> (`npm run learn -- \"a page about me\"` with the key set) is still to do.** Everything else below is real: the terminal",
     "> CLI (`src/cli/learn.ts`), the lesson runner, the checker with the hidden Chromium render, the folder watcher, progress",
     "> saving and the cost log. Only the student is pretend: `scripts/learn-simulate.ts` writes each 🧑 step's `expected`",
-    "> code into the file at its anchor, with a wrong first try on two steps (to bring out the hints) and a half-typed save",
-    "> on one step (to show half-typed code isn't called wrong). No AI call was made, so the cost is $0; hint level 3",
+    "> code into the file at its anchor, with a wrong first try on two steps (to bring out the hints), an almost-right try",
+    "> on one (so the hidden browser looks twice) and a half-typed save on one step (to show half-typed code isn't called",
+    "> wrong). No AI call was made, so the cost is $0; hint level 3",
     "> (Haiku) wasn't needed because this lesson has no `ai` checks.",
     "",
     `Run: \`npx tsx scripts/learn-simulate.ts ${relativeToRepo(lessonFile)} docs/learn/runs/about-me.md\` on ${new Date(started).toISOString().slice(0, 10)}.`,
@@ -165,6 +186,9 @@ if (transcriptFile) {
     `- CLI exit code: ${code}`,
     `- 🧑 steps typed: ${stats.steps}, wrong first tries: ${stats.wrong}, half-typed saves: ${stats.half}, hints shown: ${stats.hintsSeen}`,
     `- Finished files match the lesson's reference project: ${matches ? "yes" : "no"}`,
+    `- ✅ came this long after the student's last write (no key pressed): ${confirmed.map((c) => `${c.step} ${(c.ms / 1000).toFixed(2)} s`).join(", ")}`,
+    "  (1.5 s of quiet time, then the look itself. The first look that opens the hidden browser to try the page also",
+    "  starts that browser, about 0.7 s once per lesson; after that a look in the browser takes about 0.2 s.)",
     `- Total time: ${((Date.now() - started) / 1000).toFixed(0)} s`,
     "",
     "## Transcript",

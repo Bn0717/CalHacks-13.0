@@ -78,8 +78,9 @@
 
   // ---------------- What each screen says ----------------
 
-  /** The badge on a step card. */
-  function whoBadge(who) {
+  /** The badge on a step card. While Stride types it for them (Show me, Do this one for me) it's their turn to watch. */
+  function whoBadge(who, status) {
+    if (status === "showing") return { text: "Watch me", icon: "eye", tone: "watch" };
     if (who === "stride") return { text: "Stride's turn", icon: "bot", tone: "stride" };
     if (who === "watch") return { text: "Watch", icon: "eye", tone: "watch" };
     return { text: "Your turn", icon: "hand", tone: "you" };
@@ -88,7 +89,6 @@
   /** The status row on a step card: { title, line, tone, pose, busy }. */
   function stepStatus(view) {
     const s = view.step;
-    const where = s.file ? " in " + s.file : "";
     const note = view.note;
     switch (view.status) {
       case "typing":
@@ -106,7 +106,7 @@
         if (view.hintOffered) return { title: "Want a hint?", line: "No rush. A hint can get you moving again.", tone: "warn", pose: "point" };
         return { title: "Not quite yet", line: note || "Something's a little off. Have another look, or tap Hint.", tone: "warn", pose: "point" };
       case "showing":
-        return { title: "Watch me type it", line: "Look at your file" + where + ". Next time, you try.", tone: "busy", pose: "type", busy: true };
+        return { title: "Watch me type it", line: (s.file ? "Watch it appear in " + s.file : "Watch it appear in your file") + ". Next time, you try.", tone: "busy", pose: "type", busy: true };
       case "stride-working":
         return { title: "I'm doing this one", line: "It's setup, so you can sit back.", tone: "busy", pose: "carry", busy: true };
       case "stride-failed":
@@ -151,14 +151,17 @@
           line: "I need my AI key first. Whoever set up Stride adds it once in Settings." + saved,
           actions: [
             { id: "settings", label: "Open Settings", channel: "lesson-open-settings", kind: "primary" },
-            { id: "retry", label: "Try again", channel: "lesson-retry" },
+            { id: "retry", label: "Try again", channel: "lesson-retry", kind: "secondary" },
           ],
         };
       case "no-internet":
         return {
           title: "You're offline",
           line: "I need the internet to build lessons and find new hints. Make sure Wi-Fi is on, then tap Try again." + saved,
-          actions: [{ id: "retry", label: "Try again", channel: "lesson-retry", kind: "primary" }],
+          actions: [
+            { id: "retry", label: "Try again", channel: "lesson-retry", kind: "primary" },
+            { id: "close", label: "Close", channel: "lesson-close", kind: "secondary" },
+          ],
         };
       case "video-unreadable":
         return {
@@ -166,7 +169,7 @@
           line: "It may be private, age-limited or very long. Try another video, or tell me your idea instead.",
           actions: [
             { id: "video", label: "Try another video", channel: "lesson-other-video", kind: "primary" },
-            { id: "idea", label: "Use my idea instead", channel: "lesson-use-idea" },
+            { id: "idea", label: "Use my idea instead", channel: "lesson-use-idea", kind: "secondary" },
           ],
         };
       default:
@@ -175,10 +178,43 @@
           line: (view.message || "That one's on me, not you. Tap Try again.") + saved,
           actions: [
             { id: "retry", label: "Try again", channel: "lesson-retry", kind: "primary" },
-            { id: "close", label: "Close", channel: "lesson-close" },
+            { id: "close", label: "Close", channel: "lesson-close", kind: "secondary" },
           ],
         };
     }
+  }
+
+  // ---------------- Plain words ----------------
+
+  // Words a beginner meets on screen that need a few plain words the first time. Lessons come from the AI, so the
+  // screen adds the explanation itself: [what to look for, what to add after it].
+  const PLAIN = [
+    [/\b(the |a )?doctype\b(?! \()/i, " (the first line, which tells the browser it's a web page)"],
+    [/<!DOCTYPE html>(?! \()/i, " (the line that tells the browser it's a web page)"],
+    [/\b(a |the )?hidden browser\b(?! \()/i, " (a web browser you can't see, so I can try the site out)"],
+  ];
+
+  /** Adds a short plain explanation after the first tricky word in some text ("the doctype (the first line, …)"). */
+  function explainTerms(text) {
+    let out = String(text);
+    for (const [re, plain] of PLAIN) {
+      const m = re.exec(out);
+      if (!m || out.includes(plain.trim().slice(-20))) continue; // missing, or already explained
+      // Not inside a <tag> or `code`: those are shown as code.
+      const before = out.slice(0, m.index);
+      if ((before.match(/</g) || []).length > (before.match(/>/g) || []).length) continue;
+      if ((before.match(/`/g) || []).length % 2 === 1) continue;
+      out = out.slice(0, m.index + m[0].length) + plain + out.slice(m.index + m[0].length);
+    }
+    return out;
+  }
+
+  /** The building screen's stages: as sent, or made from the stage labels and the one running now. */
+  function buildingStages(view) {
+    if (Array.isArray(view.stages) && view.stages.length) return view.stages;
+    const labels = Array.isArray(view.labels) ? view.labels : [];
+    const at = Number.isInteger(view.stage) ? view.stage : 0;
+    return labels.map((label, i) => ({ label: String(label), status: i < at ? "done" : i === at ? "running" : "todo" }));
   }
 
   // ---------------- Buttons and keys ----------------
@@ -324,14 +360,14 @@
       const sameStep = prev && prev.screen === "step" && prev.step.id === view.step.id;
       if (sameStep && prev.status === view.status && prev.hints.length === view.hints.length && prev.hintOffered === view.hintOffered) return "";
       if (sameStep && view.hints.length > prev.hints.length) return "Hint " + view.hints.length + ": " + view.hints[view.hints.length - 1];
-      const head = sameStep ? [] : ["Step " + view.step.number + " of " + view.step.total, whoBadge(view.step.who).text, view.step.title];
+      const head = sameStep ? [] : ["Step " + view.step.number + " of " + view.step.total, whoBadge(view.step.who, view.status).text, view.step.title];
       if (!sameStep && (view.status === "your-turn" || view.status === "watch")) return sentences(...head, view.step.instruction);
       return sentences(...head, st.title, st.line);
     }
     if (prev && prev.screen === view.screen && JSON.stringify(prev) === JSON.stringify(view)) return "";
     switch (view.screen) {
       case "building": {
-        const running = view.stages.find((s) => s.status === "running");
+        const running = buildingStages(view).find((s) => s.status === "running");
         return running ? running.label + "…" : "Building your lesson.";
       }
       case "question": return "Question " + view.number + " of " + view.total + ". " + view.question;
@@ -352,7 +388,7 @@
     const add = (v) => { if (typeof v === "string") parts.push(v); };
     if (view.screen === "step") {
       const st = stepStatus(view);
-      add(st.title); add(st.line); add(whoBadge(view.step.who).text);
+      add(st.title); add(st.line); add(whoBadge(view.step.who, view.status).text);
       for (const b of stepActions(view)) add(b.label);
     }
     if (view.screen === "error") {
@@ -367,7 +403,7 @@
   root.StrideLessonModel = {
     minutesText, sizeText, isCode, clock, findJargon, JARGON,
     segments, progressText,
-    whoBadge, stepStatus, buddyFor, errorCopy,
+    whoBadge, stepStatus, buddyFor, errorCopy, explainTerms, buildingStages,
     stepActions, videoChip, keyList, actionForKey,
     LAYOUT_KEY, DEFAULT_LAYOUT, layoutReduce, readLayout, writeLayout, autoOpen,
     announce, allText,
