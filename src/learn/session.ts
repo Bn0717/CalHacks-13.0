@@ -37,7 +37,8 @@ export interface EditorLink {
   onEdit(fn: (e: { path: string; text: string; saved: boolean }) => void): () => void;
 }
 
-export type StepChecker = (step: Step, files: ProjectFile[]) => Promise<CheckOutcome>;
+// start: the step's file as it was when the step opened, so the checker can tell "not finished yet" from "wrong".
+export type StepChecker = (step: Step, files: ProjectFile[], start?: ProjectFile[]) => Promise<CheckOutcome>;
 
 export interface SessionDeps {
   lesson: Lesson;
@@ -305,7 +306,8 @@ export class LessonSession {
 
   private async check(step: Step): Promise<CheckOutcome> {
     const files = await this.readProject();
-    let outcome = await this.deps.check(step, files);
+    const start = step.file && this.startContent !== undefined ? [{ path: step.file, content: this.startContent }] : undefined;
+    let outcome = await this.deps.check(step, files, start);
     // The step's file just as it was when the step opened: nothing typed yet, so it's still their turn, not wrong.
     const own = step.file ? files.find((f) => same(f.path, step.file!))?.content : undefined;
     if (outcome.status !== "pass" && this.startContent !== undefined && own !== undefined && own === this.startContent) outcome = { ...outcome, untouched: true };

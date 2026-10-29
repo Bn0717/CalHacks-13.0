@@ -25,13 +25,14 @@ function onStep(id: string) {
   const index = lesson.steps.findIndex((s) => s.id === id);
   const step = lesson.steps[index]!;
   const start = before(step);
-  let files: ProjectFile[] = [...start].map(([path, content]) => ({ path, content }));
+  const startFiles: ProjectFile[] = [...start].map(([path, content]) => ({ path, content }));
+  let files: ProjectFile[] = [...startFiles];
   const clock = fakeClock();
   const effects: Effect[] = [];
   const done = Object.fromEntries(lesson.steps.slice(0, index).map((s) => [s.id, { status: "done" as const, hintsUsed: 0 }]));
   const runner = new LessonRunner(lesson as Lesson, { lessonId: lesson.id, stepIndex: index, steps: done, pace: "learn", updatedAt: new Date(START).toISOString() }, {
     clock,
-    check: (s) => checkStep(s, files),
+    check: (s) => checkStep(s, files, { start: startFiles }),
     runStrideAction: async () => ({ ok: true }),
     onEffect: (e) => effects.push(e),
   });
@@ -91,19 +92,67 @@ describe("judging the student's code", () => {
       status: "stuck",
       hintAfter10s: true,
     },
-  ])("$name", async ({ step, code, phase, status, hintAfter10s }) => {
+    {
+      name: "a pause after the <h1> line on 'Say hi' is 'getting closer': no hint at 10 s, stuck at 30 s",
+      step: "intro",
+      code: "    <h1>Hi, I'm Bryan</h1>\n",
+      phase: "settled",
+      status: "partial",
+      why: "closer",
+      hintAfter10s: false,
+      stuckAt30s: true,
+    },
+    {
+      name: "the first 2 lines of the list typed right is 'getting closer', never wrong",
+      step: "hobbies",
+      code: "    <h2>My favourite things</h2>\n    <ul>\n",
+      phase: "settled",
+      status: "partial",
+      why: "closer",
+      hintAfter10s: false,
+      stuckAt30s: true,
+    },
+    {
+      name: "a first try that gets part of 'Add some colour' right is 'getting closer' (more than at the start)",
+      step: "style",
+      code: "h1 {\n  color: blue;\n}\n",
+      phase: "settled",
+      status: "partial",
+      why: "closer",
+      hintAfter10s: false,
+      stuckAt30s: true,
+    },
+  ])("$name", async ({ step, code, phase, status, hintAfter10s, ...more }) => {
     const s = onStep(step);
     await s.type(code);
     expect(s.runner.state.phase).toBe(phase);
     expect(s.view().status).toBe(status);
+    if ("why" in more) expect(s.view().partial).toBe(more.why);
     await s.wait(TIMING.firstHintMs);
     expect(s.hints().length > 0).toBe(hintAfter10s);
+    if ("stuckAt30s" in more) {
+      // A student who truly stops still gets help: stuck 30 s after the look, then hint 1 10 s later.
+      await s.wait(TIMING.settledStuckMs - TIMING.firstHintMs);
+      expect(s.runner.state.phase).toBe("stuck");
+      await s.wait(TIMING.firstHintMs);
+      expect(s.hints().map((h) => h.level)).toEqual([1]);
+    }
   });
 
-  it("a second try that fixes one of two problems is 'getting closer', then stuck when nothing more changes", async () => {
+  it("typing the next right line is more progress, so the 30 s clock starts again", async () => {
+    const s = onStep("intro");
+    await s.type("    <h1>Hi, I'm Bryan</h1>\n");
+    await s.wait(20_000);
+    await s.type("    <h1>Hi, I'm Bryan</h1>\n    <p>I play the drums.</p>\n");
+    await s.wait(20_000);
+    expect(s.runner.state.phase).toBe("settled"); // 40 s since the first look, but only 20 s since the last progress
+    expect(s.hints()).toEqual([]);
+  });
+
+  it("a first try with some parts right is 'getting closer'; a fix is closer again; the same code again is stuck", async () => {
     const s = onStep("hobbies");
-    await s.type("    <ul>\n      <li>Drawing</li>\n    </ul>\n"); // no heading, 1 of 3 list items
-    expect(s.runner.state.phase).toBe("stuck");
+    await s.type("    <ul>\n      <li>Drawing</li>\n    </ul>\n"); // no heading, 1 of 3 list items: more than at the start
+    expect(s.runner.state.phase).toBe("settled");
     await s.type("    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n    </ul>\n"); // the heading fixed
     expect(s.runner.state.phase).toBe("settled");
     expect(s.view()).toMatchObject({ status: "partial", partial: "closer", parts: { done: 1, total: 2 } });
@@ -121,8 +170,10 @@ describe("judging the student's code", () => {
     expect(s.runner.state.phase).toBe("settled");
     await s.wait(TIMING.settledStuckMs);
     expect(s.runner.state.phase).toBe("stuck");
+    await s.wait(TIMING.firstHintMs);
     expect(s.hints().map((h) => h.level)).toEqual([1]);
   });
+
 
   it("half-typed code left alone for 30 s becomes stuck and offers a hint", async () => {
     const s = onStep("hobbies");

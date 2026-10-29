@@ -13,7 +13,7 @@ describe("lesson preview data", () => {
   it("shows the real messages: wrong code is never 'on the right track', and hint 1 sits with what's wrong", async () => {
     const data = await buildPreviewData();
     expect(data.partial!.view).toMatchObject({ status: "partial", partial: "typing" });
-    expect(data.partial!.view.note).toMatch(/^Still typing\? The <ul> you started still needs its closing <\/ul>/);
+    expect(data.partial!.view.note).toMatch(/^Still typing\? A tag isn.t finished yet/);
     expect(data.closer!.view).toMatchObject({ status: "partial", partial: "closer", parts: { done: 1, total: 2 } });
     expect(data.stuck!.view).toMatchObject({ status: "stuck", hints: [], parts: { done: 1, total: 2 } });
     expect(data.stuck!.view.note).toContain("One list item (<li>) is missing its closing </li>");

@@ -24,6 +24,8 @@ export interface CheckOutcome {
   reason?: string; // the first thing that's wrong, in plain words (shown next to hint 1)
   untouched?: boolean; // nothing typed in the step's file yet: still "your turn"
   remaining?: number; // how much is left (defaults to the number of failed checks); less than ever before = progress
+  onTrack?: number; // how many of the step's first lines are typed right (the rest just isn't typed yet); 0 = not on track
+  slip?: boolean; // a real slip was spotted, so this try is never "progress"
   passed?: number; // checks passing
   total?: number; // checks in the step
 }
@@ -47,6 +49,7 @@ export interface RunnerState {
   firstFailAt?: number;
   lastHintAt?: number;
   bestRemaining?: number; // the least left so far on this step: only beating it counts as progress
+  bestTrack?: number; // the most right first lines typed so far on this step
   settledWhy?: "typing" | "closer"; // why the phase is "settled": half-typed code, or closer than ever
   settledAt?: number;
   lastCheck?: { passed: number; total: number; reason?: string }; // the last look that wasn't a pass
@@ -247,19 +250,28 @@ export function reduce(lesson: Lesson, prev: RunnerState, event: RunnerEvent, no
         total: outcome.total ?? step.checks.length,
         ...(outcome.reason ? { reason: outcome.reason } : {}),
       };
-      // Progress means less left than on any look before (so going back and forth never counts twice).
-      // (A look that broke has no failed checks and says nothing about progress.)
+      // Progress means less left than on any look before, starting from the step's start (when every check fails), so
+      // a first try that gets part of it right is "getting closer". Going back and forth never counts twice, and a try
+      // with a real slip in it ("<li>Drawing<li>") is never progress. (A look that broke says nothing about progress.)
       const remaining = outcome.remaining ?? (outcome.failed.length > 0 ? outcome.failed.length : undefined);
-      const closer = remaining !== undefined && state.bestRemaining !== undefined && remaining < state.bestRemaining - 1e-9;
+      const baseline = state.bestRemaining ?? outcome.total ?? step.checks.length;
+      const fewerLeft = remaining !== undefined && !outcome.slip && remaining < baseline - 1e-9;
       if (remaining !== undefined && (state.bestRemaining === undefined || remaining < state.bestRemaining)) state.bestRemaining = remaining;
+      // The first lines of the step typed right, and the rest not yet: not wrong, just not finished. More of them = progress.
+      const track = outcome.onTrack ?? 0;
+      const moreLines = track > (state.bestTrack ?? 0);
+      if (track > (state.bestTrack ?? 0)) state.bestTrack = track;
+      const closer = fewerLeft || moreLines;
       if (closer) state.lastProgressAt = now;
-      if (outcome.status === "partial" || closer) {
-        // Half-typed, or closer than ever: keep waiting quietly.
+      if (outcome.status === "partial" || closer || track > 0) {
+        // Half-typed, closer than ever, or the right lines so far: keep waiting quietly. The 30 s clock only restarts on
+        // real progress, so a student who truly stops still gets help.
         state.phase = "settled";
-        state.settledWhy = outcome.status === "partial" ? "typing" : "closer";
-        state.settledAt = now;
+        state.settledWhy = outcome.status === "partial" && track === 0 ? "typing" : "closer";
+        if (closer || state.settledAt === undefined) state.settledAt = now;
         break;
       }
+      state.settledAt = undefined;
       state.phase = "stuck";
       if (state.firstFailAt === undefined) state.firstFailAt = now;
       // A further fail brings the next hint, but not faster than one every firstHintMs.
@@ -362,6 +374,7 @@ function freshStepFields(now: number): Partial<RunnerState> {
     firstFailAt: undefined,
     lastHintAt: undefined,
     bestRemaining: undefined,
+    bestTrack: undefined,
     settledWhy: undefined,
     settledAt: undefined,
     lastCheck: undefined,
@@ -406,6 +419,8 @@ function onTime(
   if (state.phase === "settled" && now - (state.settledAt ?? now) >= TIMING.settledStuckMs) {
     state.phase = "stuck";
     state.settledWhy = undefined;
+    state.settledAt = undefined;
+
     state.firstFailAt ??= now;
   }
   if (state.phase === "stuck") {

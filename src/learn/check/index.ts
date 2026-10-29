@@ -11,12 +11,15 @@ import { failMessage, firstReason, passMessage, reasons, type CheckOutcome } fro
 import { fileKind, missingClosers, parseProblem, readHtml, type ParsedHtml, type ParseProblem } from "./parse.js";
 import { playwrightRenderer, type Probe, type ProbeAnswer, type Renderer, type StyleAnswer } from "./render.js";
 import { attributeOf, querySelectorAll, textOf, UnsupportedSelector } from "./selector.js";
+import { onTrack } from "./track.js";
 import { hasJargon } from "./words.js";
+
 
 export { haikuJudge, type Judge, type JudgeRequest, type Verdict } from "./ai.js";
 export { playwrightRenderer, type Probe, type ProbeAnswer, type Renderer, type RenderRequest, type RenderResult } from "./render.js";
 
-export type CheckDeps = { renderer?: Renderer; judge?: Judge };
+// start: the project as it was when the step opened, so the checker can tell "not finished yet" from "wrong".
+export type CheckDeps = { renderer?: Renderer; judge?: Judge; start?: ProjectFile[] };
 
 export type CheckStatus = "pass" | "partial" | "fail";
 
@@ -28,6 +31,8 @@ export type StepCheckResult = {
   message: string; // short plain English for the student
   reason?: string; // the first thing that's wrong, without "Almost there" (shown next to hint 1)
   untouched?: boolean; // nothing typed in the step's file yet: it's still "your turn", not wrong
+  onTrack?: number; // how many of the step's first lines they've typed right, with the rest just not typed yet
+  slip?: boolean; // a real slip was spotted (a tag typed where its closing tag should be, a heading left open)
   remaining: number; // how much is left: failing checks, less a part for a list that's partly there
   passed: number; // checks passing
   total: number; // checks in the step
@@ -36,7 +41,7 @@ export type StepCheckResult = {
 };
 
 // The real dependencies: one hidden Chromium (call renderer.close() when done) and Claude Haiku.
-export function defaultCheckDeps(): Required<CheckDeps> {
+export function defaultCheckDeps(): Required<Omit<CheckDeps, "start">> {
   return { renderer: playwrightRenderer(), judge: haikuJudge() };
 }
 
@@ -157,6 +162,8 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
     message: status === "pass" ? passMessage() : failMessage(outcomes, parseIssue, consoleErrors),
     ...(status === "pass" ? {} : { reason: firstReason(outcomes, parseIssue) }),
     ...(status !== "pass" && untouched ? { untouched: true } : {}),
+    ...(status !== "pass" && !untouched && linesOnTrack(step, files, deps.start) > 0 ? { onTrack: linesOnTrack(step, files, deps.start) } : {}),
+    ...(status !== "pass" && (parseIssue?.mistake || closers.length > 0) ? { slip: true } : {}),
     remaining: status === "pass" ? 0 : Math.round(left * 100) / 100 + (parseIssue ? 0.5 : 0),
     passed,
     total: outcomes.length,
@@ -164,6 +171,15 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
     consoleErrors,
   };
 }
+
+// Has the student typed the first lines of this step's code correctly, and just not the rest yet?
+function linesOnTrack(step: Step, files: Files, start: ProjectFile[] | undefined): number {
+  if (!step.file || !start || !step.expected.trim()) return 0;
+  const before = start.find((f) => norm(f.path) === norm(step.file!))?.content ?? "";
+  const now = files.get(step.file);
+  return now === undefined ? 0 : onTrack(before, now, step.expected);
+}
+
 
 // A failing check in plain words, made by code (never by the model), for when other words won't do.
 function plainReason(check: Check): string {

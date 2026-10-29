@@ -128,7 +128,7 @@
       }
       case "partial":
         // Half-typed code is never judged; a try that's closer than before gets a quiet "getting closer".
-        if (view.partial === "closer") return { title: "Getting closer", line: dropLead(note, "Almost there.") || "More of it is right now. Keep going.", tone: "calm", pose: "talk", parts: partsOf(view) };
+        if (view.partial === "closer") return { title: "Getting closer", line: dropLead(dropLead(note, "Almost there."), "Still typing?") || "That part is right. Keep going.", tone: "calm", pose: "talk", parts: partsOf(view) };
         return { title: "Still typing?", line: dropLead(note, "Still typing?") || "Finish the line you're on. I'll look again when you stop.", tone: "calm", pose: "watch" };
       case "stuck": {
         // Wrong, even if some parts are right: say what to fix. "Almost there" only when at least half is right.

@@ -24,8 +24,8 @@ type Try = { typed: string; wait?: number; hints?: number };
 type Scenario = { step: string; tries: Try[] };
 
 const SCENARIOS: Record<string, Scenario> = {
-  // Stopped half-way through the list: never judged.
-  partial: { step: "hobbies", tries: [{ typed: "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n" }] },
+  // Stopped in the middle of a tag: never judged.
+  partial: { step: "hobbies", tries: [{ typed: "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li" }] },
   // A first try with one list item and no heading, then the heading added: closer than before.
   closer: {
     step: "hobbies",
@@ -87,7 +87,7 @@ async function play(lesson: Lesson, scenario: Scenario): Promise<PreviewState> {
     now += TIMING.settleMs;
     const run = send({ type: "tick" }).find((e) => e.type === "runCheck");
     if (!run || run.type !== "runCheck") throw new Error("The runner didn't start a check.");
-    const outcome: CheckOutcome = await checkStep(step, projectAt(lesson, step, typed));
+    const outcome: CheckOutcome = await checkStep(step, projectAt(lesson, step, typed), { start: projectAt(lesson, step, "") });
     if (outcome.status !== "pass" && !outcome.untouched) note = outcome.message; // what the session shows (session.ts)
     send({ type: "checkResult", checkId: run.checkId, outcome });
     if (t.wait) tick(t.wait);

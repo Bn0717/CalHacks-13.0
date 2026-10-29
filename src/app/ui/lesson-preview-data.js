@@ -3,7 +3,7 @@
 window.StrideLessonPreviewData = {
   "partial": {
     "step": "hobbies",
-    "typed": "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n",
+    "typed": "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li",
     "view": {
       "screen": "step",
       "lessonTitle": "A page about me",
@@ -78,7 +78,7 @@ window.StrideLessonPreviewData = {
       "canShowMe": false,
       "doneForMe": false,
       "pace": "learn",
-      "note": "Still typing? The <ul> you started still needs its closing </ul> (line 12).",
+      "note": "Still typing? A tag isn't finished yet (line 14).",
       "partial": "typing",
       "parts": {
         "done": 1,

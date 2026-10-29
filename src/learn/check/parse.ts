@@ -44,10 +44,18 @@ export function readHtml(source: string): ParsedHtml {
   const doc = parseHtml(source, {
     sourceCodeLocationInfo: true,
     onParseError: (e) => {
-      if (!fatal && FATAL_HTML.has(e.code)) fatal = { message: "A tag isn't finished yet.", line: e.startLine };
+      // The line where the unfinished tag starts (the parser may only notice on a later line).
+      if (!fatal && FATAL_HTML.has(e.code)) fatal = { message: "A tag isn't finished yet.", line: tagStartLine(source, e.startOffset, e.startLine) };
     },
   });
   return { doc, problem: fatal ?? unclosedElement(doc) };
+}
+
+// The line of the last "<" at or before `offset`: where the tag the parser stopped in began.
+function tagStartLine(source: string, offset: number, fallback: number): number {
+  // (Search from just before the error: the error itself can sit on the next tag's "<".)
+  const at = source.lastIndexOf("<", Math.min(offset - 1, source.length - 1));
+  return at < 0 ? fallback : source.slice(0, at).split("\n").length;
 }
 
 // Tags that only hold words, never whole blocks like paragraphs or lists.
