@@ -6,7 +6,7 @@ import { buildFromIdea, type AskModel, type ModelJob } from "../../src/learn/bui
 import { buildFromVideo, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
 import { readVideo, type VideoNotes } from "../../src/learn/gemini.js";
 import { ConceptSchema, LessonError, parseLesson, type Lesson, type Step } from "../../src/learn/lesson.js";
-import { hintGivesAway, lessonRuleProblems, looksLikeCode, stepRuleProblems } from "../../src/learn/rules.js";
+import { hintGivesAway, lessonRuleProblems, looksLikeCode, outlineHint, stepRuleProblems } from "../../src/learn/rules.js";
 import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "../../src/learn/stages.js";
 
 const fixture = parseLesson(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures/about-me.lesson.json"), "utf8"))) as Lesson;
@@ -70,14 +70,21 @@ describe("rule tests", () => {
 });
 
 describe("the idea builder enforces the rules", () => {
-  it("asks again when hint 3 gives the whole answer, and uses the fixed steps", async () => {
+  it("turns a hint 3 that gives the whole answer into the code's outline, without asking again", async () => {
     const bad = learner.map((s) => (s.id === "intro" ? { ...s, hints: [s.hints[0], s.hints[1], s.expected] as [string, string, string] } : s));
-    const model = fakeModel({ project: [project], steps: [stepsAnswer(bad), stepsAnswer(learner)] });
+    const model = fakeModel({ project: [project], steps: [stepsAnswer(bad)] });
     const r = await buildFromIdea(aboutMe, ideaDeps(model.ask));
-    expect(r.kind).toBe("lesson");
-    const stepCalls = model.calls.filter((c) => c.job === "steps");
-    expect(stepCalls).toHaveLength(2);
-    expect(stepCalls[1]!.prompt).toMatch(/hint 3 contains the whole answer/);
+    if (r.kind !== "lesson") throw new Error("expected a lesson");
+    expect(model.calls.filter((c) => c.job === "steps")).toHaveLength(1);
+    const intro = r.lesson.steps.find((s) => s.id === "intro")!;
+    expect(intro.hints[2]).toBe(outlineHint(intro.expected));
+    expect(lessonRuleProblems(r.lesson.steps)).toEqual([]);
+  });
+
+  it("outlines code by blanking out what the student writes", () => {
+    expect(outlineHint('    <h1>Hi, I\'m Sam</h1>\n    <img src="me.png" alt="Me">\n')).toBe('    <h1>…</h1>\n    <img src="…" alt="…">');
+    expect(outlineHint("h1 {\n  color: tomato;\n}\n")).toBe("h1 {\n  color: …;\n}");
+    expect(outlineHint("<ul>\n</ul>\n<ol>\n</ol>\n")).toBe("<ul>\n</ul>\n…");
   });
 
   it("gives up when the steps still break the rules", async () => {
@@ -113,22 +120,34 @@ describe("the video builder enforces the rules", () => {
     expect(seen).toEqual([...BUILD_STAGES.video]);
   });
 
-  it("asks again when a video part is past the end of the video or a hint gives the answer away", async () => {
+  it("cuts a part running past the video's end and outlines a give-away hint 3, without asking again", async () => {
+    let calls = 0;
+    const ask = (async () => {
+      calls++;
+      const d = draft();
+      const first = d.steps.find((s) => s.who === "learner")!;
+      first.video = { start: 10, end: 99_999 };
+      first.hints = [(first.hints as string[])[0], (first.hints as string[])[1], first.expected];
+      return d;
+    }) as AskJson;
+    const lesson = await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: notes, ask, cache: null });
+    expect(calls).toBe(1);
+    const first = lesson.steps.find((s) => s.who === "learner")!;
+    expect(first.video).toEqual({ start: 10, end: 410 });
+    expect(lessonRuleProblems(lesson.steps)).toEqual([]);
+  });
+
+  it("asks again when a video part starts after the video ends", async () => {
     const calls: string[] = [];
     const ask = (async (req: { content: unknown }) => {
       calls.push(String(req.content));
       const d = draft();
-      if (calls.length === 1) {
-        const first = d.steps.find((s) => s.who === "learner")!;
-        first.video = { start: 10, end: 99_999 };
-        first.hints = [(first.hints as string[])[0], (first.hints as string[])[1], first.expected];
-      }
+      if (calls.length === 1) d.steps.find((s) => s.who === "learner")!.video = { start: 99_000, end: 99_999 };
       return d;
     }) as AskJson;
     const lesson = await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: notes, ask, cache: null });
     expect(calls).toHaveLength(2);
     expect(calls[1]).toMatch(/after the video ends/);
-    expect(calls[1]).toMatch(/hint 3 contains the whole answer/);
     expect(lessonRuleProblems(lesson.steps)).toEqual([]);
   });
 

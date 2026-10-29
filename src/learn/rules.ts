@@ -18,6 +18,26 @@ export function hintGivesAway(hint: string, expected: string): boolean {
   return want.length >= 8 && normCode(hint).includes(want);
 }
 
+// A hint 3 made from the answer when the model's own gives the whole thing away: the code's outline, with the parts the
+// student writes themselves (text between tags, attribute values, CSS values, quoted text) left as … to fill in.
+export function outlineHint(expected: string): string {
+  const outline = expected
+    .replace(/\n+$/, "")
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/="[^"]*"/g, '="…"')
+        .replace(/>([^<>]*\S[^<>]*)</g, ">…<")
+        .replace(/^(\s*[a-z-]+\s*:\s*)[^;{}]+;/i, "$1…;")
+        .replace(/(["'`])(?:(?!\1).)+\1/g, "$1…$1"),
+    )
+    .join("\n");
+  if (!hintGivesAway(outline, expected)) return outline;
+  // Nothing to blank out (e.g. only tags): show the first half of the lines.
+  const lines = expected.replace(/\n+$/, "").split("\n");
+  return [...lines.slice(0, Math.max(1, Math.floor(lines.length / 2))), "…"].join("\n");
+}
+
 // Does this text look like HTML, CSS or JavaScript a beginner would be learning?
 export function looksLikeCode(text: string): boolean {
   return (

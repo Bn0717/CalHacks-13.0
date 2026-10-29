@@ -5,8 +5,8 @@ import { strictJsonSchema } from "../src/learn/build-from-idea.js";
 import { CheckSchema, lessonJsonSchema, parseLesson } from "../src/learn/lesson.js";
 import { z } from "zod";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn() }));
-vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create: mocks.create } }) }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), stream: vi.fn() }));
+vi.mock("../src/ai/client.js", () => ({ getClient: () => ({ messages: { create: mocks.create, stream: mocks.stream } }) }));
 const { askJson } = await import("../src/ai/json.js");
 
 const fixture = parseLesson(readFileSync("tests/learn/fixtures/about-me.lesson.json", "utf8"));
@@ -78,5 +78,16 @@ describe("fitting big answer shapes to the API's limits", () => {
     expect(answer).toEqual({ checks: [{ type: "fileExists", file: "style.css" }] });
     const sent = mocks.create.mock.calls[0]![0].output_config.format.schema;
     expect(JSON.stringify(sent)).not.toContain("anyOf");
+  });
+
+  it("askJson streams long answers and passes the effort on", async () => {
+    const answer = { model: "m", stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "text", text: '{"a":"x"}' }] };
+    mocks.stream.mockReturnValueOnce({ finalMessage: async () => answer });
+    const schema = strictJsonSchema(z.object({ a: z.string() }));
+    expect(await askJson({ model: "m", system: "s", content: "c", schema, maxTokens: 32000, effort: "low" })).toEqual({ a: "x" });
+    const sent = mocks.stream.mock.calls[0]![0];
+    expect(sent.max_tokens).toBe(32000);
+    expect(sent.output_config.effort).toBe("low");
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });

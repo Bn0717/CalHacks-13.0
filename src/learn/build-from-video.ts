@@ -9,7 +9,7 @@ import { lessonCache, videoCacheKey, type LessonCache } from "./cache.js";
 import { readVideo, type VideoNotes } from "./gemini.js";
 import { CheckSchema, estimateFor, LESSON_VERSION, LessonError, lessonJsonSchema, parseLesson, type Lesson, type Step } from "./lesson.js";
 import { repairSteps } from "./rebuild.js";
-import { lessonRuleProblems } from "./rules.js";
+import { hintGivesAway, lessonRuleProblems, outlineHint } from "./rules.js";
 import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
 
@@ -96,11 +96,11 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
   const firstAsk = `Here are notes on a YouTube tutorial (${watchUrl}).\n\n${JSON.stringify(notes, null, 2)}`;
   let lesson: Lesson;
   try {
-    lesson = assemble(await ask<Draft>({ model, system: BUILD_SYSTEM, content: firstAsk, schema: draftJsonSchema(), maxTokens: 16000 }));
+    lesson = assemble(await ask<Draft>({ model, system: BUILD_SYSTEM, content: firstAsk, schema: draftJsonSchema(), maxTokens: 32000 }));
   } catch (error) {
     if (!(error instanceof LessonError)) throw error;
     const retry = `${firstAsk}\n\nYour last answer had these problems, fix them:\n${error.problems.join("\n") || error.message}`;
-    lesson = assemble(await ask<Draft>({ model, system: BUILD_SYSTEM, content: retry, schema: draftJsonSchema(), maxTokens: 16000 }));
+    lesson = assemble(await ask<Draft>({ model, system: BUILD_SYSTEM, content: retry, schema: draftJsonSchema(), maxTokens: 32000 }));
   }
 
   // Steps typed in order must rebuild the finished project: code fixes late closing tags and works out every anchor.
@@ -147,7 +147,7 @@ export async function buildFromVideo(url: string, deps: VideoBuildDeps): Promise
 // Turns Claude's draft into a full lesson and validates it (throws a LessonError listing problems).
 // The lesson rules code enforces (see rules.ts), plus video parts that must sit inside the video, are checked here too.
 function draftToLesson(draft: Draft, id: string, source: Lesson["source"], at: Date, videoEnd: number): Lesson {
-  const rawSteps = Array.isArray(draft?.steps) ? draft.steps.map(fixHints) : [];
+  const rawSteps = Array.isArray(draft?.steps) ? draft.steps.map(fixHints).map((st) => clampPart(st, videoEnd)) : [];
   const lesson = parseLesson({
     ...draft,
     id,
@@ -195,12 +195,15 @@ const BUILD_SYSTEM = `You turn notes on a beginner coding tutorial into a hands-
      a wrapper like <main> is typed with its first contents and its closing tag, and later steps add more inside it.
    - video: {start, end} in seconds from the notes' segment times, the part of the video that shows this step. Every
      learner step has one; start is before end; both are inside the video (never after the last chapter's end); in order.
-   - instruction: plain English for a 14-year-old who has never coded: what to add and where, in words.
+   - instruction: plain English for a 14-year-old who has never coded: what to add and where, in words. Say exactly what
+     to type when a beginner can't guess it (a value, a file name). Each step brings in at most 2 tags or CSS properties the
+     student hasn't typed before, and names and explains each one in plain words in the instruction or why.
    - checks: behaviour checks that pass on the finished project; the first must fail on an empty project.
      Prefer selectorExists, textIncludes, attribute and cssProperty. Never compare exact text. Use "ai" only as a last resort.
      A check may have "say": what Stride tells the student while it isn't done, in plain words, never code words.
-   - hints: exactly 3, each stronger than the last: (1) a nudge in words, no code; (2) point at the exact spot and name the
-     tag or property; (3) part of the code with the rest left as … to fill in. Hint 3 never contains the whole "expected".
+   - hints: exactly 3, each stronger than the last, about the whole step: (1) a nudge in words, no code; (2) point at the
+     exact spot and name every tag or property, with any value a beginner can't guess; (3) the code's outline with what the
+     student writes themselves (text inside tags, values) left as … to fill in. Hint 3 never contains the whole "expected".
    - why: one plain-English line. Add a concept card when a new idea comes up for the first time: explain is ONE short
      plain sentence (under 25 words), no jargon ("DOM", "selector", "parse", "element", "render", "syntax"), and links
      has at least one MDN page.
@@ -233,7 +236,20 @@ function fixHints(step: unknown): unknown {
   if (!Array.isArray(s.hints)) return step;
   const hints = s.hints.filter((h): h is string => typeof h === "string" && h.trim() !== "");
   while (hints.length > 0 && hints.length < 3) hints.push(hints[hints.length - 1]!);
-  return { ...s, hints: hints.slice(0, 3) };
+  const three = hints.slice(0, 3);
+  // A hint 3 that gives the whole answer away is swapped for the code's outline (cheaper than asking again).
+  const expected = (s as { expected?: unknown }).expected;
+  if (typeof expected === "string" && three[2] && hintGivesAway(three[2], expected)) three[2] = outlineHint(expected);
+  return { ...s, hints: three };
+}
+
+// A video part that runs a little past the video's end (the notes' last time is only a stand-in for its length) is cut
+// at the end, instead of sending the whole lesson back.
+function clampPart(step: unknown, videoEnd: number): unknown {
+  const v = (step as { video?: { start?: unknown; end?: unknown } } | null)?.video;
+  if (!v || videoEnd <= 0 || typeof v.start !== "number" || typeof v.end !== "number") return step;
+  if (v.end <= videoEnd || v.start >= videoEnd) return step;
+  return { ...(step as object), video: { start: v.start, end: videoEnd } };
 }
 
 // Swaps in fixed steps by id, keeping the original when a fix is missing or doesn't fit the step format.

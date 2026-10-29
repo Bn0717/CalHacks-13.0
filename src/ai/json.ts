@@ -4,6 +4,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { getClient } from "./client.js";
 import { fitSchema } from "./schema-limit.js";
 
+// Answers allowed to be longer than this many tokens are streamed.
+export const STREAM_ABOVE = 16_000;
+
 export async function askJson<T = Record<string, unknown>>(o: {
   model: string;
   system: string;
@@ -12,20 +15,24 @@ export async function askJson<T = Record<string, unknown>>(o: {
   maxTokens?: number;
   signal?: AbortSignal;
   maxRetries?: number;
+  effort?: "low" | "medium" | "high"; // how hard the model thinks first (Opus 5.5 can't skip thinking); default: the model's own
   onResponse?: (response: { model: string; usage: { input_tokens: number; output_tokens: number } }) => void;
 }): Promise<T> {
   // Big answer shapes go past the API's limit on optional fields: see schema-limit.ts.
   const fitted = fitSchema(o.schema);
-  const response = await getClient().messages.create(
-    {
-      model: o.model,
-      max_tokens: o.maxTokens ?? 800,
-      system: o.system,
-      messages: [{ role: "user", content: o.content }],
-      output_config: { format: { type: "json_schema", schema: fitted.schema } },
-    } as Anthropic.MessageCreateParamsNonStreaming,
-    { signal: o.signal, ...(o.maxRetries === undefined ? {} : { maxRetries: o.maxRetries }) },
-  );
+  const params = {
+    model: o.model,
+    max_tokens: o.maxTokens ?? 800,
+    system: o.system,
+    messages: [{ role: "user", content: o.content }],
+    output_config: { format: { type: "json_schema", schema: fitted.schema }, ...(o.effort ? { effort: o.effort } : {}) },
+  } as Anthropic.MessageCreateParamsNonStreaming;
+  const options = { signal: o.signal, ...(o.maxRetries === undefined ? {} : { maxRetries: o.maxRetries }) };
+  // Long answers (a whole lesson) are streamed: the SDK refuses a plain request that could run past its time limit.
+  const response =
+    params.max_tokens > STREAM_ABOVE
+      ? await getClient().messages.stream(params, options).finalMessage()
+      : await getClient().messages.create(params, options);
   o.onResponse?.(response);
   if (response.stop_reason === "refusal") throw new Error("Claude declined to answer.");
   // The model thinks before answering, and the thinking counts toward max_tokens: a cut-off answer is never valid JSON.

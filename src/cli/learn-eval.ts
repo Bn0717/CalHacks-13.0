@@ -40,7 +40,7 @@ import {
 import { readVideo, type GeminiUsage, type VideoNotes } from "../learn/gemini.js";
 import { gradeLesson, gradeTooBig } from "../learn/grade.js";
 import { judgeLesson } from "../learn/judge-lesson.js";
-import { parseLesson, type Lesson } from "../learn/lesson.js";
+import { LessonError, parseLesson, type Lesson } from "../learn/lesson.js";
 import { readPicture } from "../learn/picture.js";
 
 const ROOT = process.env.CALHACK_ROOT ?? process.cwd();
@@ -360,7 +360,8 @@ async function main(): Promise<void> {
         } else if (claudeFailed(e)) {
           results.push({ name: c.name, kind: c.kind, status: "blocked", note: claudeNote });
         } else {
-          results.push({ name: c.name, kind: c.kind, status: "error", note: friendlyError(e), usd: spentSince(from) });
+          const why = e instanceof LessonError && e.problems.length ? ` (${e.problems.slice(0, 3).join("; ")})` : "";
+          results.push({ name: c.name, kind: c.kind, status: "error", note: `${friendlyError(e)}${why}`, usd: spentSince(from) });
         }
       }
     }
