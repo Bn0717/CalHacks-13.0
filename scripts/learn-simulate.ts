@@ -12,6 +12,8 @@ import { dirname, join, resolve } from "node:path";
 import { insertAtAnchor } from "../src/learn/anchor.js";
 import { parseLesson, type Lesson, type Step } from "../src/learn/lesson.js";
 import { halfTyped, mistakePlan, wrongTry } from "../src/learn/pretend-student.js";
+import { rebuildSteps } from "../src/learn/rebuild.js";
+import { normCode } from "../src/learn/rules.js";
 
 const argv = process.argv.slice(2);
 const ideaAt = argv.indexOf("--idea");
@@ -200,7 +202,10 @@ const finished = new Map<string, string>();
 for (const f of lesson?.files ?? []) finished.set(f.path, await readFile(join(dir, f.path), "utf8").catch(() => "(missing)"));
 const progress = lesson ? await readFile(join(dir, ".stride", `${lesson.id}.json`), "utf8").catch(() => "(missing)") : "(missing)";
 const cost = await readFile(join(dir, "cost.json"), "utf8").catch(() => "(missing)");
-const matches = !!lesson && lesson.files.every((f) => finished.get(f.path) === f.content);
+// What typing every step of the lesson the student took gives (the smaller version types only part of the project).
+const want = lesson ? rebuildSteps(lesson.steps, lesson.files).files : [];
+const matches = !!lesson && want.length > 0 && want.every((f) => normCode(finished.get(f.path) ?? "") === normCode(f.content));
+const wholeProject = !!lesson && lesson.files.every((f) => finished.get(f.path) === f.content);
 const costUsd = (() => {
   try {
     return (JSON.parse(cost) as { total: { usd: number } }).total.usd;
@@ -211,7 +216,7 @@ const costUsd = (() => {
 const avg = delays.length ? delays.reduce((n, d) => n + d.ms, 0) / delays.length : 0;
 
 process.stdout.write(
-  `\nexit code ${code} · learner steps ${stats.steps} · wrong tries ${stats.wrong} · hints seen ${stats.hintsSeen} · finished files match the reference: ${matches}\n`,
+  `\nexit code ${code} · learner steps ${stats.steps} · wrong tries ${stats.wrong} · hints seen ${stats.hintsSeen} · finished files match what the steps build: ${matches}\n`,
 );
 
 if (transcriptFile && lesson) {
@@ -238,7 +243,8 @@ if (transcriptFile && lesson) {
     "",
     `- CLI exit code: ${code}`,
     `- 🧑 steps typed: ${stats.steps}, wrong first tries: ${stats.wrong}${stats.wrongAccepted ? ` (${stats.wrongAccepted} wrongly accepted)` : ""}, half-typed saves: ${stats.half}, hints shown: ${stats.hintsSeen}`,
-    `- Finished files match the lesson's reference project: ${matches ? "yes" : "no"}`,
+    `- Finished files match what this lesson's steps build: ${matches ? "yes" : "no"}` +
+      (lesson.id.endsWith("-core") ? ` (the smaller version: the whole project ${wholeProject ? "too" : "isn't typed, by design"})` : ""),
     ...(buildSeconds !== undefined ? [`- Lesson build (questions answered → estimate shown): ${buildSeconds.toFixed(0)} s`] : []),
     `- AI cost (cost.json total): ${costUsd === undefined ? "n/a" : `$${costUsd.toFixed(4)}`}`,
     `- ✅ delay after the last write (correct code): average ${(avg / 1000).toFixed(2)} s, ` +

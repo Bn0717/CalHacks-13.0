@@ -1,0 +1,761 @@
+{
+  "id": "idea-a-page-about-me-891eaef8",
+  "source": {
+    "kind": "idea",
+    "request": "a page about me",
+    "answers": [
+      {
+        "question": "What's it for?",
+        "answer": "Just for me"
+      },
+      {
+        "question": "What should it have?",
+        "answer": "My name and a short intro, My hobbies"
+      },
+      {
+        "question": "A look you like?",
+        "answer": "Warm and friendly"
+      }
+    ]
+  },
+  "title": "A page about me",
+  "summary": "You'll build a warm, friendly one-page website with your name, a short intro about yourself and a list of your hobbies.",
+  "outcome": "A finished personal web page that opens in your browser straight from your project folder.",
+  "learns": [
+    "Basic HTML page structure",
+    "Headings and paragraphs",
+    "Making a list",
+    "Linking a CSS file",
+    "Warm colors and fonts",
+    "Rounded boxes with padding"
+  ],
+  "estimate": {
+    "minutes": 64,
+    "linesToType": 67,
+    "steps": 15
+  },
+  "simpler": {
+    "title": "Just a hello and an about-me",
+    "estimate": {
+      "minutes": 35,
+      "linesToType": 32,
+      "steps": 9
+    },
+    "why": "Get a real, styled page about you up quickly, then add hobbies, a footer and cards once the basics feel easy.",
+    "stepIds": [
+      "skeleton",
+      "head-info",
+      "header",
+      "about",
+      "look-page",
+      "body-colours",
+      "body-font",
+      "header-style",
+      "look-final"
+    ]
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>About Me</title>\n  <link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n  <header>\n    <p class=\"avatar\">😊</p>\n    <h1>Hi, I'm Sam!</h1>\n  </header>\n  <section>\n    <h2>About me</h2>\n    <p>I love learning new things, drinking hot cocoa and spending time with friends. This is my very own little corner of the web.</p>\n  </section>\n  <section>\n    <h2>My hobbies</h2>\n    <ul>\n      <li>📚 Reading stories</li>\n      <li>🎨 Drawing and painting</li>\n      <li>🚲 Riding my bike</li>\n      <li>🍪 Baking cookies</li>\n    </ul>\n  </section>\n  <footer>\n    <p>Made with ❤️ by Sam</p>\n  </footer>\n</body>\n</html>\n"
+    },
+    {
+      "path": "style.css",
+      "content": "body {\n  background: #fff4e6;\n  color: #5a3e2b;\n  font-family: Georgia, serif;\n  margin: 0;\n  padding: 20px;\n}\n\nheader {\n  text-align: center;\n}\n\n.avatar {\n  font-size: 64px;\n  margin: 0;\n}\n\nh1 {\n  color: #d9534f;\n  font-size: 40px;\n}\n\nh2 {\n  color: #e07b39;\n}\n\nsection {\n  background: #ffffff;\n  border: 2px solid #f4c095;\n  border-radius: 16px;\n  padding: 20px;\n  margin: 20px auto;\n  max-width: 500px;\n}\n\nli {\n  font-size: 18px;\n  margin: 8px 0;\n}\n\nfooter {\n  text-align: center;\n  font-size: 14px;\n}\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "page",
+      "title": "Write the page"
+    },
+    {
+      "id": "colour",
+      "title": "Add colour"
+    },
+    {
+      "id": "boxes",
+      "title": "Shape the boxes"
+    }
+  ],
+  "steps": [
+    {
+      "id": "skeleton",
+      "chapter": "page",
+      "title": "Build the page skeleton",
+      "instruction": "Make a new file called index.html. At the very top, type <!DOCTYPE html>. Under it, add an html tag that opens and closes. Inside it, add a head part (opens and closes), then a body part (opens and closes).",
+      "why": "Every web page needs this frame: html wraps the whole page, head holds hidden info, and body holds everything people see.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n</body>\n</html>",
+      "checks": [
+        {
+          "type": "fileExists",
+          "file": "index.html",
+          "say": "I can't find your index.html file yet."
+        },
+        {
+          "type": "parses",
+          "file": "index.html",
+          "say": "Something in your page frame looks unfinished. Check every tag that opens also closes."
+        },
+        {
+          "type": "ai",
+          "file": "index.html",
+          "say": "I can't see the head part and the body part inside your html tags yet.",
+          "question": "Does the file contain an opening and closing html tag with a head section and a body section written inside it?"
+        }
+      ],
+      "hints": [
+        "A page is like a box with two rooms inside: one for hidden info and one for what people see.",
+        "Start with <!DOCTYPE html>, then type the html tag. Inside it put head, then body. Each one opens with <name> and closes with </name>.",
+        "<!DOCTYPE html>\n<html>\n<head>\n…\n<body>\n…\n</html>"
+      ],
+      "concept": {
+        "title": "Tags",
+        "explain": "Tags are words in angle brackets that tell the browser what each part is; most come in an opening and closing pair.",
+        "links": [
+          {
+            "title": "MDN: Getting started with HTML",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started"
+          }
+        ],
+        "imageQuery": "basic html page structure diagram head body",
+        "videoQuery": "html page structure for beginners"
+      }
+    },
+    {
+      "id": "head-info",
+      "chapter": "page",
+      "title": "Give the page a name",
+      "instruction": "Inside the head, add three lines: a meta tag with charset=\"utf-8\", a title tag with the words About Me, and a link tag with rel=\"stylesheet\" and href=\"style.css\".",
+      "why": "meta lets emojis and accents show properly, title names the browser tab, and link will connect your style file later.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "head"
+      },
+      "expected": "  <meta charset=\"utf-8\">\n  <title>About Me</title>\n  <link rel=\"stylesheet\" href=\"style.css\">",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see the line that helps emojis show properly yet.",
+          "selector": "meta[charset]"
+        },
+        {
+          "type": "textIncludes",
+          "say": "Your page doesn't have a tab name yet.",
+          "selector": "title",
+          "text": "About Me"
+        },
+        {
+          "type": "attribute",
+          "say": "I can't see the line that connects your style file yet.",
+          "selector": "link",
+          "name": "href",
+          "value": "style.css"
+        }
+      ],
+      "hints": [
+        "The hidden part of the page needs three bits of info: the letter type, the tab name and a link to a style file.",
+        "Inside <head>, type a meta tag with charset=\"utf-8\", a title tag, and a link tag with rel=\"stylesheet\" href=\"style.css\".",
+        "<meta charset=\"…\">\n<title>…</title>\n<link rel=\"…\" href=\"…\">"
+      ],
+      "concept": {
+        "title": "The head",
+        "explain": "The head holds information about the page, like its tab name, that visitors don't see on the page itself.",
+        "links": [
+          {
+            "title": "MDN: What's in the head?",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/The_head_metadata_in_HTML"
+          }
+        ]
+      }
+    },
+    {
+      "id": "header",
+      "chapter": "page",
+      "title": "Say hello",
+      "instruction": "Inside the body, add a header. In it, put a p (paragraph) with class=\"avatar\" holding a smiley emoji 😊, then an h1 big heading saying Hi, I'm and your name.",
+      "why": "header is the top part of your page, h1 is the biggest heading, and p holds a piece of text.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "expected": "  <header>\n    <p class=\"avatar\">😊</p>\n    <h1>Hi, I'm Sam!</h1>\n  </header>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see your big hello heading at the top yet.",
+          "selector": "header h1"
+        },
+        {
+          "type": "selectorExists",
+          "say": "I can't see your smiley at the top yet. Did you give it the name avatar?",
+          "selector": "header p.avatar"
+        }
+      ],
+      "hints": [
+        "Make a top section with a smiley and a big greeting with your name.",
+        "Inside <body>, type <header>. In it, a <p> with class=\"avatar\" and an emoji, then an <h1> with your greeting. Close the header.",
+        "<header>\n  <p class=\"…\">…</p>\n  <h1>…</h1>\n…"
+      ],
+      "concept": {
+        "title": "Headings and paragraphs",
+        "explain": "h1 is the biggest title on a page, and p is a normal paragraph of text.",
+        "links": [
+          {
+            "title": "MDN: Headings and paragraphs",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/HTML_text_fundamentals"
+          }
+        ]
+      }
+    },
+    {
+      "id": "about",
+      "chapter": "page",
+      "title": "Write about yourself",
+      "instruction": "Under the header, add a section. Inside it, put an h2 heading saying About me and a paragraph with a sentence or two about you.",
+      "why": "A section groups related things together, and h2 is a smaller heading for each part.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</header>"
+      },
+      "expected": "  <section>\n    <h2>About me</h2>\n    <p>I love learning new things, drinking hot cocoa and spending time with friends. This is my very own little corner of the web.</p>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see your About me part with its heading yet.",
+          "selector": "section h2"
+        },
+        {
+          "type": "selectorExists",
+          "say": "Your About me part needs a few words about you.",
+          "selector": "section p"
+        }
+      ],
+      "hints": [
+        "Add a new part below the greeting with a small heading and a few words about you.",
+        "After </header>, type <section>. Inside it, an <h2> with About me and a <p> with your sentence. Then close the section.",
+        "<section>\n  <h2>…</h2>\n  <p>…</p>\n…"
+      ],
+      "concept": {
+        "title": "Sections",
+        "explain": "A section is a box that groups one topic of your page, like a chapter in a book.",
+        "links": [
+          {
+            "title": "MDN: The section tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/section"
+          }
+        ]
+      }
+    },
+    {
+      "id": "hobbies",
+      "chapter": "page",
+      "title": "List your hobbies",
+      "instruction": "Under your About me section, add a second section with an h2 saying My hobbies. Under the heading, add a ul list with 4 li items, one hobby each (start each with an emoji if you like).",
+      "why": "ul makes a bullet list and each li is one item in it.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 16
+      },
+      "expected": "  <section>\n    <h2>My hobbies</h2>\n    <ul>\n      <li>📚 Reading stories</li>\n      <li>🎨 Drawing and painting</li>\n      <li>🚲 Riding my bike</li>\n      <li>🍪 Baking cookies</li>\n    </ul>\n  </section>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see your list of hobbies yet.",
+          "selector": "section ul li"
+        },
+        {
+          "type": "selectorExists",
+          "say": "Your hobby list should have 4 hobbies.",
+          "selector": "ul li:nth-child(4)"
+        },
+        {
+          "type": "selectorExists",
+          "say": "You need a second part with its own heading for your hobbies.",
+          "selector": "section:nth-of-type(2) h2"
+        }
+      ],
+      "hints": [
+        "Make another part like About me, but this time with a bullet list of things you love doing.",
+        "After the first </section>, type a new <section> with an <h2>. Under it, a <ul> holding four <li> lines. Close the ul and the section.",
+        "<section>\n  <h2>…</h2>\n  <ul>\n    <li>…</li>\n    …\n  </ul>\n…"
+      ],
+      "concept": {
+        "title": "Lists",
+        "explain": "ul makes a bullet list, and every li inside it is one bullet point.",
+        "links": [
+          {
+            "title": "MDN: The ul tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/ul"
+          }
+        ]
+      }
+    },
+    {
+      "id": "footer",
+      "chapter": "page",
+      "title": "Sign your page",
+      "instruction": "Under the hobbies section, add a footer with a paragraph saying Made with ❤️ by and your name.",
+      "why": "footer is the bottom strip of a page, a nice place to sign your work.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 25
+      },
+      "expected": "  <footer>\n    <p>Made with ❤️ by Sam</p>\n  </footer>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see your signature at the bottom yet.",
+          "selector": "footer p"
+        },
+        {
+          "type": "parses",
+          "say": "Something in your page looks unfinished. Check each tag closes."
+        }
+      ],
+      "hints": [
+        "Finish with a little signature at the very bottom.",
+        "After the last </section>, type <footer> with a <p> inside, then </footer>.",
+        "<footer>\n  <p>…</p>\n…"
+      ],
+      "concept": {
+        "title": "Footers",
+        "explain": "A footer is the bottom part of a page, often used for a signature or small notes.",
+        "links": [
+          {
+            "title": "MDN: The footer tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/footer"
+          }
+        ]
+      }
+    },
+    {
+      "id": "look-page",
+      "chapter": "page",
+      "title": "See your page",
+      "instruction": "Open index.html in your web browser (double-click it). You'll see your words, plain and simple. Next we'll add colour!",
+      "why": "Seeing your work in the browser shows that your code really makes a page.",
+      "who": "watch",
+      "file": "index.html",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Find index.html in your folder.",
+        "Double-click it, or drag it into a browser window.",
+        "If it opens in your editor instead, right-click it and choose to open it with your browser."
+      ],
+      "quiz": {
+        "question": "Which tag makes one item in a bullet list?",
+        "options": [
+          "<ul>",
+          "<li>",
+          "<h2>"
+        ],
+        "answer": 1,
+        "explain": "li is one list item; ul is the whole list around them."
+      }
+    },
+    {
+      "id": "body-colours",
+      "chapter": "colour",
+      "title": "Colour the background",
+      "instruction": "Make a new file called style.css. Type a rule for body that sets background to #fff4e6 and color to #5a3e2b.",
+      "why": "background paints behind your page, and color sets the colour of the text.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "body {\n  background: #fff4e6;\n  color: #5a3e2b;\n}",
+      "checks": [
+        {
+          "type": "fileExists",
+          "file": "style.css",
+          "say": "I can't find your style.css file yet."
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page background isn't a warm cream colour yet.",
+          "selector": "body",
+          "property": "background-color",
+          "value": "rgb(255, 244, 230)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your text isn't brown yet.",
+          "selector": "body",
+          "property": "color",
+          "value": "rgb(90, 62, 43)"
+        }
+      ],
+      "hints": [
+        "Tell the whole page what colour to be behind, and what colour its words should be.",
+        "In style.css write body, then curly brackets. Inside: background: #fff4e6; and color: #5a3e2b;",
+        "body {\n  background: …;\n  …\n}"
+      ],
+      "concept": {
+        "title": "CSS rules",
+        "explain": "CSS picks a part of your page, then lists how it should look inside curly brackets.",
+        "links": [
+          {
+            "title": "MDN: CSS basics",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/CSS_basics"
+          }
+        ],
+        "imageQuery": "css rule anatomy diagram",
+        "videoQuery": "css for beginners first rule"
+      }
+    },
+    {
+      "id": "body-font",
+      "chapter": "colour",
+      "title": "Choose a font and spacing",
+      "instruction": "Inside your body rule, under the color line, add font-family: Georgia, serif; then margin: 0; then padding: 20px;",
+      "why": "font-family picks the letter style, margin is the space outside a box, and padding is the space inside it.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "after": "color: #5a3e2b;"
+      },
+      "expected": "  font-family: Georgia, serif;\n  margin: 0;\n  padding: 20px;",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your letters haven't changed to the Georgia style yet.",
+          "selector": "body",
+          "property": "font-family",
+          "value": "Georgia, serif"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page still has the browser's own gap around the edge.",
+          "selector": "body",
+          "property": "margin-top",
+          "value": "0px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "I can't see the comfy space inside your page edge yet.",
+          "selector": "body",
+          "property": "padding-top",
+          "value": "20px"
+        }
+      ],
+      "hints": [
+        "Give the page a friendlier letter style and some breathing room inside the edges.",
+        "Under the color line, add font-family with Georgia, serif, then margin set to 0, then padding set to 20px.",
+        "font-family: …;\nmargin: …;\npadding: …;"
+      ],
+      "concept": {
+        "title": "Margin and padding",
+        "explain": "Padding is the space inside a box around its content; margin is the space outside, pushing other things away.",
+        "links": [
+          {
+            "title": "MDN: The box model",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/Building_blocks/The_box_model"
+          }
+        ],
+        "imageQuery": "css box model margin padding diagram"
+      }
+    },
+    {
+      "id": "header-style",
+      "chapter": "colour",
+      "title": "Centre the greeting",
+      "instruction": "Under the body rule, add a header rule with text-align: center; Then add a rule for .avatar with font-size: 64px; and margin: 0;",
+      "why": "text-align centres the words, and font-size makes your smiley big.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 7
+      },
+      "expected": "\nheader {\n  text-align: center;\n}\n\n.avatar {\n  font-size: 64px;\n  margin: 0;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your greeting isn't in the middle yet.",
+          "selector": "header",
+          "property": "text-align",
+          "value": "center"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your smiley isn't big yet.",
+          "selector": ".avatar",
+          "property": "font-size",
+          "value": "64px"
+        }
+      ],
+      "hints": [
+        "Put the top part in the middle and make the smiley really big.",
+        "Write a header rule with text-align: center; then a .avatar rule (with the dot) with font-size: 64px; and margin: 0;",
+        "header {\n  text-align: …;\n}\n\n.avatar {\n  …\n}"
+      ],
+      "concept": {
+        "title": "Classes",
+        "explain": "A dot before a name, like .avatar, styles only the parts you gave that class name.",
+        "links": [
+          {
+            "title": "MDN: Class selectors",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Class_selectors"
+          }
+        ]
+      }
+    },
+    {
+      "id": "headings",
+      "chapter": "colour",
+      "title": "Colour the headings",
+      "instruction": "Under the .avatar rule, add an h1 rule with color: #d9534f; and font-size: 40px; then an h2 rule with color: #e07b39;",
+      "why": "Bright headings make your page warm and easy to scan.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 16
+      },
+      "expected": "\nh1 {\n  color: #d9534f;\n  font-size: 40px;\n}\n\nh2 {\n  color: #e07b39;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your big heading isn't red yet.",
+          "selector": "h1",
+          "property": "color",
+          "value": "rgb(217, 83, 79)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your big heading isn't the new size yet.",
+          "selector": "h1",
+          "property": "font-size",
+          "value": "40px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your smaller headings aren't orange yet.",
+          "selector": "h2",
+          "property": "color",
+          "value": "rgb(224, 123, 57)"
+        }
+      ],
+      "hints": [
+        "Give your big heading and your smaller headings their own colours.",
+        "Write an h1 rule with color #d9534f and font-size 40px, then an h2 rule with color #e07b39.",
+        "h1 {\n  color: …;\n  …\n}\n\nh2 {\n  …\n}"
+      ],
+      "quiz": {
+        "question": "What does padding do?",
+        "options": [
+          "Adds space inside a box",
+          "Changes the text colour",
+          "Adds space outside a box"
+        ],
+        "answer": 0,
+        "explain": "Padding is the space inside a box; margin is the space outside it."
+      }
+    },
+    {
+      "id": "section-box",
+      "chapter": "boxes",
+      "title": "Turn sections into cards",
+      "instruction": "Under the h2 rule, add a section rule with background: #ffffff; and border: 2px solid #f4c095;",
+      "why": "border draws a line around a box, so each section looks like a white card.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 25
+      },
+      "expected": "\nsection {\n  background: #ffffff;\n  border: 2px solid #f4c095;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your sections don't have a white background yet.",
+          "selector": "section",
+          "property": "background-color",
+          "value": "rgb(255, 255, 255)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your sections don't have a solid line around them yet.",
+          "selector": "section",
+          "property": "border-top-style",
+          "value": "solid"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "The line around your sections isn't the soft orange colour #f4c095 yet.",
+          "selector": "section",
+          "property": "border-top-color",
+          "value": "rgb(244, 192, 149)"
+        }
+      ],
+      "hints": [
+        "Make each part of your page look like a white card with an outline.",
+        "Write a section rule with background #ffffff and border set to 2px solid #f4c095.",
+        "section {\n  background: …;\n  border: …;\n…"
+      ],
+      "concept": {
+        "title": "Borders",
+        "explain": "A border is a line around a box; you choose how thick it is, its style and its colour.",
+        "links": [
+          {
+            "title": "MDN: border",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border"
+          }
+        ]
+      }
+    },
+    {
+      "id": "section-shape",
+      "chapter": "boxes",
+      "title": "Round and centre the cards",
+      "instruction": "Inside the section rule, under the border line, add border-radius: 16px; padding: 20px; margin: 20px auto; and max-width: 500px;",
+      "why": "border-radius rounds the corners, max-width stops cards getting too wide, and margin auto centres them.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "after": "border: 2px solid #f4c095;"
+      },
+      "expected": "  border-radius: 16px;\n  padding: 20px;\n  margin: 20px auto;\n  max-width: 500px;",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your cards still have sharp corners.",
+          "selector": "section",
+          "property": "border-top-left-radius",
+          "value": "16px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your cards can still stretch too wide.",
+          "selector": "section",
+          "property": "max-width",
+          "value": "500px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your cards need some space inside them.",
+          "selector": "section",
+          "property": "padding-top",
+          "value": "20px"
+        }
+      ],
+      "hints": [
+        "Round the card corners, give them room inside, and keep them a nice width in the middle.",
+        "Under the border line add border-radius 16px, padding 20px, margin 20px auto, and max-width 500px.",
+        "border-radius: …;\npadding: …;\nmargin: … auto;\n…"
+      ],
+      "concept": {
+        "title": "Rounded corners and width",
+        "explain": "border-radius rounds a box's corners, and max-width sets how wide a box may grow.",
+        "links": [
+          {
+            "title": "MDN: border-radius",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius"
+          },
+          {
+            "title": "MDN: max-width",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/max-width"
+          }
+        ]
+      }
+    },
+    {
+      "id": "list-footer",
+      "chapter": "boxes",
+      "title": "Tidy the list and footer",
+      "instruction": "Under the section rule, add an li rule with font-size: 18px; and margin: 8px 0; then a footer rule with text-align: center; and font-size: 14px;",
+      "why": "Bigger, spaced-out hobbies are easier to read, and a small centred footer looks neat.",
+      "who": "learner",
+      "file": "style.css",
+      "anchor": {
+        "afterLine": 34
+      },
+      "expected": "\nli {\n  font-size: 18px;\n  margin: 8px 0;\n}\n\nfooter {\n  text-align: center;\n  font-size: 14px;\n}",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your hobbies aren't a bit bigger yet.",
+          "selector": "li",
+          "property": "font-size",
+          "value": "18px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your signature isn't small and centred yet.",
+          "selector": "footer",
+          "property": "font-size",
+          "value": "14px"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your signature isn't in the middle yet.",
+          "selector": "footer",
+          "property": "text-align",
+          "value": "center"
+        }
+      ],
+      "hints": [
+        "Make each hobby a little bigger with space between, and make the signature small and centred.",
+        "Write an li rule with font-size 18px and margin 8px 0, then a footer rule with text-align center and font-size 14px.",
+        "li {\n  font-size: …;\n  …\n}\n\nfooter {\n  …\n}"
+      ]
+    },
+    {
+      "id": "look-final",
+      "chapter": "boxes",
+      "title": "Admire your page",
+      "instruction": "Go back to your browser and refresh index.html. Your warm, friendly page is finished!",
+      "why": "Refreshing shows all your colours and cards together.",
+      "who": "watch",
+      "file": "style.css",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Find the browser tab with your page.",
+        "Press the refresh button or F5.",
+        "If nothing changed, check both files are saved and in the same folder."
+      ],
+      "quiz": {
+        "question": "Which line makes the corners of a box round?",
+        "options": [
+          "border: 2px solid",
+          "border-radius: 16px",
+          "max-width: 500px"
+        ],
+        "answer": 1,
+        "explain": "border-radius controls how rounded the corners are."
+      }
+    }
+  ],
+  "createdAt": "2026-10-29T06:45:02.714Z",
+  "version": 1
+}
