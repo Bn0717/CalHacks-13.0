@@ -168,7 +168,14 @@ export async function readVideo(youtubeUrl: string, deps: GeminiDeps = {}): Prom
   }
   const notes = VideoNotesSchema.safeParse(data);
   if (!notes.success) throw new GeminiError(`Gemini's notes were missing parts: ${notes.error.issues[0]?.message ?? "unknown"}.`);
-  return notes.data;
+  return { ...notes.data, segments: notes.data.segments.map((seg) => ({ ...seg, code: unescapeCode(seg.code) })) };
+}
+
+// Gemini sometimes escapes code twice, so a whole file arrives on one line with a typed backslash-n where each line
+// break goes. Code with no real line break but with backslash-n in it is turned back into normal lines.
+export function unescapeCode(code: string): string {
+  if (code.includes("\n") || !code.includes("\\n")) return code;
+  return code.replace(/\\r\\n|\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"');
 }
 
 function mediaResolutionOf(value: string | undefined): MediaResolution {
