@@ -118,7 +118,30 @@ export type EvalReport = {
   findings: string[]; // plain notes worked out from the real results (see findingsFor)
   messageExamples: { before: string; after: string }[];
   promptChanges: { where: string; change: string; why: string }[];
+  hintChecks?: HintCheckCost[]; // real Haiku check calls made while a student is stuck (GOAL C3: under $0.01 each)
+  before?: BeforeRun; // the earlier run these results are compared with
 };
+
+// One real Haiku check call, the kind made when a step needs the AI to decide (an 'ai' check, or levels 1-2 can't).
+export type HintCheckCost = { lesson: string; stepId: string; answer: string; inputTokens: number; outputTokens: number; usd: number };
+
+// The scores of an earlier run, for the before/after table.
+export type BeforeRun = { ranAt: string; cases: Pick<CaseResult, "name" | "grade" | "judgement" | "usd" | "estimate">[] };
+
+// The before part of an earlier report.json (only what the comparison needs).
+export function beforeRunFrom(r: Pick<EvalReport, "ranAt" | "cases">): BeforeRun {
+  return {
+    ranAt: r.ranAt,
+    cases: r.cases.filter((c) => c.grade).map((c) => ({ name: c.name, ...(c.grade ? { grade: c.grade } : {}), ...(c.judgement ? { judgement: c.judgement } : {}), ...(c.usd !== undefined ? { usd: c.usd } : {}), ...(c.estimate ? { estimate: c.estimate } : {}) })),
+  };
+}
+
+// The average of the five Opus scores, or undefined when the lesson wasn't reviewed.
+export function averageScore(j: LessonJudgement | undefined): number | undefined {
+  if (!j) return undefined;
+  const s = Object.values(j.scores);
+  return s.reduce((n, x) => n + x, 0) / s.length;
+}
 
 export const GEMINI_PRICE_NOTE =
   "Gemini priced at $1.50 per million input tokens and $9.00 per million output + thinking tokens (Google Cloud's published " +
@@ -154,7 +177,7 @@ export function summarizeNotes(notes: VideoNotes): Pick<VideoNotesResult, "title
 }
 
 // Notes worked out from the real results only. Anything that is a projection says so.
-export function findingsFor(r: Pick<EvalReport, "cases" | "videoNotes" | "claude">): string[] {
+export function findingsFor(r: Pick<EvalReport, "cases" | "videoNotes" | "claude"> & Pick<Partial<EvalReport>, "hintChecks">): string[] {
   const out: string[] = [];
   const built = r.cases.filter((c) => c.source === "built" && c.grade?.kind === "lesson" && c.usd !== undefined);
   if (built.length > 0) {
@@ -164,6 +187,15 @@ export function findingsFor(r: Pick<EvalReport, "cases" | "videoNotes" | "claude
     out.push(
       "GOAL C3 (build under $0.50, hint under $0.01): no real Claude call ran, so there is no real lesson-build or hint cost yet. " +
         "The about-me fixture is hand-written, so it has no cost data at all; it only gives the estimate shown above.",
+    );
+  }
+  if (r.hintChecks && r.hintChecks.length > 0) {
+    const worst = Math.max(...r.hintChecks.map((h) => h.usd));
+    const avg = r.hintChecks.reduce((n, h) => n + h.usd, 0) / r.hintChecks.length;
+    out.push(
+      `GOAL C3 (hint under $0.01): ${r.hintChecks.length} real Haiku check call(s), average ${dollars(avg)}, most expensive ${dollars(worst)} — ` +
+        `${worst < 0.01 ? "passes" : "FAILS"}. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; ` +
+        "only a check the code can't decide calls Haiku.",
     );
   }
   const notes = r.videoNotes.filter((v) => v.usd !== undefined);
@@ -268,7 +300,30 @@ export function reportMarkdown(r: EvalReport): string {
   out.push("## Spend", "");
   out.push(`This run: ${dollars(r.spend.thisRun)}. All eval runs so far (cost.json): ${dollars(r.spend.allRuns)}. Hard cap: ${dollars(r.spend.cap)}.`, "");
 
-  out.push("## Prompt changes", "", "Before/after: pending a real run with a working Claude key.", "");
+  if (r.hintChecks && r.hintChecks.length > 0) {
+    out.push("## Hint-time checks (Haiku, real calls)", "");
+    out.push("| Lesson | Step | Haiku said | Tokens in / out | Cost |", "|---|---|---|---|---|");
+    for (const h of r.hintChecks) out.push(`| ${cell(h.lesson)} | ${cell(h.stepId)} | ${cell(h.answer)} | ${h.inputTokens} / ${h.outputTokens} | ${dollars(h.usd)} |`);
+    out.push("");
+  }
+
+  out.push("## Prompt changes", "");
+  if (r.before) {
+    out.push(`Before = the run of ${r.before.ranAt}; after = this run. Opus scores are wording · step size · order · hints · fidelity (1-5), then their average.`, "");
+    out.push("| Lesson | Automatic grade before → after | Opus scores before | Opus scores after | Average before → after | Build cost before → after |", "|---|---|---|---|---|---|");
+    for (const c of r.cases.filter((x) => x.grade?.kind === "lesson")) {
+      const b = r.before.cases.find((x) => x.name === c.name);
+      if (!b) continue;
+      const short = (j?: LessonJudgement) => (j ? `${j.scores.wording} · ${j.scores.stepSize} · ${j.scores.order} · ${j.scores.hints} · ${j.scores.fidelity}` : "—");
+      const avg = (j?: LessonJudgement) => (averageScore(j) === undefined ? "—" : averageScore(j)!.toFixed(1));
+      const g = (x?: Grade) => (x ? `${x.passed}/${x.total}` : "—");
+      const usd = (x?: number) => (x === undefined ? "—" : dollars(x));
+      out.push(`| ${cell(c.name)} | ${g(b.grade)} → ${g(c.grade)} | ${short(b.judgement)} | ${short(c.judgement)} | ${avg(b.judgement)} → ${avg(c.judgement)} | ${usd(b.usd)} → ${usd(c.usd)} |`);
+    }
+    out.push("");
+  } else {
+    out.push("Before/after: this is the first run with these prompts; the next run compares against it (`--before`).", "");
+  }
   out.push("| Where | Change | Why |", "|---|---|---|");
   for (const p of r.promptChanges) out.push(`| ${cell(p.where)} | ${cell(p.change)} | ${cell(p.why)} |`);
   out.push("");

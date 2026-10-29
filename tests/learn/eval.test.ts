@@ -8,6 +8,8 @@ import {
   BudgetError,
   capped,
   EVAL_CASES,
+  averageScore,
+  beforeRunFrom,
   findingsFor,
   PROMPT_CHANGES,
   reportMarkdown,
@@ -75,7 +77,7 @@ describe("report", () => {
     const md = reportMarkdown(base);
     expect(md).toContain("## Blocked: no working Claude key");
     expect(md).toContain("npm run learn:eval");
-    expect(md).toContain("Before/after: pending a real run");
+    expect(md).toContain("Before/after: this is the first run");
     expect(md).not.toMatch(/wording \d/);
     expect(md).toContain("| a page about me | — | blocked: needs a working Claude key |");
     expect(md).toContain("$0.20");
@@ -99,5 +101,31 @@ describe("report", () => {
     expect(f.join(" ")).toMatch(/abc: Gemini copied only 6 code lines/);
     const built = findingsFor({ ...base, cases: [{ name: "x", kind: "idea", status: "graded", source: "built", usd: 0.62, grade: { name: "x", kind: "lesson", criteria: [], passed: 0, total: 0 } }] });
     expect(built[0]).toMatch(/most expensive \$0\.62 — FAILS/);
+  });
+
+  it("compares with an earlier run: grades, Opus scores, their average and build cost", () => {
+    const lessonGrade = (passed: number) => ({ name: "x", kind: "lesson" as const, criteria: [], passed, total: 8 });
+    const j = (n: number) => ({ scores: { wording: n, stepSize: n, order: n, hints: n, fidelity: n }, worst: [], summary: "s" });
+    const earlier: EvalReport = { ...base, ranAt: "2026-10-29T08:00:00.000Z", cases: [{ name: "x", kind: "idea", status: "graded", source: "built", grade: lessonGrade(5), judgement: j(3), usd: 0.4 }] };
+    const now: EvalReport = {
+      ...base,
+      claude: { usable: true, note: "working" },
+      cases: [{ name: "x", kind: "idea", status: "graded", source: "built", grade: lessonGrade(7), judgement: j(4), usd: 0.35 }],
+      before: beforeRunFrom(earlier),
+    };
+    const md = reportMarkdown(now);
+    expect(md).toContain("Before = the run of 2026-10-29T08:00:00.000Z");
+    expect(md).toContain("| x | 5/8 → 7/8 | 3 · 3 · 3 · 3 · 3 | 4 · 4 · 4 · 4 · 4 | 3.0 → 4.0 | $0.40 → $0.35 |");
+    expect(averageScore(undefined)).toBeUndefined();
+  });
+
+  it("reports the real cost of hint-time Haiku checks against the $0.01 goal", () => {
+    const hintChecks = [
+      { lesson: "x", stepId: "s1", answer: "no: I can't see your list yet.", inputTokens: 1500, outputTokens: 60, usd: 0.00018 },
+      { lesson: "y", stepId: "s2", answer: "no: missing", inputTokens: 2000, outputTokens: 50, usd: 0.000225 },
+    ];
+    const f = findingsFor({ ...base, hintChecks });
+    expect(f.join(" ")).toMatch(/2 real Haiku check call\(s\), average \$0\.0002, most expensive \$0\.0002 — passes/);
+    expect(reportMarkdown({ ...base, hintChecks })).toContain("| x | s1 | no: I can't see your list yet. | 1500 / 60 | $0.0002 |");
   });
 });
