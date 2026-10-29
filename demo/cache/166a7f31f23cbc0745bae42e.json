@@ -1,0 +1,16 @@
+{
+  "verdict": "couldnt-verify",
+  "headline": "Not confirmed. The CalHacks app was not started, and no check named it.",
+  "proofs": [
+    {
+      "claim": "Some Electron-based apps are running on this Mac.",
+      "evidence_refs": [
+        "E1"
+      ]
+    }
+  ],
+  "problems": [
+    "You chose not to start the CalHacks app, so the helper did not start it.",
+    "The final check only looked for any Electron app running, not specifically CalHacks, so it cannot confirm CalHacks is open."
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "goal": "Check a finished app build",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "No action needed, build already finished",
+      "explanation": "This text is a record of a app build that already ran and finished without errors. There is nothing new for you to do here.",
+      "kind": "info",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "safe",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

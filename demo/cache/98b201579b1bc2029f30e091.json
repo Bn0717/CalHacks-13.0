@@ -1,0 +1,112 @@
+{
+  "goal": "Set up CalHack on this Mac",
+  "applies_to_this_computer": true,
+  "page_concerns": [],
+  "steps": [
+    {
+      "title": "Install the Droid helper program",
+      "explanation": "Installs the Droid program from Homebrew. CalHack uses it to run approved fixes on your Mac. You also need to add a key to a settings file afterwards.",
+      "kind": "command",
+      "command": "brew install --cask droid",
+      "url": null,
+      "check_command": "command -v droid",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Gives the app power to run commands on your Mac"
+      ]
+    },
+    {
+      "title": "Install the project's code libraries",
+      "explanation": "Downloads the extra code this app needs to run. This is the first setup step.",
+      "kind": "command",
+      "command": "npm install",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Download the Electron app framework",
+      "explanation": "Downloads the framework the app is built on. It only needs to happen once.",
+      "kind": "command",
+      "command": "npx electron --version",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Create your settings file",
+      "explanation": "Makes a private settings file from the example. Then open it and paste in your own key from the Anthropic website.",
+      "kind": "command",
+      "command": "cp .env.example .env",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Your API key is private; never share this file"
+      ]
+    },
+    {
+      "title": "Optional: set up the local voice (about 340 MB)",
+      "explanation": "Downloads a voice that speaks on your Mac without the internet. Skip this if you do not need spoken replies. It only needs to happen once.",
+      "kind": "command",
+      "command": "npm run voice:heart:setup",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Downloads a large file of about 340 MB"
+      ]
+    },
+    {
+      "title": "Start the demo pages",
+      "explanation": "Starts the practice web pages on this Mac. Keep this Terminal window open.",
+      "kind": "command",
+      "command": "npm run demo:pages",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Start the CalHack app",
+      "explanation": "Opens CalHack. Use a second Terminal window for this, while the demo pages keep running. A small shield icon appears in the menu bar when it works.",
+      "kind": "command",
+      "command": "npm start",
+      "url": null,
+      "check_command": null,
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}

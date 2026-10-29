@@ -41,6 +41,24 @@ export function holdClicksThrough(): () => void {
 }
 
 let lastBarState: BarState = { phase: "hidden" };
+
+/**
+ * True: CalHack's windows are hidden from every screenshot and screen recording (the safe default).
+ * False once main.ts has the screen capture helper working, which leaves CalHack's windows out of its own screenshots:
+ * then the person's screen recordings show CalHack, and the AI still only sees their screen.
+ * CALHACK_SHOW_IN_SCREENSHOTS=1 (testing only) shows them everywhere, the AI's screenshots too.
+ */
+let protectWindows = true;
+
+export function hiddenFromCaptures(): boolean {
+  return protectWindows && process.env.CALHACK_SHOW_IN_SCREENSHOTS !== "1";
+}
+
+/** Shows CalHack's windows in screen recordings (on) or hides them from every capture again (off). */
+export function showInRecordings(on: boolean): void {
+  protectWindows = !on;
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.setContentProtection(hiddenFromCaptures());
+}
 let pointer: BrowserWindow | null = null;
 
 function makeWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWindow {
@@ -56,10 +74,12 @@ function makeWindow(opts: Electron.BrowserWindowConstructorOptions): BrowserWind
     webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
     ...opts,
   });
-  // Keep our windows out of screenshots, so Claude only sees the person's screen.
-  // (CALHACK_SHOW_IN_SCREENSHOTS=1 turns this off, for recording demos and testing.)
-  win.setContentProtection(process.env.CALHACK_SHOW_IN_SCREENSHOTS !== "1");
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // Claude must only see the person's screen, never CalHack. Either CalHack's own screenshots leave these windows out
+  // (then they can show in the person's screen recordings), or the windows are hidden from every capture.
+  win.setContentProtection(hiddenFromCaptures());
+  // skipTransformProcessType: CalHack already runs without a Dock icon. Without it, Electron briefly turns CalHack
+  // into a Dock app and back, and macOS jumps to the desktop, away from the page the person pressed the hotkey on.
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   win.webContents.on("will-navigate", (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   if (process.env.CALHACK_DEBUG) win.webContents.on("console-message", (e) => console.log(`[page ${e.level}] ${e.message}`));

@@ -46,7 +46,8 @@ import { QUIET, transcribe, voiceProblem, wavLoudness } from "./voice-in.js";
 import { synthesize, stopVoiceOut } from "./voice-out.js";
 import type { BarState, CheckLine, DetailLine, StepLine } from "./protocol.js";
 import { detailLines, helpSummary, planNotes, receiptView, stepLines } from "./view.js";
-import { buddyTalking, currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, setScreenGlance, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
+import { available as captureAvailable, captureWithoutCalHack, startCapture } from "../mac/capture.js";
+import { buddyTalking, currentBar, ensureBar, focusBar as focusBarNow, hidePointer, holdClicksThrough, pointAt, resetBarPosition, say as sayNow, setBarRect, setScreenGlance, hiddenFromCaptures, showInRecordings, showBar as showBarNow, startBarDrag, stopBarDrag } from "./windows.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
@@ -227,21 +228,48 @@ interface Shot {
   toScreen: number;
 }
 
-async function captureScreen(): Promise<Shot | null> {
+/** True once CalHack's windows show in screen recordings (the capture helper leaves them out of its own screenshots). */
+let shownInRecordings = false;
+
+/**
+ * The main display as an image `width` pixels wide, never showing CalHack's own windows, so the AI only sees the
+ * person's screen. Uses the capture helper (src/mac/capture.ts). If that isn't working, CalHack's windows are hidden from
+ * every capture first, then Electron's own capture is used.
+ */
+async function grabScreen(width: number, format: "jpeg" | "png"): Promise<{ image: Electron.NativeImage; encoded?: Buffer } | null> {
+  if (captureAvailable()) {
+    const encoded = await captureWithoutCalHack(width, format);
+    if (encoded) {
+      const image = nativeImage.createFromBuffer(encoded);
+      if (!image.isEmpty()) return { image, encoded };
+    }
+  }
+  if (shownInRecordings) {
+    // The helper stopped working: hide CalHack from captures again before looking another way.
+    shownInRecordings = false;
+    showInRecordings(false);
+    await new Promise((r) => setTimeout(r, 120));
+  }
   const display = screen.getPrimaryDisplay();
-  const { width, height } = display.bounds;
+  const { width: w, height: h } = display.bounds;
   try {
-    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width, height } });
+    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width, height: Math.round((width * h) / w) } });
     const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
-    if (!src || src.thumbnail.isEmpty()) return null;
-    // Claude works best with images up to about 1500 pixels on the long side.
-    const scale = Math.min(1, 1456 / Math.max(width, height));
-    const img = scale < 1 ? src.thumbnail.resize({ width: Math.round(width * scale), quality: "good" }) : src.thumbnail;
-    const size = img.getSize();
-    return { data: img.toJPEG(75).toString("base64"), mediaType: "image/jpeg", width: size.width, height: size.height, toScreen: width / size.width };
+    return src && !src.thumbnail.isEmpty() ? { image: src.thumbnail } : null;
   } catch {
     return null;
   }
+}
+
+async function captureScreen(): Promise<Shot | null> {
+  const { width, height } = screen.getPrimaryDisplay().bounds;
+  // Claude works best with images up to about 1500 pixels on the long side.
+  const scale = Math.min(1, 1456 / Math.max(width, height));
+  const got = await grabScreen(Math.round(width * scale), "jpeg");
+  if (!got) return null;
+  const size = got.image.getSize();
+  const jpeg = got.encoded ?? got.image.toJPEG(75);
+  return { data: jpeg.toString("base64"), mediaType: "image/jpeg", width: size.width, height: size.height, toScreen: width / size.width };
 }
 
 /**
@@ -249,15 +277,8 @@ async function captureScreen(): Promise<Shot | null> {
  * Kept in memory for one comparison; never saved and never sent anywhere.
  */
 async function glanceScreen(): Promise<Uint8Array | null> {
-  const display = screen.getPrimaryDisplay();
-  const { width, height } = display.bounds;
-  try {
-    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 160, height: Math.round((160 * height) / width) } });
-    const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
-    return src && !src.thumbnail.isEmpty() ? new Uint8Array(src.thumbnail.toBitmap()) : null;
-  } catch {
-    return null;
-  }
+  const got = await grabScreen(160, "png");
+  return got ? new Uint8Array(got.image.toBitmap()) : null;
 }
 
 /**
@@ -266,17 +287,10 @@ async function glanceScreen(): Promise<Uint8Array | null> {
  */
 async function glanceForBar(): Promise<{ bitmap: { data: Uint8Array; width: number; height: number }; toImage: number } | null> {
   if (!screenAllowed()) return null;
-  const display = screen.getPrimaryDisplay();
-  const { width, height } = display.bounds;
-  try {
-    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 320, height: Math.round((320 * height) / width) } });
-    const src = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
-    if (!src || src.thumbnail.isEmpty()) return null;
-    const size = src.thumbnail.getSize();
-    return { bitmap: { data: new Uint8Array(src.thumbnail.toBitmap()), width: size.width, height: size.height }, toImage: size.width / width };
-  } catch {
-    return null;
-  }
+  const got = await grabScreen(320, "png");
+  if (!got) return null;
+  const size = got.image.getSize();
+  return { bitmap: { data: new Uint8Array(got.image.toBitmap()), width: size.width, height: size.height }, toImage: size.width / screen.getPrimaryDisplay().bounds.width };
 }
 
 function screenAllowed(): boolean {
@@ -1273,7 +1287,7 @@ function showWarning(data: { reasons: string[]; command: string }): void {
       y: area.y + 40,
       webPreferences: { preload: PRELOAD, contextIsolation: true, sandbox: true, nodeIntegration: false },
     });
-    warning.setContentProtection(true);
+    warning.setContentProtection(hiddenFromCaptures());
     warning.setAlwaysOnTop(true, "screen-saver");
     warning.webContents.on("will-navigate", (e) => e.preventDefault());
     warning.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -1476,6 +1490,16 @@ if (!app.requestSingleInstanceLock()) {
     watchClipboard();
     ensureBar();
     setScreenGlance(glanceForBar);
+    // Show CalHack in the person's screen recordings, once its own screenshots can leave it out.
+    // CALHACK_HIDE_FROM_RECORDINGS=1 keeps it hidden from every capture instead.
+    if (screenAllowed() && process.env.CALHACK_HIDE_FROM_RECORDINGS !== "1") {
+      void startCapture().then((ok) => {
+        if (!ok) return;
+        shownInRecordings = true;
+        showInRecordings(true);
+        console.log("CalHack shows in screen recordings. Its own screenshots leave it out, so the AI only sees your screen.");
+      });
+    }
     if (!hasApiKey()) console.error("No ANTHROPIC_API_KEY in .env yet.");
     if (!screenAllowed()) console.log("Screen Recording is off: CalHack can read web pages, documents and copied text, and you can type what's wrong.");
     console.log(`Ready. Press ${KEY_LABEL}.`);

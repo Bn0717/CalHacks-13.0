@@ -1,0 +1,87 @@
+{
+  "goal": "Join a video visit with the doctor",
+  "applies_to_this_computer": true,
+  "page_concerns": [
+    {
+      "concern": "Check-in link goes to a site that isn't Bayview's",
+      "steps": [
+        1
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "title": "Check in for your visit online",
+      "explanation": "Open the check-in link and fill in the form. This tells the clinic you have arrived for your appointment.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Check in",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": [
+        "Form goes to calhacks.vzhsiao.com, not the clinic's own site"
+      ]
+    },
+    {
+      "title": "Allow camera and microphone for Meet",
+      "explanation": "Google Meet will ask to use your camera and microphone so the doctor can see and hear you. Click Allow.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Allow",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Turn up the volume and unmute",
+      "explanation": "Make sure your sound is on and loud enough to hear the doctor.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": "osascript -e 'output muted of (get volume settings)' | grep -q false",
+      "click_target": null,
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Turn on Do Not Disturb",
+      "explanation": "This stops alerts from interrupting your visit. It is optional but helpful.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Do Not Disturb",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    },
+    {
+      "title": "Open the visit link and join",
+      "explanation": "Open the Google Meet link from the email. Then click Ask to join or Join now to enter the visit.",
+      "kind": "manual",
+      "command": null,
+      "url": null,
+      "check_command": null,
+      "click_target": "Join now",
+      "settings_url": null,
+      "risk_opinion": "ask",
+      "alternative_group": null,
+      "alternative_option": null,
+      "concerns": []
+    }
+  ],
+  "finish_check": null
+}
