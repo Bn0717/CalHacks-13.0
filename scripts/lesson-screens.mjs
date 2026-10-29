@@ -5,6 +5,7 @@
 //   overflow  nothing sticks out sideways or gets cut off (the 2x text size is the hard one)
 //   overlap   the lesson card never covers the code
 //   in view   what the student needs right now is on screen without scrolling: the main button, a newly shown hint,
+//             the note about their code, the finish counts, the build stage running now,
 //             and the estimate's minutes · lines · steps (at 2x text in the real 420 px window too)
 //   keyboard  Tab reaches every control in reading order, and each shows a focus ring
 //   words     no jargon ("selector", "parse", "runner"...) and no script errors
@@ -178,7 +179,9 @@ function auditInPage() {
     if (!visible(el) || el.closest(".lbuddy")) continue;
     const s = getComputedStyle(el);
     const r = el.getBoundingClientRect();
-    if (s.overflowX !== "visible" && el.scrollWidth > el.clientWidth + 1) out.overflow.push("cut off: " + short(el));
+    // A code box that scrolls sideways on purpose (labelled, and reachable with Tab so the keyboard can scroll it) is fine.
+    const scrollsOnPurpose = el.matches('pre[role="region"][tabindex="0"][aria-label]') && (s.overflowX === "auto" || s.overflowX === "scroll");
+    if (s.overflowX !== "visible" && el.scrollWidth > el.clientWidth + 1 && !scrollsOnPurpose) out.overflow.push("cut off: " + short(el));
     else if (r.right > cardRect.right + 1 || r.left < cardRect.left - 1) out.overflow.push("sticks out: " + short(el));
   }
 
@@ -208,6 +211,23 @@ function auditInPage() {
   inView(card.querySelector(".lactions .lbtn.primary"), "the main button");
   inView(card.querySelector(".lhint.is-latest"), "the new hint");
   if (card.dataset.screen === "estimate") inView(card.querySelector(".lstats"), "the minutes · lines · steps");
+  // What Stride says about their code ("Not quite yet" and why). Not when the student opened More to read other things,
+  // and not at big text once a hint is open: then the hint is the news (the note sits right above it, a scroll away).
+  const hintAtBigText = card.classList.contains("is-compact") && card.querySelector(".lhint.is-latest");
+  if (card.dataset.screen === "step" && !card.classList.contains("is-expanded") && !hintAtBigText) inView(card.querySelector('.lstatus[data-status="stuck"], .lstatus[data-status="partial"], .lstatus[data-status="stride-failed"]'), "the note about their code");
+  // The finish counts, and the build stage running now, always.
+  if (card.dataset.screen === "finished") inView(card.querySelector(".ltiles"), "the done-alone / hinted / shown counts");
+  if (card.dataset.screen === "building") inView(card.querySelector(".ltick.running"), "the build stage running now");
+
+  // The buddy's arms and legs are thin lines: they need 3:1 against the card to be seen (WCAG's rule for graphics).
+  out.buddyContrast = Infinity;
+  for (const limb of card.querySelectorAll(".lbuddy-svg > path:nth-child(-n+4)")) {
+    const stroke = parse(getComputedStyle(limb).stroke);
+    if (!stroke) continue;
+    const bg = backdrop(limb.closest(".lbuddy") || card);
+    out.buddyContrast = Math.min(out.buddyContrast, ratio(over(stroke, bg), bg));
+  }
+  if (out.buddyContrast < 3) out.hidden.push(`the buddy's arms and legs are only ${out.buddyContrast.toFixed(2)}:1 against the card (needs 3:1)`);
 
   // Words
   const model = window.StrideLessonModel;
@@ -295,7 +315,7 @@ export async function runLessonScreens({ quick = false, shots = !quick, write = 
             ...keys,
             ...errors.map((e) => `script error: ${e}`),
           ];
-          results.push({ state, theme, size, file: shots ? file : null, failures, minContrast: audit.minContrast, texts: audit.texts, controls: audit.controls });
+          results.push({ state, theme, size, file: shots ? file : null, failures, minContrast: audit.minContrast, buddyContrast: audit.buddyContrast, texts: audit.texts, controls: audit.controls });
         }
       }
     }
@@ -311,11 +331,19 @@ export async function runLessonScreens({ quick = false, shots = !quick, write = 
   return summary;
 }
 
+// The lowest buddy arm/leg contrast in one theme, as text.
+function limbs(results, theme) {
+  const values = results.filter((r) => r.theme === theme && Number.isFinite(r.buddyContrast)).map((r) => r.buddyContrast);
+  return values.length ? Math.min(...values).toFixed(2) : "–";
+}
+
 function shortReport({ results, failed, states, shots }) {
+
   const min = (theme) => Math.min(...results.filter((r) => r.theme === theme).map((r) => r.minContrast));
   const lines = [
     `Lesson screen: ${states.length} states x ${THEMES.length} themes x ${SIZES.length} text sizes = ${results.length} views, ${shots} screenshots.`,
     `Lowest text contrast: light ${min("light").toFixed(2)}:1, dark ${min("dark").toFixed(2)}:1 (needs 4.5:1).`,
+    `Lowest buddy arm/leg contrast: light ${limbs(results, "light")}:1, dark ${limbs(results, "dark")}:1 (needs 3:1).`,
     failed.length === 0 ? "All checks passed." : `${failed.length} views have problems:`,
   ];
   for (const r of failed) lines.push(`  ${r.theme} ${r.size}x ${r.state}: ${r.failures.join("; ")}`);
@@ -343,14 +371,16 @@ function report(summary) {
     "- **Names**: every button, field, group and the progress bar has a name a screen reader can say.",
     "- **Overflow**: nothing is cut off or sticks out sideways, and the page never scrolls sideways (2x text too).",
     "- **Overlap**: the lesson card never covers the code area.",
-    "- **In view**: the main button, a newly shown hint and the estimate's minutes · lines · steps are on screen without",
+    "- **In view**: the main button, a newly shown hint, the note about their code (\"Not quite yet\" and why; at 2x with a hint open the hint comes first), the",
+    "  estimate's minutes · lines · steps, the finish screen's counts and the build stage running now are on screen without",
     "  scrolling (the preview's lesson window is the real 420 px wide, so 2x text is the hard case).",
+    "- **Buddy**: the buddy's arms and legs are at least 3:1 against the card, in light and dark.",
     "- **Keyboard**: Tab reaches every control in reading order, each with a visible focus ring.",
     "- **Words**: no jargon (" + "DOM, selector, parse, runner, anchor, check…" + ") and no script errors.",
     "",
     `**${states.length} states x 2 themes x 2 text sizes = ${results.length} views. ${failed.length === 0 ? "All checks pass." : failed.length + " views have problems."}**`,
     "",
-    `Lowest text contrast: light **${min("light")}:1**, dark **${min("dark")}:1**.`,
+    `Lowest text contrast: light **${min("light")}:1**, dark **${min("dark")}:1**. Lowest buddy arm/leg contrast against the card: light **${limbs(results, "light")}:1**, dark **${limbs(results, "dark")}:1** (needs 3:1).`,
     "",
     "| State | Light 1x | Light 2x | Dark 1x | Dark 2x |",
     "|---|---|---|---|---|",

@@ -6,6 +6,8 @@
   "use strict";
 
   const FIXTURE = "../../../tests/learn/fixtures/about-me.lesson.json";
+  const REAL = window.StrideLessonPreviewData || {}; // made by scripts/lesson-preview-data.ts
+
   const listeners = {};
   const timers = [];
   const later = (ms, fn) => timers.push(setTimeout(fn, ms));
@@ -217,13 +219,22 @@
     add("typing", { view: stepView(intro, { status: "typing", line: 9 }), editor: [intro, half(I.expected) + "\n    <p>I'm learn", true] });
     add("checking", { view: stepView(intro, { status: "checking", line: 9 }), editor: [intro, I.expected] });
     add("passed", { view: stepView(intro, { status: "passed", line: 9, marks: { intro: "done" } }), editor: [intro, I.expected] });
-    add("partial", { view: stepView(intro, { status: "partial", line: 9, note: "Your big heading is there. Now add a short paragraph under it." }), editor: [intro, half(I.expected), true] });
-    add("stuck", { view: stepView(hobbies, { status: "stuck", line: 12, note: "One of the list items isn't closed yet. Look at the end of each line." }), editor: [hobbies, typo(H.expected)] });
-    add("want-hint", { view: stepView(hobbies, { status: "stuck", line: 12, hintOffered: true }), editor: [hobbies, typo(H.expected)] });
-    add("hint-1", { view: stepView(hobbies, { status: "stuck", line: 12, hintLevel: 1 }), editor: [hobbies, typo(H.expected)] });
-    add("hint-2", { view: stepView(hobbies, { status: "stuck", line: 12, hintLevel: 2 }), editor: [hobbies, typo(H.expected)] });
-    add("hint-3", { view: stepView(hobbies, { status: "stuck", line: 12, hintLevel: 3, canShowMe: true }), editor: [hobbies, typo(H.expected)] });
-    add("hints-expanded", { view: stepView(hobbies, { status: "stuck", line: 12, hintLevel: 3, canShowMe: true }), editor: [hobbies, typo(H.expected)], layout: { expanded: true } });
+    // The partial, stuck and hint states come from the real checker, runner and step card (scripts/lesson-preview-data.ts),
+    // so they say exactly what a student would read.
+    const real = (name, extra = {}) => {
+      const d = REAL[name];
+      if (!d) throw new Error("Missing preview data for " + name + ": run npx tsx scripts/lesson-preview-data.ts");
+      return { view: d.view, editor: [idx(d.step), d.typed, !!extra.caret], ...(extra.layout ? { layout: extra.layout } : {}) };
+    };
+    add("partial", real("partial", { caret: true }));
+    add("closer", real("closer"));
+    add("stuck", real("stuck"));
+    add("stuck-wrong", real("stuck-wrong"));
+    add("want-hint", real("want-hint"));
+    add("hint-1", real("hint-1"));
+    add("hint-2", real("hint-2"));
+    add("hint-3", real("hint-3"));
+    add("hints-expanded", real("hint-3", { layout: { expanded: true } }));
     add("show-me", { view: stepView(hobbies, { status: "showing", line: 12, hintLevel: 3, canShowMe: true, marks: { hobbies: "shown" } }), editor: [hobbies, half(H.expected), true] });
     add("do-for-me", { view: stepView(linkCss, { status: "showing", line: 6, doneForMe: true, pace: "fast", canShowMe: true, marks: { "link-css": "shown" } }), editor: [linkCss, lesson.steps[linkCss].expected, true] });
     add("concept", { view: stepView(skeleton, { line: 1, open: "concept" }), editor: [skeleton, "", true], layout: { expanded: true } });
@@ -240,7 +251,7 @@
     add("error-no-internet", { view: { screen: "error", kind: "no-internet", saved: true } });
     add("error-video", { view: { screen: "error", kind: "video-unreadable" } });
     add("error-other", { view: { screen: "error", kind: "other", message: "I couldn't save your progress just now.", saved: false } });
-    add("finished", { view: { screen: "finished", title: lesson.title, outcome: lesson.outcome, picture: finishedMock(), learned: ["The parts of an HTML page", "Lists", "Linking CSS"], steps: sumLearner, allSteps: lesson.steps.length, alone: 3, hinted: 1, shown: 1, skipped: 0, minutes: 24, next: { title: "Add a photo of you", why: "Learn the <img> tag and make the page feel like yours.", minutes: 20 } } });
+    add("finished", { view: { screen: "finished", title: lesson.title, outcome: lesson.outcome, picture: finishedMock(), learned: ["The parts of an HTML page", "Headings and paragraphs", "Lists", "Linking CSS"], steps: sumLearner, allSteps: lesson.steps.length, alone: 3, hinted: 1, shown: 1, skipped: 0, minutes: 24, next: { title: "Add a photo of you", why: "Learn the <img> tag and make the page feel like yours.", minutes: 20 } } });
     return S;
   }
 
@@ -460,25 +471,27 @@
         else if (channel === "lesson-show-me") { clearTimers(); marks[step.id] = "shown"; show(stepView(i, { ...base, status: "showing", hintLevel, marks: mk() })); typeOut(code, 0, 900, pass); }
         else if (channel === "lesson-skip") { clearTimers(); marks[step.id] = "skipped"; next(); }
       };
-      if (step.id === "intro") {
-        // Typed half: on the right track, then the rest.
-        typeOut(half(code), 600, 900, () => {
+      // What the real checker says about the slip (from scripts/lesson-preview-data.ts), not made-up words.
+      const said = REAL.stuck ? { note: REAL.stuck.view.note, parts: REAL.stuck.view.parts } : {};
+      const halfSaid = REAL.partial ? { note: REAL.partial.view.note, partial: "typing" } : {};
+      if (slip) {
+        // A pause half-way through the list (never judged), then the slip, the hint and the fix.
+        typeOut(REAL.partial ? REAL.partial.typed : half(code), 600, 900, () => {
           show(stepView(i, { ...base, status: "checking" }));
           at(500, () => {
-            show(stepView(i, { ...base, status: "partial", note: "Your big heading is there. Now add a short paragraph under it." }));
-            at(1200, () => typeOut(code, 0, 800, pass));
-          });
-        });
-      } else if (slip) {
-        typeOut(typed, 600, 1400, () => {
-          show(stepView(i, { ...base, status: "checking" }));
-          at(600, () => {
-            show(stepView(i, { ...base, status: "stuck", note: "One of the list items isn't closed yet." }));
-            at(1400, () => { hintLevel = 1; show(stepView(i, { ...base, status: "stuck", hintLevel })); });
-            at(3000, () => typeOut(code, 0, 600, pass));
+            show({ ...stepView(i, { ...base, status: "partial" }), ...halfSaid });
+            at(1200, () => typeOut(typed, 0, 900, () => {
+              show(stepView(i, { ...base, status: "checking" }));
+              at(600, () => {
+                show({ ...stepView(i, { ...base, status: "stuck" }), ...said });
+                at(1400, () => { hintLevel = 1; show({ ...stepView(i, { ...base, status: "stuck", hintLevel }), ...said }); });
+                at(3000, () => typeOut(code, 0, 600, pass));
+              });
+            }));
           });
         });
       } else {
+
         typeOut(typed, 600, 1200, pass);
       }
     }

@@ -9,14 +9,16 @@ Each view is checked for:
 - **Names**: every button, field, group and the progress bar has a name a screen reader can say.
 - **Overflow**: nothing is cut off or sticks out sideways, and the page never scrolls sideways (2x text too).
 - **Overlap**: the lesson card never covers the code area.
-- **In view**: the main button, a newly shown hint and the estimate's minutes · lines · steps are on screen without
+- **In view**: the main button, a newly shown hint, the note about their code ("Not quite yet" and why; at 2x with a hint open the hint comes first), the
+  estimate's minutes · lines · steps, the finish screen's counts and the build stage running now are on screen without
   scrolling (the preview's lesson window is the real 420 px wide, so 2x text is the hard case).
+- **Buddy**: the buddy's arms and legs are at least 3:1 against the card, in light and dark.
 - **Keyboard**: Tab reaches every control in reading order, each with a visible focus ring.
 - **Words**: no jargon (DOM, selector, parse, runner, anchor, check…) and no script errors.
 
-**37 states x 2 themes x 2 text sizes = 148 views. All checks pass.**
+**39 states x 2 themes x 2 text sizes = 156 views. All checks pass.**
 
-Lowest text contrast: light **4.78:1**, dark **4.78:1**.
+Lowest text contrast: light **4.78:1**, dark **4.78:1**. Lowest buddy arm/leg contrast against the card: light **18.32:1**, dark **12.09:1** (needs 3:1).
 
 | State | Light 1x | Light 2x | Dark 1x | Dark 2x |
 |---|---|---|---|---|
@@ -36,7 +38,9 @@ Lowest text contrast: light **4.78:1**, dark **4.78:1**.
 | checking | ✅ [png](light-1x-checking.png) | ✅ [png](light-2x-checking.png) | ✅ [png](dark-1x-checking.png) | ✅ [png](dark-2x-checking.png) |
 | passed | ✅ [png](light-1x-passed.png) | ✅ [png](light-2x-passed.png) | ✅ [png](dark-1x-passed.png) | ✅ [png](dark-2x-passed.png) |
 | partial | ✅ [png](light-1x-partial.png) | ✅ [png](light-2x-partial.png) | ✅ [png](dark-1x-partial.png) | ✅ [png](dark-2x-partial.png) |
+| closer | ✅ [png](light-1x-closer.png) | ✅ [png](light-2x-closer.png) | ✅ [png](dark-1x-closer.png) | ✅ [png](dark-2x-closer.png) |
 | stuck | ✅ [png](light-1x-stuck.png) | ✅ [png](light-2x-stuck.png) | ✅ [png](dark-1x-stuck.png) | ✅ [png](dark-2x-stuck.png) |
+| stuck-wrong | ✅ [png](light-1x-stuck-wrong.png) | ✅ [png](light-2x-stuck-wrong.png) | ✅ [png](dark-1x-stuck-wrong.png) | ✅ [png](dark-2x-stuck-wrong.png) |
 | want-hint | ✅ [png](light-1x-want-hint.png) | ✅ [png](light-2x-want-hint.png) | ✅ [png](dark-1x-want-hint.png) | ✅ [png](dark-2x-want-hint.png) |
 | hint-1 | ✅ [png](light-1x-hint-1.png) | ✅ [png](light-2x-hint-1.png) | ✅ [png](dark-1x-hint-1.png) | ✅ [png](dark-2x-hint-1.png) |
 | hint-2 | ✅ [png](light-1x-hint-2.png) | ✅ [png](light-2x-hint-2.png) | ✅ [png](dark-1x-hint-2.png) | ✅ [png](dark-2x-hint-2.png) |

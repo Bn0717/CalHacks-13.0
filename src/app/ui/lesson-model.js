@@ -31,6 +31,18 @@
     return /^[a-z0-9.#\s,-]+\{.*\}?$/i.test(t) || /;\s*}?$/.test(t); // a CSS rule
   }
 
+  /** A "read more" link's words: "MDN: The ul element" → "Read more: The ul element". */
+  function linkLabel(title) {
+    const t = String(title || "").replace(/^\s*(MDN( Web Docs)?|W3Schools|web\.dev)\s*[:·–-]\s*/i, "").trim();
+    return /^read more\b/i.test(t) ? t : "Read more: " + (t || "this idea");
+  }
+
+  /** A "You'll learn" chip starts with a capital letter, like every other chip ("the parts of a page" → "The parts…"). */
+  function chipText(text) {
+    const t = String(text || "").trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
   /** "0:42" */
   function clock(seconds) {
     const s = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -86,7 +98,21 @@
     return { text: "Your turn", icon: "hand", tone: "you" };
   }
 
-  /** The status row on a step card: { title, line, tone, pose, busy }. */
+  /** A note without its opening words ("Still typing? The <ul>…" → "The <ul>…"), since the title already says them. */
+  function dropLead(note, lead) {
+    if (!note) return "";
+    const t = String(note).trim();
+    return t.startsWith(lead) ? t.slice(lead.length).trim() : t;
+  }
+
+  /** How many parts of the step are right so far, when some are: { done, total, text } or undefined. */
+  function partsOf(view) {
+    const p = view.parts;
+    if (!p || !(p.total > 1) || !(p.done > 0) || p.done >= p.total) return undefined;
+    return { done: p.done, total: p.total, text: p.done + " of " + p.total + " parts right" };
+  }
+
+  /** The status row on a step card: { title, line, tone, pose, busy, parts? }. */
   function stepStatus(view) {
     const s = view.step;
     const note = view.note;
@@ -101,10 +127,17 @@
         return { title: shown ? "Done!" : "Nice, that works!", line: shown ? "I typed that one for you. Next step coming up." : "Next step coming up.", tone: "good", pose: "celebrate" };
       }
       case "partial":
-        return { title: "You're on the right track", line: note || "Part of it is there. Keep going.", tone: "calm", pose: "talk" };
-      case "stuck":
-        if (view.hintOffered) return { title: "Want a hint?", line: "No rush. A hint can get you moving again.", tone: "warn", pose: "point" };
-        return { title: "Not quite yet", line: note || "Something's a little off. Have another look, or tap Hint.", tone: "warn", pose: "point" };
+        // Half-typed code is never judged; a try that's closer than before gets a quiet "getting closer".
+        if (view.partial === "closer") return { title: "Getting closer", line: dropLead(note, "Almost there.") || "More of it is right now. Keep going.", tone: "calm", pose: "talk", parts: partsOf(view) };
+        return { title: "Still typing?", line: dropLead(note, "Still typing?") || "Finish the line you're on. I'll look again when you stop.", tone: "calm", pose: "watch" };
+      case "stuck": {
+        // Wrong, even if some parts are right: say what to fix. "Almost there" only when at least half is right.
+        const parts = partsOf(view);
+        const line = dropLead(note, "Almost there.");
+        if (view.hintOffered) return { title: "Want a hint?", line: line || "No rush. A hint can get you moving again.", tone: "warn", pose: "point", parts };
+        const almost = parts && parts.done > 0 && parts.done * 2 >= parts.total;
+        return { title: almost ? "Almost there" : "Not quite yet", line: line || "Something's a little off. Have another look, or tap Hint.", tone: "warn", pose: "point", parts };
+      }
       case "showing":
         return { title: "Watch me type it", line: (s.file ? "Watch it appear in " + s.file : "Watch it appear in your file") + ". Next time, you try.", tone: "busy", pose: "type", busy: true };
       case "stride-working":
@@ -389,6 +422,7 @@
     if (view.screen === "step") {
       const st = stepStatus(view);
       add(st.title); add(st.line); add(whoBadge(view.step.who, view.status).text);
+      if (st.parts) add(st.parts.text);
       for (const b of stepActions(view)) add(b.label);
     }
     if (view.screen === "error") {
@@ -401,7 +435,8 @@
   }
 
   root.StrideLessonModel = {
-    minutesText, sizeText, isCode, clock, findJargon, JARGON,
+    minutesText, sizeText, isCode, clock, findJargon, JARGON, linkLabel, chipText,
+
     segments, progressText,
     whoBadge, stepStatus, buddyFor, errorCopy, explainTerms, buildingStages,
     stepActions, videoChip, keyList, actionForKey,
