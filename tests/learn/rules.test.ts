@@ -263,3 +263,28 @@ describe("hints that get stronger", () => {
     expect(nameHint("  color: red;\n  margin: 0;\n")).toBe("Here you need the properties color and margin.");
   });
 });
+
+describe("review fixes", () => {
+  it("one-line CSS rules still get useful hints", () => {
+    const code = "h1 { color: #c0392b; }\n";
+    expect(outlineHint(code)).toBe("h1 { color: …; }");
+    expect(nameHint(code)).toBe("Here you need the property color.");
+  });
+
+  it("hint 2 keeps the values a beginner can't guess when it has to be rewritten", () => {
+    const expected = '<meta charset="utf-8">\n<title>Me</title>\n<link rel="stylesheet" href="style.css">\n';
+    const fixed = strongerHints(["Add the hidden info.", expected, outlineHint(expected)], expected);
+    expect(hintStrength(fixed[1]!, expected)).toBeLessThanOrEqual(hintStrength(fixed[2]!, expected));
+    expect(nameHint(expected)).toBe('Here you need <meta>, <title> and <link>, with charset "utf-8", rel "stylesheet" and href "style.css".');
+  });
+
+  it("trims a video whose only chapter is already too long", () => {
+    const seg = (start: number, n: number) => ({ start, end: start + 30, chapter: "All", action: "a", file: "index.html", code: Array.from({ length: n }, (_, i) => `<p>${i}</p>`).join("\n") });
+    const one: VideoNotes = { title: "t", summary: "s", chapters: [{ title: "All", start: 0, end: 900 }], segments: [seg(0, 80), seg(100, 60), seg(200, 90)] };
+    const part = firstPart(one);
+    expect(part.trimmed).toBe(true);
+    expect(part.notes.segments).toHaveLength(2);
+    expect(part.until).toBe(130);
+    expect(part.notes.chapters[0]!.end).toBe(130);
+  });
+});

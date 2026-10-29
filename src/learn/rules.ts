@@ -78,11 +78,16 @@ export function hintStrength(hint: string, expected: string): number {
 }
 
 // A hint 2 made from the answer when the model's own shows more than hint 3: which tags or CSS properties to use, by name.
-export function nameHint(expected: string): string {
+export function nameHint(expected: string, withValues = true): string {
   const tags = [...new Set([...expected.matchAll(/<([a-z][a-z0-9]*)[\s>/]/gi)].map((m) => m[1]!.toLowerCase()))];
-  const props = [...new Set([...expected.matchAll(/^\s*([a-z-]+)\s*:/gim)].map((m) => m[1]!.toLowerCase()))];
+  const props = [...new Set([...expected.matchAll(/(?:^|[{;])\s*([a-z-]+)\s*:/gim)].map((m) => m[1]!.toLowerCase()))];
   const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0]!);
-  if (tags.length > 0) return `Here you need ${list(tags.map((t) => `<${t}>`))}.`;
+  // Values a beginner can't guess (charset, rel, href, src…), so a stuck student can still finish from the hints.
+  const fixed = withValues
+    ? [...new Set([...expected.matchAll(/\b(charset|rel|href|src|type|name|content)="([^"]+)"/gi)].map((m) => `${m[1]} "${m[2]}"`))]
+    : [];
+  const values = fixed.length > 0 ? `, with ${list(fixed)}` : "";
+  if (tags.length > 0) return `Here you need ${list(tags.map((t) => `<${t}>`))}${values}.`;
   if (props.length > 0) return `Here you need ${props.length > 1 ? "the properties" : "the property"} ${list(props)}.`;
   return "Look at the spot the step points to, and think about which words go there.";
 }
@@ -92,7 +97,10 @@ export function nameHint(expected: string): string {
 export function strongerHints(hints: string[], expected: string): string[] {
   const out = [...hints];
   if (out[2] !== undefined && hintGivesAway(out[2], expected)) out[2] = outlineHint(expected);
-  if (out[1] !== undefined && out[2] !== undefined && hintStrength(out[1], expected) > hintStrength(out[2], expected)) out[1] = nameHint(expected);
+  if (out[1] !== undefined && out[2] !== undefined && hintStrength(out[1], expected) > hintStrength(out[2], expected)) {
+    out[1] = nameHint(expected);
+    if (hintStrength(out[1], expected) > hintStrength(out[2], expected)) out[1] = nameHint(expected, false);
+  }
   return out;
 }
 
@@ -104,7 +112,7 @@ export function outlineHint(expected: string): string {
     line
       .replace(/="[^"]*"/g, '="…"')
       .replace(/>([^<>]*\S[^<>]*)</g, ">…<")
-      .replace(/^(\s*[a-z-]+\s*:\s*)[^;{}]+;/i, "$1…;")
+      .replace(/((?:^|[{;])\s*[a-z-]+\s*:\s*)[^;{}]+;/gi, "$1…;")
       .replace(/(["'`])(?:(?!\1).)+\1/g, "$1…$1"),
   );
   if (!hintGivesAway(outline.join("\n"), expected)) return outline.join("\n");

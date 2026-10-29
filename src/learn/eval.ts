@@ -185,8 +185,12 @@ export const EVAL_SUMMARY: string[] = [
     "late video part) sent a whole $0.20-0.50 lesson back to Opus. All are repaired in code now (schema-limit.ts, rebuild.ts, rules.ts).",
   "Worst left (Opus review): hint 2 often gave the full code in the run-2 idea lessons, so 'hints' scored 2-3 (fixed in prompt and " +
     "code after run 2 — strongerHints — but not re-measured: no budget left); steps that need exact values a beginner can't guess " +
-    "(meta viewport) with hint 3 blanking them out; some steps still bring in 3+ new tags; idea lessons still run 68-100 min, so " +
-    "the smaller version is offered first; 2 video lessons don't rebuild their files exactly ('buildsUp').",
+    "(meta viewport) with hint 3 blanking them out (after the run, hint 2 now keeps such values when code rewrites it); some " +
+    "steps still bring in 3+ new tags; idea lessons still run 68-100 min, so the smaller version is offered first, but the " +
+    "70-minute 'Create Your First HTML/CSS Project' video lesson offers none ('estimate'); 'HTML Tutorial' doesn't rebuild its " +
+    "files exactly ('buildsUp'): a step that wraps code typed earlier (<header> around an existing <h1>) can't be placed as one " +
+    "insertion, so repairSteps leaves that file alone (not fixed). Video timestamps are only checked to lie inside the video, and " +
+    "the reviewer found clips that don't show their step (e.g. para-strong 352-720 s).",
   "Cost per lesson build (Opus, real): idea lessons $0.46-$0.51, video lessons $0.19-$0.45 for Opus plus $0.22-$0.29 of Gemini " +
     "notes ($0.42-$0.67 in all). GOAL C3 '< $0.50' holds for 2 of 3 idea builds and 1 of 3 video builds. Cost per hint: the hint " +
     "text is part of the lesson (free); a check the code can't decide calls Haiku: $0.0001-$0.0002 each (every call in cost.json), " +

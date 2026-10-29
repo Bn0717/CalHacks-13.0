@@ -302,7 +302,16 @@ export function firstPart(notes: VideoNotes, limit = VIDEO_LINES_LIMIT): { notes
     if (i > 0 && total > limit) break;
     kept = i + 1;
   }
-  if (kept >= notes.chapters.length) return { notes, trimmed: false, until: notesEnd(notes) };
+  if (kept >= notes.chapters.length) {
+    // Even one chapter can be too long: then keep its first parts, up to the limit.
+    const segs = notes.segments;
+    if (segs.reduce((n, sg) => n + lines(sg.code), 0) <= limit) return { notes, trimmed: false, until: notesEnd(notes) };
+    let sum = 0;
+    const keep = segs.filter((sg, i) => (sum += lines(sg.code)) <= limit || i === 0);
+    const until = keep[keep.length - 1]!.end;
+    const chapters = notes.chapters.filter((c) => c.start < until).map((c) => ({ ...c, end: Math.min(c.end, until) }));
+    return { notes: { ...notes, chapters, segments: keep }, trimmed: true, until };
+  }
   const chapters = notes.chapters.slice(0, kept);
   const until = chapters[chapters.length - 1]!.end;
   const segments = notes.segments.filter((sg) => chapters.some((ch) => inChapter(sg, ch)));
