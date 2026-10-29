@@ -317,7 +317,9 @@ export class LessonSession {
     }
     if (outcome.status !== "pass" && outcome.message && outcome.message !== this.lastMessage && !this.done) {
       this.lastMessage = outcome.message;
-      this.print(`${outcome.status === "partial" ? "⏳" : "🤔"} ${outcome.message}`);
+      // Half-typed, or the first lines typed right with the rest still to come: that's progress, not a mistake.
+      const keepGoing = outcome.status === "partial" || ((outcome.onTrack ?? 0) > 0 && !outcome.slip);
+      this.print(keepGoing ? `⏳ Good so far, keep going. ${outcome.message}` : `🤔 ${outcome.message}`);
     }
     return outcome;
   }
