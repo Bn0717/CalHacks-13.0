@@ -20,7 +20,7 @@ export const BUILD_STAGES = {
 } as const satisfies Record<string, readonly BuildStage[]>;
 
 // How long a new lesson takes to build, said the same way everywhere.
-export const BUILD_TIME_TEXT = "usually a minute or two";
+export const BUILD_TIME_TEXT = "about 3 minutes"; // real Opus builds took 2.5-4 minutes (docs/learn/runs/about-me-real.md)
 
 // Called by a builder as each stage starts.
 export type OnStage = (stage: BuildStage) => void;

@@ -164,7 +164,7 @@ describe("the video builder enforces the rules", () => {
 describe("stages", () => {
   it("have a plain label each, and one honest build time phrase", () => {
     for (const s of [...BUILD_STAGES.idea, ...BUILD_STAGES.video]) expect(STAGE_LABELS[s]).toMatch(/^[A-Z][a-z]/);
-    expect(BUILD_TIME_TEXT).toBe("usually a minute or two");
+    expect(BUILD_TIME_TEXT).toBe("about 3 minutes");
   });
 });
 
