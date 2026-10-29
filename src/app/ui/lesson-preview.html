@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Lesson Screen Preview</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="lesson.css">
+  <!-- Preview only (not loaded by the app): a fake desktop with a fake VS Code, the lesson window docked beside it, and controls.
+       Open it through a local server so it can read the lesson fixture: `npm run learn:preview`, then the printed address. -->
+  <style>
+    html, body { margin: 0; height: 100%; }
+    body { font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Inter, sans-serif; background: linear-gradient(160deg, #8fa7c4, #d9c2a8); color: #222; display: flex; flex-direction: column; }
+    :root[data-theme="dark"] body { background: linear-gradient(160deg, #1d2633, #3a2e28); color: #eee; }
+    .lp-controls { flex: none; margin: 10px 12px 0; background: rgba(255,255,255,0.9); color: #222; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+    :root[data-theme="dark"] .lp-controls { background: rgba(20,20,20,0.9); color: #eee; }
+    .lp-controls h2 { font-size: 14px; margin: 0; }
+    .lp-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .lp-row b { font-size: 12px; margin-right: 4px; min-width: 64px; }
+    .lp-controls button { font: 12px -apple-system, Inter, sans-serif; padding: 4px 9px; border-radius: 7px; border: 1px solid #bbb; background: #fff; color: #222; cursor: pointer; }
+    .lp-controls button[aria-pressed="true"] { background: #b5573a; border-color: #b5573a; color: #fff; }
+    .lp-controls button.play { background: #2f7d4f; border-color: #2f7d4f; color: #fff; font-weight: 600; }
+    #lp-log { font: 11px/1.4 ui-monospace, Menlo, monospace; max-height: 70px; overflow: auto; background: rgba(0,0,0,0.06); border-radius: 8px; padding: 4px 8px; white-space: pre-wrap; margin: 0; }
+    #lp-msg { color: #b3402f; font-weight: 600; }
+
+    /* The fake desktop: VS Code and the lesson window side by side. They never overlap. */
+    .lp-desktop { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px; }
+    .lp-desktop[data-dock="left"] { flex-direction: row-reverse; }
+    .lp-window { position: relative; flex: none; width: 25rem; max-width: 46vw; } /* rem: grows with text size, like the real window */
+    .lp-vscode { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; box-shadow: 0 18px 40px rgba(0,0,0,0.25); background: #ffffff; color: #1f1f1f; font: 13px/1.6 "SF Mono", Menlo, "JetBrains Mono", monospace; }
+    :root[data-theme="dark"] .lp-vscode { background: #1e1e1e; color: #d4d4d4; }
+    .lp-titlebar { flex: none; height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #e8e8e8; font: 12px -apple-system, Inter, sans-serif; color: #555; }
+    :root[data-theme="dark"] .lp-titlebar { background: #323233; color: #bbb; }
+    .lp-titlebar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+    .lp-titlebar i:nth-child(2) { background: #febc2e; } .lp-titlebar i:nth-child(3) { background: #28c840; }
+    .lp-titlebar span { margin-left: auto; margin-right: auto; }
+    .lp-tabs { flex: none; display: flex; background: #f3f3f3; font: 12px -apple-system, Inter, sans-serif; }
+    :root[data-theme="dark"] .lp-tabs { background: #252526; }
+    .lp-tab { padding: 7px 14px; color: #777; border-right: 1px solid rgba(0,0,0,0.06); }
+    .lp-tab.on { background: #fff; color: #222; }
+    :root[data-theme="dark"] .lp-tab.on { background: #1e1e1e; color: #fff; }
+    .lp-editor { flex: 1; min-height: 0; overflow: auto; padding: 10px 0; }
+    .lp-line { display: flex; white-space: pre; min-height: 1.6em; }
+    .lp-num { flex: none; width: 46px; padding-right: 14px; text-align: right; color: #999; user-select: none; }
+    .lp-line.target { background: rgba(217, 119, 87, 0.14); box-shadow: inset 3px 0 0 #d97757; }
+    .lp-line.target .lp-num { color: #c96442; font-weight: 700; }
+    .lp-caret { display: inline-block; width: 2px; height: 1.2em; vertical-align: -0.2em; background: #1f6feb; animation: lp-blink 1s steps(1) infinite; }
+    @keyframes lp-blink { 50% { opacity: 0; } }
+    .t-tag { color: #800000; } .t-attr { color: #e50000; } .t-str { color: #0451a5; } .t-prop { color: #e50000; } .t-sel { color: #800000; }
+    :root[data-theme="dark"] .t-tag { color: #569cd6; } :root[data-theme="dark"] .t-attr { color: #9cdcfe; } :root[data-theme="dark"] .t-str { color: #ce9178; }
+    :root[data-theme="dark"] .t-prop { color: #9cdcfe; } :root[data-theme="dark"] .t-sel { color: #d7ba7d; }
+    .lp-status { flex: none; height: 22px; background: #007acc; color: #fff; font: 11px -apple-system, Inter, sans-serif; display: flex; align-items: center; padding: 0 10px; gap: 14px; }
+
+    /* ?shot: no controls, a fixed desktop for screenshots. */
+    .shot .lp-controls { display: none; }
+    .shot .lp-caret { animation: none; }
+  </style>
+</head>
+<body>
+  <div class="lp-controls" id="lp-controls">
+    <h2>Lesson screen preview <span id="lp-msg"></span></h2>
+    <div class="lp-row" id="lp-states"><b>State</b></div>
+    <div class="lp-row" id="lp-view"><b>View</b></div>
+    <pre id="lp-log" aria-label="Messages the lesson screen sent"></pre>
+  </div>
+
+  <div class="lp-desktop" id="lp-desktop" data-dock="right">
+    <div class="lp-vscode" id="code-area" aria-label="Fake VS Code">
+      <div class="lp-titlebar"><i></i><i></i><i></i><span id="lp-wintitle">about-me — Visual Studio Code</span></div>
+      <div class="lp-tabs" id="lp-tabs"></div>
+      <div class="lp-editor" id="lp-editor"></div>
+      <div class="lp-status"><span>Stride helper: on</span><span id="lp-pos">Ln 1, Col 1</span></div>
+    </div>
+    <div class="lp-window" id="lesson-window">
+      <main class="lesson-root" id="lesson-root" data-dock="right"></main>
+    </div>
+  </div>
+
+  <script src="lesson-preview.js"></script>
+  <script src="buddy-sprite.js"></script>
+  <script src="buddy-red.js"></script>
+  <script src="lesson-model.js"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>

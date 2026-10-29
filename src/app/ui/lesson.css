@@ -1,0 +1,376 @@
+/* Stride Learn's lesson card. Same warm paper look as the helper bar (bar.css): same colours, radii, shadow and font.
+   Sizes are in rem so the whole card grows with the text size (it works at 200%). */
+:root {
+  --paper: #fffbf5;
+  --paper-2: #f6efe4;
+  --paper-3: #efe5d7;
+  --ink: #2b2420;
+  --ink-2: #5e544c;
+  --ink-3: #8a7e73; /* lines and icons only, never text */
+  --line: #e7dccd;
+  --accent: #d97757;
+  --accent-ink: #a34a2e; /* accent-coloured text */
+  --accent-btn: #b5573a; /* a little deeper than the bar's, so white text passes 4.5:1 */
+  --accent-btn-hover: #9f4a30;
+  --accent-soft: #fbe6dc;
+  --accent-wash: #fdf1ea;
+  --on-accent: #ffffff;
+  --ok: #2f7d4f;
+  --ok-ink: #276a43;
+  --ok-soft: #e3f1e7;
+  --warn: #8a5a00;
+  --warn-soft: #fdf0d3;
+  --bad: #b3402f;
+  --bad-soft: #fbe4df;
+  --focus: #2f6fd6;
+  --video: #1d1714;
+  --shadow: 0 1px 2px rgba(70, 45, 25, 0.10), 0 6px 18px -6px rgba(70, 45, 25, 0.30);
+  --mono: ui-monospace, "SF Mono", Menlo, "JetBrains Mono", monospace;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Inter, sans-serif;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 160ms;
+  --calm: 220ms;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #2a2420;
+    --paper-2: #342c27;
+    --paper-3: #3e352f;
+    --ink: #f6eee5;
+    --ink-2: #cdbfb2;
+    --ink-3: #8f8173;
+    --line: #4a3f38;
+    --accent: #e48b6c;
+    --accent-ink: #f0a184;
+    --accent-btn: #b5573a;
+    --accent-btn-hover: #c4613f;
+    --accent-soft: #4a3026;
+    --accent-wash: #352821;
+    --ok: #86d1a3;
+    --ok-ink: #9be0b5;
+    --ok-soft: #233a2c;
+    --warn: #f2c46b;
+    --warn-soft: #43361d;
+    --bad: #f39a8a;
+    --bad-soft: #452824;
+    --focus: #8fb6ff;
+    --video: #120e0c;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 18px -6px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+/* The preview (and screenshots) can force a theme. */
+:root[data-theme="dark"] {
+  --paper: #2a2420;
+  --paper-2: #342c27;
+  --paper-3: #3e352f;
+  --ink: #f6eee5;
+  --ink-2: #cdbfb2;
+  --ink-3: #8f8173;
+  --line: #4a3f38;
+  --accent: #e48b6c;
+  --accent-ink: #f0a184;
+  --accent-btn: #b5573a;
+  --accent-btn-hover: #c4613f;
+  --accent-soft: #4a3026;
+  --accent-wash: #352821;
+  --ok: #86d1a3;
+  --ok-ink: #9be0b5;
+  --ok-soft: #233a2c;
+  --warn: #f2c46b;
+  --warn-soft: #43361d;
+  --bad: #f39a8a;
+  --bad-soft: #452824;
+  --focus: #8fb6ff;
+  --video: #120e0c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 18px -6px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+/* ---------- The window ---------- */
+.lesson-page { margin: 0; height: 100vh; background: transparent; overflow: hidden; }
+.lesson-root, .lesson-root * { box-sizing: border-box; }
+.lesson-root {
+  position: absolute;
+  inset: 0;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  font: 1.0625rem/1.45 var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.lesson-root button, .lesson-root textarea { font: inherit; color: inherit; }
+.lesson-root [hidden] { display: none !important; }
+.lesson-root p { margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- The card ---------- */
+.lcard {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1.375rem;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: opacity var(--calm) ease, transform var(--calm) var(--ease), border-color var(--calm) ease, box-shadow var(--calm) ease;
+}
+.lcard.is-hidden { opacity: 0; transform: translateY(0.5rem); visibility: hidden; }
+/* ✅: a green edge while the cheer is up. Calm: no flashing, no confetti. */
+.lcard[data-status="passed"] { border-color: var(--ok); box-shadow: 0 0 0 0.1875rem var(--ok-soft), var(--shadow); }
+
+/* ---------- Progress strip ---------- */
+.lstrip { padding: 0.875rem 1.25rem 0; flex: none; }
+.lstrip-bar { display: flex; gap: 0.375rem; align-items: center; }
+.lchap { display: flex; gap: 0.125rem; flex-basis: 0; min-width: 0; }
+.lseg { flex: 1 1 0; min-width: 0.25rem; height: 0.375rem; border-radius: 999px; background: var(--paper-3); transition: background var(--calm) ease, height var(--calm) var(--ease); }
+.lseg.done, .lseg.hinted { background: var(--ok); }
+.lseg.shown { background: var(--accent); }
+.lseg.skipped { background: var(--line); }
+.lseg.is-current { background: var(--accent-btn); height: 0.5rem; }
+/* A small tick where each chapter starts. */
+.lchap + .lchap { position: relative; }
+.lchap + .lchap::before { content: ""; position: absolute; left: -0.25rem; top: -0.25rem; bottom: -0.25rem; width: 0.125rem; border-radius: 1px; background: var(--ink-3); opacity: 0.6; }
+
+/* ---------- Header ---------- */
+.lhead { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.875rem 0.75rem 0.25rem 1.25rem; flex: none; }
+.lhead-text { flex: 1; min-width: 0; padding-top: 0.125rem; }
+.leyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--ink-2); margin-bottom: 0.125rem; }
+.leyebrow-text { min-width: 0; overflow-wrap: anywhere; }
+.ltitle { margin: 0; font-size: 1.375rem; line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.ltitle:focus { outline: none; }
+.lbadge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 700; background: var(--accent-soft); color: var(--accent-ink); }
+.lbadge.stride { background: var(--paper-3); color: var(--ink); }
+.lbadge.watch { background: var(--paper-3); color: var(--ink); }
+
+.ltools { display: flex; gap: 0.125rem; flex: none; margin-top: -0.25rem; }
+.ltool { width: 2.5rem; height: 2.5rem; border: 0; border-radius: 0.75rem; background: transparent; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; transition: background var(--fast) ease, color var(--fast) ease; }
+.ltool:hover { background: var(--paper-2); color: var(--ink); }
+
+/* The buddy sits on the card and faces the code. */
+.lbuddy { flex: none; width: 3.5rem; height: 3.5rem; margin-top: 0.125rem; }
+.lbuddy-svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 0 0.8px rgba(40, 16, 8, 0.85)); }
+.lbuddy.face-left .lbuddy-svg { transform: scaleX(-1); }
+
+/* ---------- Body ---------- */
+.lbody { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.5rem 1.25rem 0.25rem; }
+.lcontent, .lmore { display: flex; flex-direction: column; gap: 0.75rem; }
+.lmore { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); gap: 1rem; }
+.enter { animation: lrise var(--calm) var(--ease) both; }
+@keyframes lrise { from { opacity: 0; transform: translateY(0.375rem); } to { opacity: 1; transform: none; } }
+.lead { font-size: 1.0625rem; }
+.muted { color: var(--ink-2); }
+.small { font-size: 0.9375rem; }
+.muted.small, p.small { display: flex; align-items: flex-start; gap: 0.375rem; }
+.muted.small .ico { margin-top: 0.2em; }
+code.inline { font: 0.9em/1.3 var(--mono); background: var(--paper-3); color: var(--ink); padding: 0.05em 0.3em; border-radius: 0.375rem; overflow-wrap: anywhere; }
+
+.ico { width: 1.375rem; height: 1.375rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ico.sm { width: 1.125rem; height: 1.125rem; }
+.ico.xs { width: 1rem; height: 1rem; }
+
+/* ---------- Step card ---------- */
+.linstr { font-size: 1.0625rem; line-height: 1.5; }
+.lstatus { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 0.875rem; border-radius: 0.875rem; background: var(--paper-2); transition: background var(--calm) ease; }
+.lstatus > .ico, .lstatus > .spin { margin-top: 0.125rem; color: var(--ink-2); }
+.lstatus-text { min-width: 0; }
+.lstatus-title { font-weight: 650; font-size: 1rem; }
+.lstatus-line { font-size: 0.9375rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.lstatus.tone-good { background: var(--ok-soft); }
+.lstatus.tone-good .lstatus-title { color: var(--ok-ink); }
+.lstatus.tone-warn { background: var(--warn-soft); }
+.lstatus.tone-warn > .ico { color: var(--warn); }
+.lstatus.tone-busy > .spin { margin-top: 0.1875rem; }
+.lcheer { flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--ok); color: var(--paper); display: grid; place-items: center; animation: lpop 240ms var(--ease) both; }
+.lcheer .ico { width: 1.125rem; height: 1.125rem; stroke-width: 3; }
+@keyframes lpop { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+
+.lwhere { display: inline-flex; align-self: flex-start; align-items: center; gap: 0.375rem; font-size: 0.875rem; font-weight: 650; color: var(--accent-ink); background: var(--accent-soft); padding: 0.25rem 0.625rem; border-radius: 999px; }
+
+.lhint { border-left: 0.1875rem solid var(--accent); background: var(--accent-wash); border-radius: 0 0.75rem 0.75rem 0; padding: 0.625rem 0.75rem; display: flex; flex-direction: column; gap: 0.375rem; }
+.lhint-label { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; font-weight: 700; color: var(--accent-ink); }
+.lhint-sub { font-weight: 600; }
+.lhint-text { font-size: 1rem; }
+.lhint-text.small { font-size: 0.875rem; color: var(--ink-2); }
+.lcode { margin: 0; font: 0.875rem/1.5 var(--mono); background: var(--paper-3); color: var(--ink); padding: 0.5rem 0.75rem; border-radius: 0.5rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---------- Expanded parts ---------- */
+.lsec { display: flex; flex-direction: column; gap: 0.5rem; }
+.lsec-title { display: flex; align-items: center; gap: 0.375rem; margin: 0; font-size: 0.875rem; font-weight: 700; color: var(--ink-2); }
+.lconcept { background: var(--paper-2); border-radius: 1rem; padding: 0.875rem 1rem; }
+.lconcept-tag { align-self: flex-start; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); }
+.lconcept-title { margin: 0; font-size: 1.125rem; font-weight: 650; }
+.lvideo { aspect-ratio: 16 / 9; background: var(--video); border-radius: 0.75rem; display: grid; place-items: center; padding: 0.75rem; }
+.lpace { display: inline-flex; align-self: flex-start; flex-wrap: wrap; gap: 0.25rem; padding: 0.25rem; border-radius: 0.875rem; background: var(--paper-3); }
+.lkeys { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.375rem 0.75rem; font-size: 0.875rem; color: var(--ink-2); }
+.lkeys li { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.lesson-root kbd { font: 600 0.75rem/1 var(--font); min-width: 1.5em; text-align: center; padding: 0.2em 0.4em; border-radius: 0.375rem; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--paper); color: var(--ink); }
+
+/* ---------- Buttons ---------- */
+.lactions { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem 1rem; }
+.lmore-toggle { margin-left: auto; }
+.lbtn {
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border-radius: 0.875rem;
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-align: center;
+  max-width: 100%;
+  transition: background var(--fast) ease, border-color var(--fast) ease, transform 120ms ease;
+}
+.lbtn-label { min-width: 0; overflow-wrap: anywhere; }
+.lbtn:hover { background: var(--paper-2); border-color: var(--ink-3); }
+.lbtn:active, .lbtn.is-pressed { transform: scale(0.98); }
+.lbtn.primary { background: var(--accent-btn); border-color: var(--accent-btn); color: var(--on-accent); }
+.lbtn.primary:hover { background: var(--accent-btn-hover); border-color: var(--accent-btn-hover); }
+.lbtn.primary kbd { background: transparent; color: var(--on-accent); border-color: rgba(255, 255, 255, 0.55); }
+.lbtn.quiet { border-color: transparent; background: transparent; color: var(--ink-2); padding-left: 0.75rem; padding-right: 0.75rem; }
+.lbtn.quiet:hover { background: var(--paper-2); color: var(--ink); }
+.lbtn.wide { width: 100%; }
+.lbtn:disabled { opacity: 0.55; cursor: default; }
+.lbtn kbd { margin-left: 0.125rem; }
+.lmore-toggle .ico { transition: transform var(--calm) var(--ease); }
+.lmore-toggle[aria-expanded="true"] .ico { transform: rotate(180deg); }
+
+/* Big tap buttons for questions and the quiz. */
+.lchoices { display: flex; flex-direction: column; gap: 0.5rem; }
+.lbtn.choice { justify-content: flex-start; text-align: left; min-height: 3.25rem; padding: 0.75rem 1rem; font-size: 1.0625rem; font-weight: 550; width: 100%; }
+.lbtn.choice:hover { border-color: var(--accent); background: var(--accent-wash); }
+.lbtn.choice.is-on { border-color: var(--accent-btn); background: var(--accent-soft); }
+.lbtn.choice.is-on .ico { color: var(--accent-ink); }
+.lbtn.choice.is-right { border-color: var(--ok); background: var(--ok-soft); }
+.lbtn.choice.is-right .ico { color: var(--ok-ink); }
+.lbtn.choice.is-wrong { border-color: var(--warn); background: var(--warn-soft); }
+.lbtn.choice:disabled { opacity: 0.55; }
+.lextras { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.lextras .muted { flex-basis: 100%; }
+
+.lbtn.chip { align-self: flex-start; min-height: 2.5rem; border-radius: 999px; padding: 0.375rem 1rem; background: var(--paper-2); font-size: 0.9375rem; }
+.lbtn.chip .ico { color: var(--accent-ink); }
+.lbtn.link { align-self: flex-start; min-height: 2.5rem; padding: 0.375rem 0.75rem; border-color: transparent; background: var(--paper); color: var(--accent-ink); font-size: 0.9375rem; text-align: left; justify-content: flex-start; }
+.lbtn.link:hover { border-color: var(--accent); }
+.lbtn.video { min-height: 3rem; border: 0; border-radius: 999px; background: rgba(0, 0, 0, 0.6); color: #ffffff; padding: 0.5rem 1.25rem; }
+.lbtn.video:hover { background: rgba(0, 0, 0, 0.8); }
+.lbtn.seg { min-height: 2.5rem; border: 0; background: transparent; color: var(--ink-2); padding: 0.375rem 0.875rem; border-radius: 0.625rem; }
+.lbtn.seg[aria-pressed="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+
+/* ---------- Lists: ticks, parts, stats, chips ---------- */
+.lticks { list-style: none; margin: 0; padding: 0; }
+.ltick { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.ltick:last-child { border-bottom: 0; }
+.ltick-label { min-width: 0; padding-top: 0.0625rem; }
+.ltick.todo .ltick-label { color: var(--ink-2); }
+.ltick.running .ltick-label { font-weight: 600; }
+.ltick-detail { display: block; font-size: 0.9375rem; color: var(--ink-2); }
+.lmark { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; }
+.lmark .ico { width: 1rem; height: 1rem; stroke-width: 3; }
+.lmark.done { background: var(--ok); color: var(--paper); }
+.lmark.failed { background: var(--bad); color: var(--paper); }
+.lmark.todo { border: 2px dashed var(--line); }
+.lmark.done { animation: lpop 220ms var(--ease) both; }
+.spin { display: block; flex: none; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 0.1875rem solid var(--accent-soft); border-top-color: var(--accent); animation: lspin 900ms linear infinite; }
+@keyframes lspin { to { transform: rotate(360deg); } }
+
+.lparts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.lparts li { display: flex; flex-direction: column; padding: 0.5rem 0.75rem; border-radius: 0.75rem; background: var(--paper-2); }
+.lparts .muted { font-size: 0.9375rem; }
+.lask { font-weight: 650; font-size: 1.0625rem; }
+.lask-box { background: var(--accent-wash); border: 1.5px solid var(--accent-soft); border-radius: 1rem; padding: 0.875rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.lfield-label { font-weight: 650; font-size: 1rem; }
+.lfield { width: 100%; resize: vertical; min-height: 4.5rem; border-radius: 0.875rem; border: 1.5px solid var(--line); background: var(--paper); padding: 0.625rem 0.75rem; line-height: 1.4; }
+.lfield::placeholder { color: var(--ink-2); }
+.lfield:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 0.25rem var(--accent-soft); }
+
+.lstats { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.375rem 1rem; font-size: 0.9375rem; color: var(--ink-2); }
+.lstats li { display: inline-flex; align-items: center; gap: 0.375rem; }
+.lchips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.lchips li { padding: 0.25rem 0.75rem; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); font-size: 0.9375rem; }
+.llearns { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* ---------- Estimate: the simpler version is the obvious choice ---------- */
+.loffer { border: 1.5px solid var(--line); border-radius: 1rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.loffer.is-recommended { border: 2px solid var(--accent-btn); background: var(--accent-wash); }
+.loffer-tag { display: inline-flex; align-items: center; gap: 0.25rem; align-self: flex-start; font-size: 0.8125rem; font-weight: 700; color: var(--accent-ink); }
+.loffer-title { margin: 0; font-size: 1.125rem; font-weight: 650; }
+.loffer-why { color: var(--ink-2); font-size: 0.9375rem; }
+.loffer .lbtn { margin-top: 0.25rem; }
+
+/* ---------- Quiz / results ---------- */
+.lresult { border-radius: 0.875rem; padding: 0.75rem 0.875rem; background: var(--paper-2); display: flex; flex-direction: column; gap: 0.25rem; }
+.lresult.tone-good { background: var(--ok-soft); }
+.lresult.tone-good .lstatus-title { color: var(--ok-ink); }
+
+/* ---------- Error ---------- */
+.lerror { display: flex; gap: 0.75rem; align-items: flex-start; background: var(--warn-soft); border-radius: 0.875rem; padding: 0.75rem 0.875rem; }
+.lerror .ico { color: var(--warn); margin-top: 0.125rem; }
+
+/* ---------- Finished ---------- */
+.lpicture { display: block; width: 100%; border-radius: 0.75rem; border: 1px solid var(--line); background: var(--paper-2); }
+.lpicture.placeholder { aspect-ratio: 16 / 10; display: grid; place-items: center; color: var(--ink-3); }
+.lpicture.placeholder .ico { width: 2.5rem; height: 2.5rem; }
+.ltiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0.5rem; }
+.ltile { background: var(--paper-2); border-radius: 0.875rem; padding: 0.625rem 0.75rem; display: flex; flex-direction: column; }
+.ltile-n { font-size: 1.625rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.ltile.alone .ltile-n { color: var(--ok-ink); }
+.ltile-label { font-size: 0.875rem; color: var(--ink-2); }
+.lnext { border: 1.5px dashed var(--line); border-radius: 1rem; padding: 0.875rem 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.lnext-tag { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); }
+.lnext-title { font-weight: 650; font-size: 1.0625rem; }
+
+/* ---------- Focus ---------- */
+.lesson-root :focus { outline: none; }
+.lesson-root :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.lesson-root .ltitle:focus-visible { outline: none; }
+.lesson-root .lcode:focus-visible { outline-offset: 1px; }
+
+/* ---------- Calm motion for those who want it ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .lesson-root *, .lesson-root *::before, .lesson-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* A still "doing it now" mark: a ring with a dot. */
+  .spin { border-color: var(--accent); border-top-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 32%, transparent 36%); }
+}
+.still .lesson-root *, .still .lesson-root *::before, .still .lesson-root *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; }
+
+/* ---------- Strip label, scroll fade, sizes that shouldn't balloon at 200% ---------- */
+.lstrip-label { display: flex; justify-content: space-between; gap: 0.75rem; margin-top: 0.625rem; font-size: 0.8125rem; font-weight: 600; color: var(--ink-2); }
+.lstrip-chapter { min-width: 0; overflow-wrap: anywhere; }
+.lstrip-count { flex: none; font-variant-numeric: tabular-nums; }
+.lbody.can-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent); }
+/* The buddy and the header icons are pictures: keep them a sensible size when the text is very big. */
+.lbuddy { width: min(3.5rem, 64px); height: min(3.5rem, 64px); }
+.ltool { width: min(2.5rem, 48px); height: min(2.5rem, 48px); }
+.ltool .ico { width: min(1.375rem, 26px); height: min(1.375rem, 26px); }
+.lsec > .lbtn, .lconcept > .lbtn { align-self: flex-start; }
+.loffer.is-alt { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; padding: 0.75rem 1rem; }
+.loffer.is-alt .loffer-title { flex-basis: 100%; }
+.loffer.is-alt .loffer-why { flex: 1 1 10rem; }
+.loffer.is-alt .lbtn { margin-top: 0; }
+.loffer-title.small { font-size: 1rem; }
+.lmore-toggle { padding-left: 0.625rem; padding-right: 0.5rem; gap: 0.25rem; }
+
+/* ✅: the current step's segment turns green with the cheer. */
+.lcard[data-status="passed"] .lseg.is-current { background: var(--ok); }
+.lstatus > .ico.busy { color: var(--accent-ink); }
+.lchiprow { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.lchiprow .lbtn.chip { align-self: auto; }
