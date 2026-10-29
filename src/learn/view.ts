@@ -157,6 +157,7 @@ export function finishedView(lesson: Lesson, summary: LessonSummary, picture?: s
     ...(picture ? { picture } : {}),
     learned: summary.concepts.length > 0 ? summary.concepts : lesson.learns,
     steps: summary.steps,
+    allSteps: lesson.steps.length,
     alone: summary.alone,
     hinted: summary.hinted,
     shown: summary.shown,

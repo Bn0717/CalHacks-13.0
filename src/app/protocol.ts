@@ -213,7 +213,8 @@ export type LessonView =
       outcome: string;
       picture?: string;
       learned: string[];
-      steps: number;
+      steps: number; // the steps the student types
+      allSteps?: number; // every step, with the setup steps Stride did (so it matches "Step 3 of 6")
       alone: number;
       hinted: number;
       shown: number;

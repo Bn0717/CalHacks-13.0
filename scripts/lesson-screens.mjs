@@ -4,6 +4,8 @@
 //   names     every button, link and field has a name a screen reader can say
 //   overflow  nothing sticks out sideways or gets cut off (the 2x text size is the hard one)
 //   overlap   the lesson card never covers the code
+//   in view   what the student needs right now is on screen without scrolling: the main button, a newly shown hint,
+//             and the estimate's minutes · lines · steps (at 2x text in the real 420 px window too)
 //   keyboard  Tab reaches every control in reading order, and each shows a focus ring
 //   words     no jargon ("selector", "parse", "runner"...) and no script errors
 // Exits with 1 when anything fails, and writes docs/learn/ui/REPORT.md.
@@ -97,7 +99,7 @@ export async function showState(page, state, theme, size) {
 function auditInPage() {
   const card = document.getElementById("lesson-card");
   const code = document.getElementById("code-area");
-  const out = { contrast: [], names: [], overflow: [], overlap: null, jargon: [], minContrast: Infinity, texts: 0, controls: 0 };
+  const out = { contrast: [], names: [], overflow: [], overlap: null, hidden: [], jargon: [], minContrast: Infinity, texts: 0, controls: 0 };
   const short = (el) => (el.textContent || el.getAttribute("aria-label") || el.tagName).trim().replace(/\s+/g, " ").slice(0, 48);
   const visible = (el) => {
     if (el.closest(".sr-only")) return false;
@@ -186,6 +188,27 @@ function auditInPage() {
   const h = Math.min(c.bottom, cardRect.bottom) - Math.max(c.top, cardRect.top);
   if (w > 0 && h > 0) out.overlap = { width: Math.round(w), height: Math.round(h) };
 
+  // In view: the thing the student needs must be on screen, not scrolled away or under the fade at the bottom.
+  const body = document.getElementById("l-body");
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const inView = (el, what) => {
+    if (!el || !visible(el)) return;
+    const r = el.getBoundingClientRect();
+    const win = { top: 0, bottom: window.innerHeight };
+    if (!body.contains(el)) {
+      if (r.top < Math.max(win.top, cardRect.top) - 1 || r.bottom > Math.min(win.bottom, cardRect.bottom) + 1) out.hidden.push(what + " is cut off");
+      return;
+    }
+    const b = body.getBoundingClientRect();
+    const fade = body.classList.contains("can-scroll") ? 2 * rem : 0;
+    const room = b.height - fade;
+    if (r.height > room) { if (r.top < b.top - 1 || r.top + room * 0.5 > b.bottom - fade + 1) out.hidden.push(what + " starts out of sight"); return; }
+    if (r.top < b.top - 1 || r.bottom > b.bottom - fade + 1) out.hidden.push(what + " is scrolled out of sight");
+  };
+  inView(card.querySelector(".lactions .lbtn.primary"), "the main button");
+  inView(card.querySelector(".lhint.is-latest"), "the new hint");
+  if (card.dataset.screen === "estimate") inView(card.querySelector(".lstats"), "the minutes · lines · steps");
+
   // Words
   const model = window.StrideLessonModel;
   out.jargon = model.findJargon(card.innerText);
@@ -210,7 +233,7 @@ async function keyboardAudit(page) {
       // Where it is in reading order: header, then the scrolling body (measured as if not scrolled), then the buttons.
       const body = document.getElementById("l-body");
       const part = el.closest(".lhead") ? 0 : body.contains(el) ? 1 : 2;
-      const shift = part === 1 ? body.scrollTop : 0;
+      const shift = part === 1 && el !== body ? body.scrollTop : 0; // (the scrolling part itself doesn't move)
       if (!el.dataset.auditId) el.dataset.auditId = String(Math.random()).slice(2, 10); // tells two same-looking controls apart
       return { key: el.dataset.key || el.id || el.tagName, id: el.dataset.auditId, ring: s.outlineStyle !== "none" && parseFloat(s.outlineWidth) >= 2, part, top: Math.round(r.top + shift), bottom: Math.round(r.bottom + shift) };
     });
@@ -267,6 +290,7 @@ export async function runLessonScreens({ quick = false, shots = !quick, write = 
             ...audit.names.map((n) => `no name: ${n}`),
             ...audit.overflow,
             ...(audit.overlap ? [`covers the code by ${audit.overlap.width}x${audit.overlap.height}px`] : []),
+            ...audit.hidden,
             ...audit.jargon.map((j) => `jargon: "${j}"`),
             ...keys,
             ...errors.map((e) => `script error: ${e}`),
@@ -319,6 +343,8 @@ function report(summary) {
     "- **Names**: every button, field, group and the progress bar has a name a screen reader can say.",
     "- **Overflow**: nothing is cut off or sticks out sideways, and the page never scrolls sideways (2x text too).",
     "- **Overlap**: the lesson card never covers the code area.",
+    "- **In view**: the main button, a newly shown hint and the estimate's minutes · lines · steps are on screen without",
+    "  scrolling (the preview's lesson window is the real 420 px wide, so 2x text is the hard case).",
     "- **Keyboard**: Tab reaches every control in reading order, each with a visible focus ring.",
     "- **Words**: no jargon (" + "DOM, selector, parse, runner, anchor, check…" + ") and no script errors.",
     "",
