@@ -140,3 +140,188 @@ export type BuddyCommand =
   | { type: "point"; x: number; y: number; label: string } // hop next to a spot and point at it, with a ring and a label
   | { type: "scan"; rect: { x: number; y: number; width: number; height: number } } // look around an area
   | { type: "talking"; on: boolean };
+
+// ---------------- App → lesson screen: channel "lesson" ----------------
+
+/**
+ * Stride Learn's lesson screen (lesson.html). Like the bar, the app sends the whole view each time something changes, and the
+ * screen only draws it. The screen sits in its own narrow window docked beside VS Code, so it never covers the code.
+ * All text is plain and friendly, and is inserted as text, never as HTML. src/learn/view.ts builds these from runner state.
+ * App → screen also: channel "lesson-layout" with a LessonLayout, to restore where the student put the card.
+ */
+export type LessonView =
+  | { screen: "hidden" }
+  /** Building the lesson. Honest progress: the real stages, ticked as they finish (no made-up percentage). */
+  | { screen: "building"; what: string; stages: LessonBuildStage[]; note?: string }
+  /** A starting question with big tap buttons. multi: the student can tap several, then Next. */
+  | {
+      screen: "question";
+      id: string;
+      number: number; // 1-based
+      total: number;
+      question: string;
+      options: string[];
+      multi: boolean;
+      picked: string[];
+      extras?: ("addPicture" | "showStyles")[];
+    }
+  /** What Stride read from the reference picture, for the student to confirm or correct. image: a data: URL, optional. */
+  | { screen: "picture"; summary: string; sections: { name: string; description: string }[]; image?: string }
+  /** The honest estimate before starting, with the simpler version offered first when there is one. */
+  | {
+      screen: "estimate";
+      title: string;
+      outcome: string;
+      learns: string[];
+      estimate: LessonEstimateView;
+      simpler?: { title: string; why: string; estimate: LessonEstimateView };
+    }
+  /** Stride doing the boring setup, with ticks. ask: a once-only yes/no (e.g. adding Stride's VS Code helper). */
+  | { screen: "setup"; items: LessonSetupItem[]; ask?: { question: string; why: string; yes: string; no: string } }
+  | LessonStepView
+  /** The optional quick question at the end of a chapter. After a pick the app sends answer + explain. */
+  | {
+      screen: "quiz";
+      chapterTitle: string;
+      question: string;
+      options: string[];
+      picked?: number;
+      answer?: number;
+      explain?: string;
+      progress: LessonProgressView;
+    }
+  /** break: the student pressed Pause. welcome-back: they came back to a saved lesson. */
+  | {
+      screen: "paused";
+      reason: "break" | "welcome-back";
+      lessonTitle: string;
+      step: { number: number; total: number; title: string };
+      hintsUsed: number;
+      progress: LessonProgressView;
+    }
+  /** Something went wrong. The screen words each kind itself; message adds a detail. saved: their progress is safe. */
+  | { screen: "error"; kind: "no-key" | "no-internet" | "video-unreadable" | "other"; message?: string; saved?: boolean }
+  /** The finish screen. picture: a data: URL screenshot of their page. */
+  | {
+      screen: "finished";
+      title: string;
+      outcome: string;
+      picture?: string;
+      learned: string[];
+      steps: number;
+      alone: number;
+      hinted: number;
+      shown: number;
+      skipped: number;
+      minutes: number;
+      next: { title: string; why: string; minutes?: number };
+    };
+
+export interface LessonBuildStage {
+  label: string; // "Building the finished page out of sight"
+  status: "todo" | "running" | "done";
+}
+
+export interface LessonEstimateView {
+  minutes: number;
+  linesToType: number;
+  steps: number;
+}
+
+export interface LessonSetupItem {
+  label: string; // "VS Code is installed"
+  status: "todo" | "running" | "done" | "failed";
+  detail?: string;
+}
+
+/** How each step went, for the progress strip. */
+export type LessonStepMark = "todo" | "done" | "hinted" | "shown" | "skipped";
+
+export interface LessonProgressView {
+  chapters: { id: string; title: string }[];
+  steps: { chapter: string; mark: LessonStepMark }[];
+  index: number; // the current step, 0-based
+}
+
+/**
+ * The step card's status:
+ * your-turn (open, nothing typed) · typing (never judged) · checking (looking at the code) · passed (✅) · partial (on the
+ * right track) · stuck (the last look found a problem) · showing (Stride types it for them) · stride-working / stride-failed
+ * (a setup step Stride does) · watch (a part to watch).
+ */
+export type LessonStepStatus =
+  | "your-turn"
+  | "typing"
+  | "checking"
+  | "passed"
+  | "partial"
+  | "stuck"
+  | "showing"
+  | "stride-working"
+  | "stride-failed"
+  | "watch";
+
+export interface LessonStepView {
+  screen: "step";
+  lessonTitle: string;
+  progress: LessonProgressView;
+  step: {
+    id: string;
+    number: number; // 1-based
+    total: number;
+    title: string;
+    instruction: string;
+    why: string;
+    who: "learner" | "stride" | "watch";
+    chapterTitle: string;
+    file?: string;
+    line?: number; // the line to type at, when the VS Code helper knows it
+    concept?: { title: string; explain: string; links: { title: string; url: string }[] };
+    video?: { videoId?: string; start: number; end: number };
+  };
+  status: LessonStepStatus;
+  hints: string[]; // the hints shown so far, gentlest first (0-3)
+  hintOffered: boolean; // "Want a hint?"
+  canShowMe: boolean;
+  doneForMe: boolean; // "Do this one for me" is on (so "Let me try" is offered)
+  pace: "learn" | "fast";
+  note?: string; // a short line from the app, e.g. what's still missing
+  open?: "concept" | "hints" | "video"; // ask the screen to open this panel (e.g. the first time a concept comes up)
+}
+
+/** Where the student put the lesson card. The screen remembers it, and tells the app so the window can follow. */
+export interface LessonLayout {
+  dock: "left" | "right"; // which side of the code
+  expanded: boolean;
+}
+
+// ---------------- Lesson screen → app ----------------
+
+export type LessonToApp =
+  | { channel: "lesson-answer"; data: { id: string; answers: string[] } } // a question's tap buttons ([] = skipped)
+  | { channel: "lesson-extra"; data: { kind: "addPicture" | "showStyles" } }
+  | { channel: "lesson-picture"; data: { ok: boolean; correction?: string } }
+  | { channel: "lesson-choose"; data: { version: "simple" | "full" } } // the estimate screen
+  | { channel: "lesson-setup"; data: { yes: boolean } } // the setup screen's once-only question
+  | { channel: "lesson-hint" } // runner event hintRequested
+  | { channel: "lesson-show-me" } // runner event showMe
+  | { channel: "lesson-skip" } // runner event skip
+  | { channel: "lesson-continue" } // runner event continue (watch steps)
+  | { channel: "lesson-do-for-me" } // runner event doForMe
+  | { channel: "lesson-let-me-try" } // runner event letMeTry
+  | { channel: "lesson-pace"; data: { pace: "learn" | "fast" } } // runner event paceChanged
+  | { channel: "lesson-watch"; data: { start: number; end: number } } // play this part of the video
+  | { channel: "lesson-open-link"; data: { url: string } } // open a concept link in the browser
+  | { channel: "lesson-wrong-step" } // "This step looks wrong"
+  | { channel: "lesson-quiz"; data: { picked: number } }
+  | { channel: "lesson-quiz-next" }
+  | { channel: "lesson-pause" }
+  | { channel: "lesson-resume" }
+  | { channel: "lesson-retry" }
+  | { channel: "lesson-open-settings" }
+  | { channel: "lesson-other-video" }
+  | { channel: "lesson-use-idea" }
+  | { channel: "lesson-next-lesson" }
+  | { channel: "lesson-close" }
+  | { channel: "lesson-layout"; data: LessonLayout }
+  | { channel: "lesson-rect"; data: { x: number; y: number; width: number; height: number } }; // where the card is
