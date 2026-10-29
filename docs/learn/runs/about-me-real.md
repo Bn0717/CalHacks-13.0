@@ -7,6 +7,9 @@
 
 Run: `npx tsx scripts/learn-simulate.ts --idea "a page about me" docs/learn/runs/about-me-real.md` on 2026-10-29.
 
+> The transcript below is from before PR #25/#26 (the older judging); see "Replay on the merged checker" for the same
+> lesson on the current code.
+
 ## Result
 
 - CLI exit code: 0
@@ -33,18 +36,19 @@ Run: `npx tsx scripts/learn-simulate.ts --idea "a page about me" docs/learn/runs
 - Note: when a try is partly right ("Almost there"), the runner waits 30 s and offers a hint instead of showing hint 1 by
   itself; the pretend student takes the offer.
 
-## Replay from the cache (no Opus call)
+## Replay on the merged checker (no Opus call)
 
-`npx tsx scripts/learn-simulate.ts --idea "a page about me"` again: the lesson came from the cache ("⚡ This lesson was made
-before"), same student, so only the checker ran.
+The real build above ran before PR #25/#26 changed the checker's judging ("partial" = half-typed only, "getting closer",
+"Good so far, keep going"). After merging them, the same real-AI lesson (saved as
+`tests/learn/fixtures/real/about-me.lesson.json`) was played again by the same pretend student, for free:
+`npx tsx scripts/learn-simulate.ts tests/learn/fixtures/real/about-me.lesson.json`.
 
 - CLI exit code: 0
 - 🧑 steps typed: 7, wrong first tries: 2, half-typed saves: 1, hints shown: 4
 - Finished files match what this lesson's steps build: yes (the smaller version: the whole project isn't typed, by design)
-- Lesson build (questions answered → estimate shown): 0 s
 - AI cost (cost.json total): $0.0001
-- ✅ delay after the last write (correct code): average 1.79 s, min 1.50 s, max 2.57 s (skeleton 2.57, head-info 1.51, header 1.50, about 1.50, body-colours 1.76, body-font 1.76, header-style 1.93)
-- Total time: 109 s
+- ✅ delay after the last write (correct code): average 1.75 s, min 1.51 s, max 2.48 s (skeleton 2.48, head-info 1.51, header 1.51, about 1.51, body-colours 1.77, body-font 1.76, header-style 1.74)
+- Total time: 108 s
 
 ## Transcript
 
