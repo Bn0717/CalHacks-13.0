@@ -220,7 +220,7 @@ function judgeStyle(check: Extract<Check, { type: "cssProperty" }>, a: ProbeAnsw
     check.value === undefined
       ? values.some((v) => v.value !== v.base)
       : values.some((v) => same(v.value, check.value!) || (want !== undefined && want !== "" && same(v.value, want)));
-  return ok ? { passed: true } : { passed: false, reason: reasons.wrongStyle(check.selector, check.property) };
+  return ok ? { passed: true } : { passed: false, reason: reasons.wrongStyle(check.selector, check.property, check.value === undefined) };
 }
 
 // ---------- Helpers ----------

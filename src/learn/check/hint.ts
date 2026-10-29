@@ -1,6 +1,7 @@
 // Picks which of a step's 3 prepared hints fits best, and words the short message the student sees.
 import type { Check } from "../lesson.js";
 import type { ParseProblem } from "./parse.js";
+import { attributeWords, capital, counted, describeSelector, propertyWords, withArticle, withThe } from "./words.js";
 
 export type HintIndex = 0 | 1 | 2;
 
@@ -37,7 +38,8 @@ export function failMessage(outcomes: CheckOutcome[], parseIssue: ParseProblem |
     const someDone = outcomes.some((o) => o.passed);
     message = `${someDone ? "Almost there. " : ""}${first?.reason ?? "Not quite yet."}`;
   }
-  if (consoleErrors.length > 0) message += ` The page also shows an error: ${clip(consoleErrors[0]!, 80)}`;
+  // The browser's own error text is full of code words, so the student only hears that there is one.
+  if (consoleErrors.length > 0) message += " Your page also shows a problem when it opens, so check the code you just typed for a typo.";
   return message;
 }
 
@@ -45,19 +47,19 @@ function withLine(p: ParseProblem): string {
   return p.line ? `${p.message.replace(/\.$/, "")} (line ${p.line}).` : p.message;
 }
 
-function clip(text: string, max: number): string {
-  const one = text.replace(/\s+/g, " ").trim();
-  return one.length > max ? `${one.slice(0, max - 1)}…` : one;
-}
-
-// Plain-English reasons, one per kind of failure.
+// Plain-English reasons, one per kind of failure. Checks are written in CSS selectors ("header h1"), but the student
+// reads them in words ("a big heading (<h1>) inside the header (<header>)").
 export const reasons = {
-  missingFile: (file: string) => `${file} doesn't exist yet.`,
-  notFound: (selector: string) => `I can't find "${selector}" yet.`,
-  wrongCount: (selector: string, found: number, want: number) => `I see ${found} "${selector}", but this step needs ${want}.`,
-  wrongText: (selector: string, text: string) => `"${selector}" should say "${text}".`,
+  missingFile: (file: string) => `There's no file called ${file} in your project folder yet.`,
+  notFound: (selector: string) => `I can't see ${withArticle(describeSelector(selector))} yet.`,
+  wrongCount: (selector: string, found: number, want: number) =>
+    `I see ${counted(describeSelector(selector), found)}, but this step needs ${want}.`,
+  wrongText: (selector: string, text: string) => `${capital(withThe(describeSelector(selector)))} should say "${text}".`,
   missingAttr: (selector: string, name: string, value?: string) =>
-    value === undefined ? `"${selector}" needs a ${name} attribute.` : `"${selector}" needs ${name}="${value}".`,
-  wrongStyle: (selector: string, property: string) => `"${selector}" doesn't have the right ${property} yet.`,
-  unknown: () => "I couldn't check this part yet.",
+    value === undefined
+      ? `${capital(withThe(describeSelector(selector)))} still needs ${attributeWords(name)}.`
+      : `${capital(withThe(describeSelector(selector)))} needs ${name}="${value}".`,
+  wrongStyle: (selector: string, property: string, anyValue = false) =>
+    `${capital(withThe(describeSelector(selector)))} doesn't have ${anyValue ? "its own" : "the right"} ${propertyWords(property)} yet.`,
+  unknown: () => "I couldn't check this part yet. Keep going, and I'll look again in a moment.",
 };

@@ -55,7 +55,7 @@ function unclosedElement(doc: HtmlDocument): ParseProblem | undefined {
     const loc = el.sourceCodeLocation;
     if (!loc?.startTag || loc.endTag || VOID.has(el.tagName) || OPTIONAL_END.has(el.tagName)) continue;
     if (el.namespaceURI !== "http://www.w3.org/1999/xhtml") continue; // self-closing SVG bits are fine
-    return { message: `The <${el.tagName}> isn't closed yet.`, line: loc.startTag.startLine };
+    return { message: `The <${el.tagName}> you started still needs its closing </${el.tagName}>.`, line: loc.startTag.startLine };
   }
   return undefined;
 }
@@ -95,7 +95,7 @@ export function cssProblem(source: string): ParseProblem | undefined {
   csstree.walk(ast, (node) => {
     if (problem || node.type !== "Declaration") return;
     const value = node.value.type === "Raw" ? node.value.value.trim() : csstree.generate(node.value).trim();
-    if (value === "") problem = { message: `"${node.property}" has no value yet.`, line: node.loc?.start.line };
+    if (value === "") problem = { message: `"${node.property}:" still needs a value after it.`, line: node.loc?.start.line };
   });
   return problem;
 }

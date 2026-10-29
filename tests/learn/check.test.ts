@@ -106,7 +106,7 @@ describe("parsers", () => {
   });
 
   it("says what's unclosed and where", () => {
-    expect(readHtml("<div>\n  <ul>\n    <li>a</li>\n</div>").problem).toEqual({ message: "The <ul> isn't closed yet.", line: 2 });
+    expect(readHtml("<div>\n  <ul>\n    <li>a</li>\n</div>").problem).toEqual({ message: "The <ul> you started still needs its closing </ul>.", line: 2 });
   });
 
   it("checks CSS and JS", () => {
@@ -193,7 +193,9 @@ describe("level 2: the hidden browser", () => {
     const renderer = fakeRenderer(() => ({ values: [] }), ["Uncaught ReferenceError: x is not defined"]);
     const r = await checkStep(step([red]), [PAGE], { renderer });
     expect(r.consoleErrors).toEqual(["Uncaught ReferenceError: x is not defined"]);
-    expect(r.message).toContain("x is not defined");
+    // The student hears that there's a problem, not the browser's code words.
+    expect(r.message).toContain("shows a problem when it opens");
+    expect(r.message).not.toContain("ReferenceError");
   });
 
   it("falls back to the model when the browser can't open", async () => {
@@ -210,7 +212,7 @@ describe("level 2: the hidden browser", () => {
   it("with no browser and no model, an undecided check doesn't pass", async () => {
     const r = await checkStep(step([red]), [PAGE], {});
     expect(r.status).toBe("fail");
-    expect(r.message).toBe("I couldn't check this part yet.");
+    expect(r.message).toMatch(/^I couldn't check this part yet\./);
   });
 });
 
@@ -284,11 +286,17 @@ describe("status: pass, partial, fail", () => {
 
   it("messages are short and plain", async () => {
     expect((await checkStep(step([h1]), [PAGE])).message).toBe("Nice, that works!");
-    expect((await checkStep(step([h1, h2]), [PAGE])).message).toBe('Almost there. I can\'t find "h2" yet.');
-    expect((await checkStep(step([h2]), [PAGE])).message).toBe('I can\'t find "h2" yet.');
-    expect((await checkStep(step([h1]), [html("<ul>\n<li>a")])).message).toBe("Still typing? The <ul> isn't closed yet (line 5).");
-    expect((await checkStep(step([{ type: "selectorExists", selector: "li", count: 2 }]), [PAGE])).message).toBe('I see 3 "li", but this step needs 2.');
-    expect((await checkStep(step([{ type: "fileExists", file: "style.css" }]), [PAGE])).message).toBe("style.css doesn't exist yet.");
+    expect((await checkStep(step([h1, h2]), [PAGE])).message).toBe("Almost there. I can't see a smaller heading (<h2>) yet.");
+    expect((await checkStep(step([h2]), [PAGE])).message).toBe("I can't see a smaller heading (<h2>) yet.");
+    expect((await checkStep(step([h1]), [html("<ul>\n<li>a")])).message).toBe(
+      "Still typing? The <ul> you started still needs its closing </ul> (line 5).",
+    );
+    expect((await checkStep(step([{ type: "selectorExists", selector: "li", count: 2 }]), [PAGE])).message).toBe(
+      "I see 3 list items (<li>), but this step needs 2.",
+    );
+    expect((await checkStep(step([{ type: "fileExists", file: "style.css" }]), [PAGE])).message).toBe(
+      "There's no file called style.css in your project folder yet.",
+    );
   });
 });
 
@@ -337,6 +345,6 @@ describe("the about-me lesson", () => {
     expect(r.status).toBe("partial");
     expect(r.failed.map((c) => c.type)).toEqual(["textIncludes"]);
     expect(r.hintIndex).toBe(2);
-    expect(r.message).toBe('Almost there. "title" should say "about me".');
+    expect(r.message).toBe('Almost there. The page title (<title>) should say "about me".');
   });
 });

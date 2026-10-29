@@ -63,7 +63,28 @@ const GeminiReplySchema = z.object({
     )
     .optional(),
   promptFeedback: z.object({ blockReason: z.string().optional() }).loose().optional(),
+  usageMetadata: z
+    .object({
+      promptTokenCount: z.number().optional(),
+      candidatesTokenCount: z.number().optional(),
+      thoughtsTokenCount: z.number().optional(),
+    })
+    .loose()
+    .optional(),
+  modelVersion: z.string().optional(),
 });
+
+// How many tokens one Gemini call used. Thinking tokens are billed like answer tokens.
+export type GeminiUsage = { model: string; inputTokens: number; outputTokens: number; thoughtsTokens: number };
+
+// How sharp the video frames are that Gemini looks at. "low" costs about a third as much, which matters for a 20-minute video.
+export type MediaResolution = "low" | "medium" | "high";
+const RESOLUTION: Record<MediaResolution, string> = {
+  low: "MEDIA_RESOLUTION_LOW",
+  medium: "MEDIA_RESOLUTION_MEDIUM",
+  high: "MEDIA_RESOLUTION_HIGH",
+};
+export const DEFAULT_MEDIA_RESOLUTION: MediaResolution = "low";
 
 export class GeminiError extends Error {
   constructor(message: string) {
@@ -78,6 +99,9 @@ export type GeminiDeps = {
   fetch?: typeof fetch; // tests pass a fake
   env?: Record<string, string | undefined>; // defaults to process.env (after loading .env)
   signal?: AbortSignal;
+  mediaResolution?: MediaResolution; // defaults to CALHACK_GEMINI_MEDIA_RESOLUTION, then "low"
+  onUsage?: (usage: GeminiUsage) => void; // told the token counts of each answer, so costs can be logged
+  onRaw?: (reply: unknown) => void; // given Gemini's whole reply, e.g. to save it as a test recording
 };
 
 // True when a Gemini key is set, so the app can say early that video lessons need one.
@@ -92,10 +116,15 @@ export async function readVideo(youtubeUrl: string, deps: GeminiDeps = {}): Prom
   if (!key) throw new GeminiError(MISSING_KEY_MESSAGE);
   const model = env.CALHACK_GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const doFetch = deps.fetch ?? fetch;
+  const resolution = deps.mediaResolution ?? mediaResolutionOf(env.CALHACK_GEMINI_MEDIA_RESOLUTION);
 
   const body = {
     contents: [{ parts: [{ file_data: { file_uri: youtubeUrl } }, { text: PROMPT }] }],
-    generationConfig: { responseMimeType: "application/json", responseJsonSchema: videoNotesJsonSchema() },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseJsonSchema: videoNotesJsonSchema(),
+      mediaResolution: RESOLUTION[resolution],
+    },
   };
 
   let response: Response;
@@ -112,8 +141,19 @@ export async function readVideo(youtubeUrl: string, deps: GeminiDeps = {}): Prom
   }
   if (!response.ok) throw new GeminiError(httpProblem(response.status, await safeText(response)));
 
-  const reply = GeminiReplySchema.safeParse(await response.json().catch(() => null));
+  const raw: unknown = await response.json().catch(() => null);
+  deps.onRaw?.(raw);
+  const reply = GeminiReplySchema.safeParse(raw);
   if (!reply.success) throw new GeminiError("Gemini gave an answer Stride couldn't read.");
+  const usage = reply.data.usageMetadata;
+  if (usage) {
+    deps.onUsage?.({
+      model: reply.data.modelVersion || model,
+      inputTokens: usage.promptTokenCount ?? 0,
+      outputTokens: usage.candidatesTokenCount ?? 0,
+      thoughtsTokens: usage.thoughtsTokenCount ?? 0,
+    });
+  }
   if (reply.data.promptFeedback?.blockReason) throw new GeminiError(`Gemini wouldn't read this video (${reply.data.promptFeedback.blockReason}).`);
   const candidate = reply.data.candidates?.[0];
   const text = (candidate?.content?.parts ?? []).map((p) => p.text ?? "").join("");
@@ -129,6 +169,11 @@ export async function readVideo(youtubeUrl: string, deps: GeminiDeps = {}): Prom
   const notes = VideoNotesSchema.safeParse(data);
   if (!notes.success) throw new GeminiError(`Gemini's notes were missing parts: ${notes.error.issues[0]?.message ?? "unknown"}.`);
   return notes.data;
+}
+
+function mediaResolutionOf(value: string | undefined): MediaResolution {
+  const v = value?.trim().toLowerCase();
+  return v === "low" || v === "medium" || v === "high" ? v : DEFAULT_MEDIA_RESOLUTION;
 }
 
 function envOf(env?: Record<string, string | undefined>): Record<string, string | undefined> {
