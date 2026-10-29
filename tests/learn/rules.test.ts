@@ -6,7 +6,7 @@ import { buildFromIdea, type AskModel, type ModelJob } from "../../src/learn/bui
 import { buildFromVideo, firstPart, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
 import { readVideo, type VideoNotes } from "../../src/learn/gemini.js";
 import { ConceptSchema, LessonError, parseLesson, type Lesson, type Step } from "../../src/learn/lesson.js";
-import { hintGivesAway, lessonRuleProblems, looksLikeCode, outlineHint, stepRuleProblems } from "../../src/learn/rules.js";
+import { hintGivesAway, lessonRuleProblems, hintStrength, looksLikeCode, nameHint, outlineHint, stepRuleProblems, strongerHints } from "../../src/learn/rules.js";
 import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "../../src/learn/stages.js";
 
 const fixture = parseLesson(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures/about-me.lesson.json"), "utf8"))) as Lesson;
@@ -220,5 +220,24 @@ describe("long videos and missing video parts", () => {
     await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: async () => long, ask, cache: null }).catch(() => {});
     expect(prompt).toMatch(/covers only its first part, up to 10:00/);
     expect(prompt).not.toContain('"Three"');
+  });
+});
+
+describe("hints that get stronger", () => {
+  const expected = '    <meta charset="utf-8">\n    <title>About me</title>\n    <link rel="stylesheet" href="style.css">\n';
+
+  it("turns a hint 2 that shows more than hint 3 into the names of what to use", () => {
+    const fixed = strongerHints(["Your page needs a few hidden lines.", expected, outlineHint(expected)], expected);
+    expect(fixed[1]).toBe("Here you need <meta>, <title> and <link>.");
+    expect(fixed[2]).toBe(outlineHint(expected));
+    expect(hintStrength(fixed[1]!, expected)).toBeLessThan(hintStrength(fixed[2]!, expected));
+  });
+
+  it("outlines a give-away hint 3 first, and leaves good hints alone", () => {
+    expect(strongerHints(["a", "b", expected], expected)[2]).toBe(outlineHint(expected));
+    const good = ["Add the hidden info.", "Inside <head>, add a meta, a title and a link.", outlineHint(expected)];
+    expect(strongerHints(good, expected)).toEqual(good);
+    expect(nameHint("h1 {\n  color: red;\n}\n")).toBe("Here you need the property color.");
+    expect(nameHint("  color: red;\n  margin: 0;\n")).toBe("Here you need the properties color and margin.");
   });
 });

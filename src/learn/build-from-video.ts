@@ -9,7 +9,7 @@ import { lessonCache, videoCacheKey, type LessonCache } from "./cache.js";
 import { readVideo, type VideoNotes } from "./gemini.js";
 import { CheckSchema, estimateFor, LESSON_VERSION, LessonError, lessonJsonSchema, parseLesson, type Lesson, type Step } from "./lesson.js";
 import { repairSteps } from "./rebuild.js";
-import { hintGivesAway, lessonRuleProblems, outlineHint } from "./rules.js";
+import { lessonRuleProblems, strongerHints } from "./rules.js";
 import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
 
@@ -210,8 +210,8 @@ const BUILD_SYSTEM = `You turn notes on a beginner coding tutorial into a hands-
    - checks: behaviour checks that pass on the finished project; the first must fail on an empty project.
      Prefer selectorExists, textIncludes, attribute and cssProperty. Never compare exact text. Use "ai" only as a last resort.
      A check may have "say": what Stride tells the student while it isn't done, in plain words, never code words.
-   - hints: exactly 3, each stronger than the last, about the whole step: (1) a nudge in words, no code; (2) point at the
-     exact spot and name every tag or property, with any value a beginner can't guess; (3) the code's outline with what the
+   - hints: exactly 3, each stronger than the last, about the whole step: (1) a nudge in words, no code; (2) words that point
+     at the exact spot and name every tag or property, but no code lines (never the answer itself); (3) the code's outline with what the
      student writes themselves (text inside tags, values) left as … to fill in. Hint 3 never contains the whole "expected".
    - why: one plain-English line. Add a concept card when a new idea comes up for the first time: explain is ONE short
      plain sentence (under 25 words), no jargon ("DOM", "selector", "parse", "element", "render", "syntax"), and links
@@ -246,10 +246,9 @@ function fixHints(step: unknown): unknown {
   const hints = s.hints.filter((h): h is string => typeof h === "string" && h.trim() !== "");
   while (hints.length > 0 && hints.length < 3) hints.push(hints[hints.length - 1]!);
   const three = hints.slice(0, 3);
-  // A hint 3 that gives the whole answer away is swapped for the code's outline (cheaper than asking again).
+  // Hints that don't get stronger are fixed in code (cheaper than asking again): see strongerHints.
   const expected = (s as { expected?: unknown }).expected;
-  if (typeof expected === "string" && three[2] && hintGivesAway(three[2], expected)) three[2] = outlineHint(expected);
-  return { ...s, hints: three };
+  return { ...s, hints: typeof expected === "string" ? strongerHints(three, expected) : three };
 }
 
 // A video part that runs a little past the video's end (the notes' last time is only a stand-in for its length) is cut

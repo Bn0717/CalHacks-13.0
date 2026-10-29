@@ -4,7 +4,9 @@
 import type { TooBig } from "./build-from-idea.js";
 import { JARGON } from "./check/words.js";
 import { estimateFor, linesIn, parseLesson, LessonError, type Lesson, type Step } from "./lesson.js";
-import { hintGivesAway, looksLikeCode, normCode, stepRuleProblems } from "./rules.js";
+import { hintGivesAway, hintStrength, looksLikeCode, normCode, stepRuleProblems } from "./rules.js";
+
+export { hintStrength };
 import { rebuildProblems } from "./rebuild.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
 
@@ -178,24 +180,6 @@ function gradeConcepts(lesson: Lesson): Criterion {
     if (!c.links.some((l) => /^https?:\/\//.test(l.url))) bad.push({ score: 2, text: `${id} "${c.title}": no link.` });
   }
   return criterion("concepts", bad);
-}
-
-// How much of the answer a hint gives: the share of the answer's code pieces (names and symbols) that the hint shows.
-export function hintStrength(hint: string, expected: string): number {
-  const pieces = (text: string) => text.toLowerCase().match(/[a-z][a-z0-9-]*|[<>{}:;="\/]/g) ?? [];
-  const want = pieces(expected);
-  if (want.length === 0) return 0;
-  const left = new Map<string, number>();
-  for (const p of want) left.set(p, (left.get(p) ?? 0) + 1);
-  let shown = 0;
-  for (const p of pieces(hint)) {
-    const n = left.get(p) ?? 0;
-    if (n > 0) {
-      shown++;
-      left.set(p, n - 1);
-    }
-  }
-  return Math.round((shown / want.length) * 100) / 100;
 }
 
 function gradeHints(lesson: Lesson): Criterion {

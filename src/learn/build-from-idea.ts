@@ -28,7 +28,7 @@ import {
   type Step,
 } from "./lesson.js";
 import { repairSteps } from "./rebuild.js";
-import { hintGivesAway, outlineHint, stepRuleProblems } from "./rules.js";
+import { stepRuleProblems, strongerHints } from "./rules.js";
 import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckProblem, type CheckRunner } from "./validate.js";
 
@@ -238,10 +238,9 @@ function tidySteps(raw: unknown): unknown {
     if (!Array.isArray(hints) || hints.length === 0) return s;
     const three = hints.slice(0, 3);
     while (three.length < 3) three.push(three[three.length - 1]);
-    // A hint 3 that gives the whole answer away is swapped for the code's outline (cheaper than asking again).
+    // Hints that don't get stronger are fixed in code (cheaper than asking again): see strongerHints.
     const expected = (s as { expected?: unknown }).expected;
-    if (typeof expected === "string" && typeof three[2] === "string" && hintGivesAway(three[2], expected)) three[2] = outlineHint(expected);
-    return { ...s, hints: three };
+    return { ...s, hints: typeof expected === "string" && three.every((h) => typeof h === "string") ? strongerHints(three as string[], expected) : three };
   });
   return { ...(raw as object), steps };
 }
@@ -300,7 +299,8 @@ Rules:
   finished project. Use "ai" only when nothing else can decide. A check may have "say": what Stride tells the student
   while it isn't done, in plain words ("I can't see your list of hobbies yet."), never code words like selector or element.
 - hints: exactly 3, each one stronger than the last, about the whole step (not just one of its lines): (1) a nudge in words,
-  no code; (2) point at the exact spot and name every tag or property to use, with any value a beginner can't guess;
+  no code; (2) words that point at the exact spot and name every tag or property to use, but no code lines (never the
+  answer itself: that is what hint 3's outline and "Show me" are for);
   (3) the code's outline with the parts the student wrote themselves (their words, the text inside tags, the values) left as
   … to fill in. Hint 3 never contains the whole "expected" code and leaves out at least a third of it.
 - concept: on the first step where a new idea appears. explain is ONE short plain sentence (under 25 words) a 14-year-old
