@@ -2,13 +2,14 @@
 
 Legend: ✅ passes (with evidence) · ❌ fails / not done · ⏳ Mac-only (needs the real app on a Mac) · 🔒 blocked (missing key / blocked site)
 
-_Last updated: 2026-10-29 — C1 merged (PR #21); C2 + real-AI run running in a fresh session; C3 in progress._
+_Last updated: 2026-10-29 — C1 (PR #21) and C3 (PR #22) merged; C2 being built without Claude; review round 1 running._
 
 ## Blockers in this cloud environment
 
 - 🔒 Cloud environments reserve the name `ANTHROPIC_API_KEY`, so the key never reached this session. Fixed: the app now
   also reads `STRIDE_ANTHROPIC_API_KEY` (`src/ai/client.ts`, `tests/client-key-alias.test.ts`). The key was added under that
-  name; a fresh session (which loads it) does the real-AI runs (C1 real run + C2).
+  name, but a fresh session found the stored value is **not a valid Claude API key** (401 from api.anthropic.com both as
+  `x-api-key` and as a bearer token; it doesn't start with `sk-ant-api`). Real-AI runs wait for a valid key.
 - ✅ `GEMINI_API_KEY` is set and Google's Gemini API is reachable.
 - 🔒 `youtube.com` is blocked by the network proxy (Gemini reads YouTube videos on Google's side, so that path may still work).
 
@@ -30,13 +31,13 @@ _Last updated: 2026-10-29 — C1 merged (PR #21); C2 + real-AI run running in a 
 
 | Line | Status | Evidence |
 | --- | --- | --- |
-| B1–B8 | ❌ | C3 not started. |
+| B1–B8 | ❌ | C3 merged (PR #22): 37 states × light/dark × 1x/2x = 148 screenshots in `docs/learn/ui/`, audit `docs/learn/ui/REPORT.md` all pass (lowest contrast 4.78:1). Awaiting review round 1. |
 
 ## C. Engineering quality
 
 | Line | Status | Evidence |
 | --- | --- | --- |
-| C1 | ✅ | After PR #21: `npm run typecheck` passes; `npm test`: 943 pass, 4 Mac-only fail (`tests/plan.test.ts` ×3, `tests/agent.test.ts` ×1). |
+| C1 | ✅ | After PR #22: 977 pass, 4 Mac-only fail. After PR #21: `npm run typecheck` passes; `npm test`: 943 pass, 4 Mac-only fail (`tests/plan.test.ts` ×3, `tests/agent.test.ts` ×1). |
 | C2 | ❌ | |
 | C3 | ❌ | |
 | C4 | ❌ | |
