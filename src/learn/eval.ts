@@ -185,10 +185,16 @@ export function summarizeNotes(notes: VideoNotes): Pick<VideoNotesResult, "title
 // Notes worked out from the real results only. Anything that is a projection says so.
 export function findingsFor(r: Pick<EvalReport, "cases" | "videoNotes" | "claude"> & Pick<Partial<EvalReport>, "hintChecks">): string[] {
   const out: string[] = [];
-  const built = r.cases.filter((c) => c.source === "built" && c.grade?.kind === "lesson" && c.usd !== undefined);
+  // Every real build with a measured cost: built in this run, or saved from an earlier one (its cost was kept).
+  const built = r.cases.filter((c) => (c.source === "built" || c.source === "cached") && c.grade?.kind === "lesson" && c.usd !== undefined);
   if (built.length > 0) {
-    const worst = Math.max(...built.map((c) => c.usd!));
-    out.push(`GOAL C3 (build under $0.50): ${built.length} real build(s), most expensive ${dollars(worst)} — ${worst < 0.5 ? "passes" : "FAILS"}.`);
+    const worst = built.reduce((a, b) => (b.usd! > a.usd! ? b : a));
+    const avg = built.reduce((n, c) => n + c.usd!, 0) / built.length;
+    const over = built.filter((c) => c.usd! >= 0.5).map((c) => `${c.name} ${dollars(c.usd!)}`);
+    out.push(
+      `GOAL C3 (build under $0.50): ${built.length} real build(s), average ${dollars(avg)}, most expensive ${dollars(worst.usd!)} (${worst.name}) — ` +
+        `${over.length === 0 ? "passes" : `FAILS for ${over.join(", ")}`}. Video builds add the Gemini notes on top (below).`,
+    );
   } else {
     out.push(
       "GOAL C3 (build under $0.50, hint under $0.01): no real Claude call ran, so there is no real lesson-build or hint cost yet. " +

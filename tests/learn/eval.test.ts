@@ -100,7 +100,7 @@ describe("report", () => {
     expect(f.join(" ")).toMatch(/projection, not measured/);
     expect(f.join(" ")).toMatch(/abc: Gemini copied only 6 code lines/);
     const built = findingsFor({ ...base, cases: [{ name: "x", kind: "idea", status: "graded", source: "built", usd: 0.62, grade: { name: "x", kind: "lesson", criteria: [], passed: 0, total: 0 } }] });
-    expect(built[0]).toMatch(/most expensive \$0\.62 — FAILS/);
+    expect(built[0]).toMatch(/most expensive \$0\.62 \(x\) — FAILS for x \$0\.62/);
   });
 
   it("compares with an earlier run: grades, Opus scores, their average and build cost", () => {
