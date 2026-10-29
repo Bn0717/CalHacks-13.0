@@ -2,7 +2,7 @@
 
 Legend: ✅ passes (with evidence) · ❌ fails / not done · ⏳ Mac-only (needs the real app on a Mac) · 🔒 blocked (missing key / blocked site)
 
-_Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). Key now works: real-AI runs in a fresh session. Round 2 done; fixing._
+_Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). Key now works: real-AI runs in a fresh session. Round-2 fixes merged (PR #25, #26); real-AI eval still running; round 3 waits for its results._
 
 ## Blockers in this cloud environment
 
@@ -23,7 +23,7 @@ _Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). 
 | A3 | ✅ | `⏱ About 24 minutes · you'll type about 28 lines · 6 steps` before step 1; visible at 200% in `docs/learn/ui/light-2x-estimate.png`. |
 | A4 | 🔒 | Rules in code (`rules.ts`); hint-3 rule is text-only → r2 fix; needs a real-AI lesson. |
 | A5 | ✅ | ✅ 1.50–1.71 s after the last write, no key pressed (`docs/learn/runs/about-me.md`, reviewer's sim). |
-| A6 | ❌ | Wrong code that passes one check is "partial" → praised, never hinted; hint 1 can contradict the message → r2 fix. |
+| A6 | ⏳ review | Fixed in PR #25/#26: `tests/learn/judging.test.ts` (`<li>Drawing<li>` → hint after 10 s; pause after `<h1>` → "getting closer", no hint at 10 s; half-typed → partial); hint 1 shown with what's wrong. Awaiting round 3. |
 | A7 | 🔒 | Concept links required; "Say hi" step lacks a concept card → r2 fix; video timestamps need a real video lesson. |
 | A8 | ✅ | `session.test › q saves, and the next session opens the same step with the same hints`; `› coming back … shows Welcome back`. |
 | A9 | ✅ | `terminal.test › shows what they made, the counts and what they learned`; `light-1x-finished.png`. |
@@ -56,5 +56,6 @@ _Last updated: 2026-10-29 — PRs #21–#24 merged (C1, C3, C2, round-1 fixes). 
 - **Round 1** (fresh reviewer, b185cc9): 5 ✅, 7 ❌, 6 🔒, 4 ⏳. Fixes merged in PR #24 (screen ↔ session via `onView`, 200% text + in-view audit, ✅ 1.5 s,
   estimate, dark buddy, polish, fixture now 8/8 on the grader). `learn/c2-quality` merged (PR #23): plain checker messages (`check/words.ts`), AI rules in code
   (`rules.ts`), real build stages (`stages.ts`), eval harness + grader (`docs/learn/eval/report.md`).
-- **Round 2** (fresh reviewer, 1885751): 8 ✅, 7 ❌, 4 🔒, 2 ⏳. Fixing on `learn/r2-fixes` (partial vs wrong, matching hints, AI-judge jargon,
-  200% fold, real messages in preview, polish).
+- **Round 2** (fresh reviewer, 1885751): 8 ✅, 7 ❌, 4 🔒, 2 ⏳. Fixes merged in PR #25 (partial vs wrong + "getting closer", hint 1 with
+  what's wrong, AI-judge jargon filter, 200% fold + audit, real checker words in the preview, polish) and PR #26 (terminal "keep going").
+
