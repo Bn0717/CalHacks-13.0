@@ -65,8 +65,11 @@ class Input implements KeySource {
 
   onKey(fn: (key: string) => void): () => void {
     if (this.keyFns.size === 0 && this.stdin.isTTY) this.stdin.setRawMode(true);
+    // Keys typed ahead (e.g. piped in with the last answer) still count.
+    const ahead = this.buffer;
     this.buffer = "";
     this.keyFns.add(fn);
+    if (ahead) queueMicrotask(() => this.feed(ahead));
     return () => {
       this.keyFns.delete(fn);
       if (this.keyFns.size === 0 && this.stdin.isTTY) this.stdin.setRawMode(false);

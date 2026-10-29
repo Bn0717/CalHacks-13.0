@@ -297,7 +297,7 @@ export class LessonSession {
           const back = welcomeBackText(this.deps.lesson, this.runner.state.progress);
           if (back) this.print(`👋 ${back}`);
         }
-        this.track(this.openStep(effect.index, effect.step));
+        this.track(this.openStep(effect.index, effect.step, effect.welcomeBack));
         break;
       case "showHint":
         this.print(hintText(effect.level, effect.text));
@@ -328,7 +328,7 @@ export class LessonSession {
     }
   }
 
-  private async openStep(index: number, step: Step): Promise<void> {
+  private async openStep(index: number, step: Step, welcomeBack = false): Promise<void> {
     let newFile: string | undefined;
     if (step.who === "learner" && step.file) {
       const path = this.inside(step.file);
@@ -344,6 +344,9 @@ export class LessonSession {
       }
     }
     this.print(stepCard(this.deps.lesson, index, newFile ? { newFile } : {}));
+    // Back after a break: the hints they'd already seen on this step, so nothing is lost.
+    const seen = welcomeBack && step.who === "learner" ? this.runner.state.hintLevel : 0;
+    for (let level = 1; level <= seen; level++) this.print(hintText(level, step.hints[level - 1]));
     const editor = this.deps.editor;
     if (editor?.connected && step.who === "learner" && step.file) {
       const content = this.live.get(step.file) ?? (await readFile(this.inside(step.file), "utf8").catch(() => ""));

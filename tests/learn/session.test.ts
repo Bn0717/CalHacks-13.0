@@ -160,6 +160,7 @@ describe("LessonSession", () => {
     expect(again.text()).toContain("👋 Welcome back! Step 3: Say hi.");
     expect(again.session.state.progress.stepIndex).toBe(2);
     expect(again.session.state.hintLevel).toBe(1);
+    expect(again.text()).toContain("💡 Hint 1/3: A big heading uses the <h1> tag.");
   });
 
   it("asks the student to make a new file when the step is about making it", async () => {
