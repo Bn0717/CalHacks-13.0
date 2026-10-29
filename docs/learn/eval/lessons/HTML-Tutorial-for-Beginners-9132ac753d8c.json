@@ -1,0 +1,516 @@
+{
+  "id": "video-WOvg00FnmsU",
+  "source": {
+    "kind": "video",
+    "url": "https://www.youtube.com/watch?v=WOvg00FnmsU",
+    "videoId": "WOvg00FnmsU",
+    "title": "HTML Tutorial for Beginners - Full Course"
+  },
+  "title": "Build Your First Web Page with HTML",
+  "summary": "Make a simple web page from scratch: a title, headings, paragraphs, bold and slanted words, line breaks, and clear page sections. This lesson covers the video up to 10:45.",
+  "outcome": "A working web page called index.html with a big heading, a short intro, an 'About This Course' section and a footer.",
+  "learns": [
+    "What HTML is for",
+    "The basic page skeleton",
+    "Headings and paragraphs",
+    "Bold and slanted words",
+    "Notes and line breaks",
+    "Header, main, section and footer"
+  ],
+  "estimate": {
+    "minutes": 33,
+    "linesToType": 26,
+    "steps": 12
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>My First HTML Page</title>\n  </head>\n  <body>\n    <header>\n      <h1>My First HTML Page</h1>\n      <p>I'm learning how to build websites with HTML.</p>\n    </header>\n\n    <main>\n      <section>\n        <!-- Main course content -->\n        <h2>About This Course</h2>\n        <p>HTML gives <strong>structure</strong> to every web page.</p>\n        <p>We will learn everything <em>step by step</em>.</p>\n        <p>HTML<br />CSS<br />JavaScript</p>\n      </section>\n    </main>\n\n    <footer>\n      <p>Built while learning HTML.</p>\n    </footer>\n  </body>\n</html>\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "intro",
+      "title": "Introduction & Core Concept"
+    },
+    {
+      "id": "first-page",
+      "title": "Creating the First HTML Page"
+    },
+    {
+      "id": "structure",
+      "title": "Formatting & Structuring Content"
+    }
+  ],
+  "steps": [
+    {
+      "id": "watch-intro",
+      "chapter": "intro",
+      "title": "What we're building",
+      "instruction": "Watch the presenter show the website you'll build and explain that HTML is the skeleton of every web page.",
+      "why": "Knowing the goal makes each small step make sense.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch for now, nothing to type.",
+        "Listen for the idea that HTML gives a page its structure, like the frame of a house.",
+        "When the intro ends, move on to the next step."
+      ],
+      "video": {
+        "start": 0,
+        "end": 90
+      }
+    },
+    {
+      "id": "watch-setup",
+      "chapter": "first-page",
+      "title": "Make a project folder",
+      "instruction": "Watch the presenter make a folder called html-project on the desktop and open it in Visual Studio Code. Then create a new file in it called index.html.",
+      "why": "All your website's files live together in one folder.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Watch how the folder is made and opened.",
+        "The file must be named exactly index.html.",
+        "Once your empty index.html is open, go to the next step."
+      ],
+      "video": {
+        "start": 90,
+        "end": 162
+      }
+    },
+    {
+      "id": "skeleton",
+      "chapter": "first-page",
+      "title": "Start the page skeleton",
+      "instruction": "At the very top of index.html, type <!DOCTYPE html> on the first line. This tells the browser 'this is a modern web page'. Below it, open an html tag with lang=\"en\" (the page is in English) and close it with </html>. Inside, add an empty head: <head> and </head>. The html tag wraps the whole page; the head holds behind-the-scenes info.",
+      "why": "Every web page starts with this same outer frame.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n  </head>\n</html>",
+      "checks": [
+        {
+          "type": "attribute",
+          "say": "I can't see the outer frame of your page with the English language setting yet.",
+          "selector": "html",
+          "name": "lang",
+          "value": "en"
+        },
+        {
+          "type": "parses",
+          "say": "Something in the page looks unfinished. Check every opening has a matching closing."
+        }
+      ],
+      "hints": [
+        "Start with the line that says what kind of page this is, then the big outer wrapper.",
+        "First line: <!DOCTYPE html>. Then an html opening tag with lang=\"en\", a head opening and closing tag, and </html> at the end.",
+        "<!DOCTYPE html>\n<html lang=\"…\">\n  <head>\n  </head>\n</…>"
+      ],
+      "concept": {
+        "title": "Tags",
+        "explain": "HTML uses tags in angle brackets, usually a pair like <head> and </head>, to wrap and label parts of a page.",
+        "links": [
+          {
+            "title": "MDN: Getting started with HTML",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started"
+          }
+        ],
+        "imageQuery": "html tag opening closing diagram",
+        "videoQuery": "what is an html tag beginner"
+      },
+      "video": {
+        "start": 162,
+        "end": 218
+      }
+    },
+    {
+      "id": "head-info",
+      "chapter": "first-page",
+      "title": "Add the page info and title",
+      "instruction": "Inside the head, add two meta lines. A meta tag gives the browser extra info: the first, <meta charset=\"UTF-8\" />, lets the page show any letters; the second, <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />, makes it fit phone screens. Then add a title tag with the text My First HTML Page. The title is the name shown on the browser tab.",
+      "why": "The title is what people see on the tab, and the meta lines make text and phones work properly.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "head"
+      },
+      "expected": "    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>My First HTML Page</title>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't find the line that sets the letter set for your page yet.",
+          "selector": "meta[charset]"
+        },
+        {
+          "type": "selectorExists",
+          "say": "The line that helps your page fit phone screens is missing.",
+          "selector": "meta[name=\"viewport\"]"
+        },
+        {
+          "type": "textIncludes",
+          "say": "Your browser tab name doesn't say My First HTML Page yet.",
+          "selector": "title",
+          "text": "First HTML Page"
+        }
+      ],
+      "hints": [
+        "The head needs two info lines and a name for the browser tab.",
+        "Between <head> and </head>: a meta with charset=\"UTF-8\", a meta with name=\"viewport\" and content=\"width=device-width, initial-scale=1.0\", then a title.",
+        "<meta charset=\"…\" />\n<meta name=\"viewport\" content=\"…\" />\n<title>…</title>"
+      ],
+      "concept": {
+        "title": "The head",
+        "explain": "The head holds information about the page, like its tab name, that isn't shown inside the page itself.",
+        "links": [
+          {
+            "title": "MDN: What's in the head?",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/The_head_metadata_in_HTML"
+          }
+        ]
+      },
+      "video": {
+        "start": 162,
+        "end": 247
+      }
+    },
+    {
+      "id": "watch-live-server",
+      "chapter": "first-page",
+      "title": "Preview with Live Server",
+      "instruction": "Watch the presenter install the Live Server extension in VS Code and click 'Go Live' to open the page in a browser. It refreshes by itself every time you save.",
+      "why": "Seeing your page update as you save makes learning much faster.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Watch where the extension is found in VS Code.",
+        "Search for Live Server in the Extensions panel and install it.",
+        "Click 'Go Live' at the bottom of VS Code to open your page."
+      ],
+      "video": {
+        "start": 247,
+        "end": 288
+      }
+    },
+    {
+      "id": "body-heading",
+      "chapter": "first-page",
+      "title": "Add the body and a big heading",
+      "instruction": "Below </head>, add a body: <body> and </body>. The body holds everything you see on the page. Inside it, add an h1 tag with the text My First HTML Page. An h1 is the biggest, most important heading.",
+      "why": "Now something actually shows up on the page.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</head>"
+      },
+      "expected": "  <body>\n      <h1>My First HTML Page</h1>\n  </body>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see your big heading on the page yet.",
+          "selector": "body h1"
+        },
+        {
+          "type": "textIncludes",
+          "say": "Your big heading should say My First HTML Page.",
+          "selector": "h1",
+          "text": "First HTML Page"
+        }
+      ],
+      "hints": [
+        "Add the part of the page people see, and put a big heading in it.",
+        "Right after </head>, open <body>, put an h1 inside, then close with </body>.",
+        "<body>\n  <h1>…</h1>\n</body>"
+      ],
+      "concept": {
+        "title": "Headings",
+        "explain": "Headings go from h1, the biggest and most important, down to h6, the smallest.",
+        "links": [
+          {
+            "title": "MDN: Heading elements",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements"
+          }
+        ]
+      },
+      "video": {
+        "start": 288,
+        "end": 316
+      }
+    },
+    {
+      "id": "watch-elements",
+      "chapter": "structure",
+      "title": "Blocks and inline pieces",
+      "instruction": "Watch the presenter explain that some parts take a whole line (like headings) and others sit inside a line (like a bold word).",
+      "why": "This explains why things stack or sit side by side.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch and listen.",
+        "Headings and paragraphs start on a new line; bold words don't.",
+        "Move on when the explanation is done."
+      ],
+      "video": {
+        "start": 316,
+        "end": 403
+      }
+    },
+    {
+      "id": "paragraphs-strong",
+      "chapter": "structure",
+      "title": "Intro, section heading and a bold word",
+      "instruction": "Under the h1, add a paragraph with a p tag: I'm learning how to build websites with HTML. Then add a smaller h2 heading that says About This Course. Below it, add another paragraph: HTML gives structure to every web page. Wrap the word structure in a strong tag, which makes it bold and important.",
+      "why": "Paragraphs hold normal text, and strong makes key words stand out.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "<h1>My First HTML Page</h1>"
+      },
+      "expected": "      <p>I'm learning how to build websites with HTML.</p>\n        <h2>About This Course</h2>\n        <p>HTML gives <strong>structure</strong> to every web page.</p>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "I can't see the short intro sentence right under your big heading.",
+          "selector": "h1 + p"
+        },
+        {
+          "type": "textIncludes",
+          "say": "Your smaller heading should say About This Course.",
+          "selector": "h2",
+          "text": "About This Course"
+        },
+        {
+          "type": "textIncludes",
+          "say": "The word structure isn't bold yet.",
+          "selector": "strong",
+          "text": "structure"
+        }
+      ],
+      "hints": [
+        "Add an intro sentence, a smaller heading, and a sentence with one bold word.",
+        "After the h1: a p with the intro, an h2 saying About This Course, then a p where the word structure sits inside strong tags.",
+        "<p>…</p>\n<h2>…</h2>\n<p>HTML gives <strong>…</strong> to every web page.</p>"
+      ],
+      "concept": {
+        "title": "Paragraphs and bold",
+        "explain": "A p tag holds a paragraph of text, and strong marks words as important so they show in bold.",
+        "links": [
+          {
+            "title": "MDN: The strong element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/strong"
+          },
+          {
+            "title": "MDN: The p element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p"
+          }
+        ]
+      },
+      "video": {
+        "start": 403,
+        "end": 420
+      },
+      "quiz": {
+        "question": "Which heading is the biggest?",
+        "options": [
+          "h1",
+          "h2",
+          "h6"
+        ],
+        "answer": 0,
+        "explain": "h1 is the most important heading, so it's the biggest."
+      },
+      "leavesOpen": []
+    },
+    {
+      "id": "em-comment-br",
+      "chapter": "structure",
+      "title": "Slanted words, a note and line breaks",
+      "instruction": "Above the h2, add a note just for you: <!-- Main course content -->. Notes like this are hidden from visitors. Below the bold paragraph, add a paragraph: We will learn everything step by step. Wrap step by step in an em tag, which makes it slanted. Then add one more paragraph with HTML, CSS and JavaScript on separate lines, using <br /> between them. br is a line break.",
+      "why": "Notes help you remember things, em adds emphasis, and br starts a new line.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "<p>HTML gives <strong>structure</strong> to every web page.</p>"
+      },
+      "expected": "        <!-- Main course content -->\n        <p>We will learn everything <em>step by step</em>.</p>\n        <p>HTML<br />CSS<br />JavaScript</p>",
+      "checks": [
+        {
+          "type": "textIncludes",
+          "say": "The words step by step aren't slanted yet.",
+          "selector": "em",
+          "text": "step by step"
+        },
+        {
+          "type": "selectorExists",
+          "say": "I need HTML, CSS and JavaScript on three separate lines.",
+          "selector": "p br",
+          "count": 2
+        },
+        {
+          "type": "ai",
+          "say": "Add a hidden note that says Main course content above the About heading.",
+          "question": "Does the code contain an HTML comment with the text 'Main course content'?"
+        }
+      ],
+      "hints": [
+        "Add a hidden note, a sentence with slanted words, and a three-line list of words.",
+        "Above the h2 put <!-- Main course content -->. After the bold paragraph: a p with step by step inside em, then a p with <br /> between HTML, CSS and JavaScript.",
+        "<!-- … -->\n<p>We will learn everything <em>…</em>.</p>\n<p>HTML<br />…<br />…</p>"
+      ],
+      "concept": {
+        "title": "Comments and line breaks",
+        "explain": "A comment is a hidden note for people reading the code, and br moves text onto a new line.",
+        "links": [
+          {
+            "title": "MDN: The br element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/br"
+          },
+          {
+            "title": "MDN: HTML comments",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Getting_started#html_comments"
+          }
+        ]
+      },
+      "video": {
+        "start": 420,
+        "end": 512
+      }
+    },
+    {
+      "id": "header-footer",
+      "chapter": "structure",
+      "title": "Add a header and footer",
+      "instruction": "Wrap the h1 and the intro paragraph in a header: put <header> just above the h1 and </header> just after the intro paragraph. The header is the top part of a page. Then, just before </body>, add a footer with a paragraph saying Built while learning HTML. The footer is the bottom part of a page.",
+      "why": "Labelling the top and bottom helps browsers and screen readers understand your page.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "inside": "body"
+      },
+      "expected": "    <header>\n    </header>\n    <footer>\n      <p>Built while learning HTML.</p>\n    </footer>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "Your big heading isn't inside a top section yet.",
+          "selector": "header h1"
+        },
+        {
+          "type": "selectorExists",
+          "say": "I can't see a bottom section with a sentence in it.",
+          "selector": "footer p"
+        },
+        {
+          "type": "textIncludes",
+          "say": "Your bottom section should say Built while learning HTML.",
+          "selector": "footer",
+          "text": "Built while learning"
+        }
+      ],
+      "hints": [
+        "Group the top of the page, and add a bottom part.",
+        "Put <header> before the h1 and </header> after the intro p. Before </body>, add a footer holding a p.",
+        "<header>\n  (h1 and intro here)\n</header>\n<footer>\n  <p>…</p>\n</footer>"
+      ],
+      "concept": {
+        "title": "Meaningful page parts",
+        "explain": "Tags like header and footer name the parts of a page so computers and people know what each part is.",
+        "links": [
+          {
+            "title": "MDN: Document and website structure",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/HTML/Introduction_to_HTML/Document_and_website_structure"
+          }
+        ]
+      },
+      "video": {
+        "start": 512,
+        "end": 548
+      }
+    },
+    {
+      "id": "main-section",
+      "chapter": "structure",
+      "title": "Wrap the content in main and section",
+      "instruction": "Put the note, the h2 and the three paragraphs below it inside a main tag, and inside that a section tag. Type <main> then <section> just above the note, and </section> then </main> just after the HTML/CSS/JavaScript paragraph. main is the page's main content; section groups one topic.",
+      "why": "Grouping content by topic keeps your page tidy and easy to grow.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</header>"
+      },
+      "expected": "    <main>\n      <section>\n      </section>\n    </main>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "say": "Your About This Course part isn't inside the main area yet.",
+          "selector": "main section h2"
+        },
+        {
+          "type": "selectorExists",
+          "say": "The paragraphs about the course should be in that same group too.",
+          "selector": "main section em"
+        }
+      ],
+      "hints": [
+        "Wrap the course part of the page in two grouping tags.",
+        "Open main then section above the note; close section then main after the last paragraph.",
+        "<main>\n  <section>\n    (note, h2 and paragraphs here)\n  </section>\n</main>"
+      ],
+      "concept": {
+        "title": "Main and section",
+        "explain": "main holds the most important content of a page, and section groups content about one topic.",
+        "links": [
+          {
+            "title": "MDN: The main element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/main"
+          },
+          {
+            "title": "MDN: The section element",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/section"
+          }
+        ]
+      },
+      "video": {
+        "start": 548,
+        "end": 585
+      },
+      "quiz": {
+        "question": "Where does the footer go?",
+        "options": [
+          "At the bottom of the page",
+          "At the top of the page",
+          "Inside the head"
+        ],
+        "answer": 0,
+        "explain": "The footer is the bottom part of a page."
+      },
+      "leavesOpen": []
+    },
+    {
+      "id": "watch-prettier",
+      "chapter": "structure",
+      "title": "Tidy code with Prettier",
+      "instruction": "Watch the presenter install the Prettier extension, which neatly lines up your code each time you save.",
+      "why": "Neat code is much easier to read and fix.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch how Prettier tidies the spacing.",
+        "Search for Prettier in the VS Code Extensions panel.",
+        "Save your file and see your code line up neatly."
+      ],
+      "video": {
+        "start": 585,
+        "end": 645
+      }
+    }
+  ],
+  "createdAt": "2026-10-29T07:12:20.451Z",
+  "version": 1
+}

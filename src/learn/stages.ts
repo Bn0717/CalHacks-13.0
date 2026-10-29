@@ -7,7 +7,7 @@ export const STAGE_LABELS: Record<BuildStage, string> = {
   scope: "Checking how big your idea is",
   video: "Watching the video",
   project: "Writing the finished website",
-  browser: "Testing it in a hidden browser",
+  browser: "Trying your site out to make sure it works",
   steps: "Cutting it into small steps",
   checks: "Making sure every step can be checked",
   estimate: "Working out how long it takes",
@@ -20,7 +20,7 @@ export const BUILD_STAGES = {
 } as const satisfies Record<string, readonly BuildStage[]>;
 
 // How long a new lesson takes to build, said the same way everywhere.
-export const BUILD_TIME_TEXT = "usually a minute or two";
+export const BUILD_TIME_TEXT = "about 3 minutes"; // real Opus builds took 2.5-4 minutes (docs/learn/runs/about-me-real.md)
 
 // Called by a builder as each stage starts.
 export type OnStage = (stage: BuildStage) => void;

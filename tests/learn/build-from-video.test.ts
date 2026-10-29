@@ -22,9 +22,13 @@ const fakeGemini = (url: string): Promise<VideoNotes> =>
     fetch: (async () => new Response(recorded, { status: 200 })) as typeof fetch,
   });
 
+// True once this step's own code is in the files (the fakes treat that as "done"; an empty project never is).
+const typedIn = (step: { expected: string }, files: { content: string }[]) =>
+  files.length > 0 && (step.expected.trim() === "" || files.some((f) => f.content.replace(/\s+/g, "").includes(step.expected.replace(/\s+/g, ""))));
+
 // A fake checker: nothing passes on an empty project; on the finished one, a check passes unless its selector says "nope".
-const fakeCheck: CheckRunner = async (check: Check, _step, files: ProjectFile[]) => {
-  if (files.length === 0) return false;
+const fakeCheck: CheckRunner = async (check: Check, step, files: ProjectFile[]) => {
+  if (!typedIn(step, files)) return false;
   return !("selector" in check && check.selector.includes("nope"));
 };
 
@@ -110,7 +114,7 @@ describe("buildFromVideo", () => {
     expect(String(calls[0]!.content)).toContain("<h1>Hello, I'm Alex</h1>");
     expect(calls[0]!.schema.properties).not.toHaveProperty("id");
     expect(calls[0]!.schema.properties).toHaveProperty("steps");
-    expect(String(calls[1]!.content)).toContain("fails on the finished project");
+    expect(String(calls[1]!.content)).toContain("fails right after the step is typed");
   });
 
   it("drops a step whose checks still don't work after the fix", async () => {

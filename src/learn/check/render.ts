@@ -23,6 +23,8 @@ export type RenderResult = { answers: ProbeAnswer[]; consoleErrors: string[] };
 export interface Renderer {
   render(request: RenderRequest): Promise<RenderResult>;
   close(): Promise<void>;
+  // Starts the browser and opens one blank page ahead of time, so the student's first check isn't slower. Optional.
+  warm?(): Promise<void>;
 }
 
 // Project files are served from this made-up address; nothing else is loaded, so a page can't reach the internet.
@@ -62,7 +64,10 @@ export function playwrightRenderer(options: { executablePath?: string; timeoutMs
     return b;
   };
 
-  return {
+  const renderer: Renderer = {
+    async warm() {
+      await renderer.render({ page: "index.html", files: [{ path: "index.html", content: "<!DOCTYPE html><title>.</title>" }], probes: [] });
+    },
     async render({ page: pagePath, files, probes }) {
       if (!browser) browser = launch().catch((e: unknown) => ((browser = null), Promise.reject(e)));
       const context = await (await browser).newContext({ serviceWorkers: "block" });
@@ -95,6 +100,7 @@ export function playwrightRenderer(options: { executablePath?: string; timeoutMs
       if (b) await (await b.catch(() => null))?.close();
     },
   };
+  return renderer;
 }
 
 // Runs inside the page. Kept as plain browser code, without anything from this file.

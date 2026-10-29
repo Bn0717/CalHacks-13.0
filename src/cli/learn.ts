@@ -14,7 +14,7 @@ import { lessonCache, ideaCacheKey, videoCacheKey } from "../learn/cache.js";
 import { buildFromIdea, playwrightReference, scopeCheck, type AskModel } from "../learn/build-from-idea.js";
 import { buildFromVideo, parseYouTubeId, VideoUrlError } from "../learn/build-from-video.js";
 import { checkRunner, checkStep, haikuJudge, playwrightRenderer, type Judge, type Renderer } from "../learn/check/index.js";
-import { CostLog, geminiUsage, meteredAskJson, meteredLearnModel } from "../learn/cost.js";
+import { CostLog, dollars, geminiUsage, meteredAskJson, meteredLearnModel } from "../learn/cost.js";
 import { hasGeminiKey, MISSING_KEY_MESSAGE, readVideo } from "../learn/gemini.js";
 import { BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "../learn/stages.js";
 import { LessonError, parseLesson, smallerLesson, type Lesson } from "../learn/lesson.js";
@@ -391,6 +391,8 @@ async function main(): Promise<void> {
       ...(bridge ? { editor: editorLink(bridge) } : {}),
       pace: args.pace,
     });
+    // Warm up the hidden browser while the student reads the first step, so their first check is quick.
+    void renderer.warm?.().catch(() => {});
     await session.start();
     const end = await session.ended;
     await session.settle();
@@ -399,6 +401,8 @@ async function main(): Promise<void> {
     say(costText(log.total(), log.allTime(), costFile));
   } catch (e) {
     say(`😕 ${e instanceof LessonError ? e.message : friendlyError(e)} Try again in a moment, or try a different idea.`);
+    // Calls made before the problem still cost money: say how much.
+    if (log.total().calls > 0) say(`💸 AI cost so far: ${dollars(log.total().usd)} (${log.total().calls} calls).`);
     process.exitCode = 1;
   } finally {
     input.close();

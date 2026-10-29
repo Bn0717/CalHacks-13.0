@@ -134,6 +134,10 @@ export const StepSchema = z
       .describe("For video lessons: the part of the video (in seconds) that shows this step."),
     strideAction: StrideActionSchema.optional().describe("For who=stride: the safe tool Stride runs."),
     quiz: QuizSchema.optional(),
+    leavesOpen: z
+      .array(z.string().min(1))
+      .optional()
+      .describe("Stride fills this in itself; leave it out. Tags this step leaves open on purpose because a later step closes them."),
   })
   .superRefine((s, ctx) => {
     if (s.who === "learner" && s.checks.length === 0) {

@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildFromIdea, type AskModel, type ModelJob } from "../../src/learn/build-from-idea.js";
-import { buildFromVideo, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
+import { buildFromVideo, firstPart, notesEnd, videoPartProblems, type AskJson } from "../../src/learn/build-from-video.js";
 import { readVideo, type VideoNotes } from "../../src/learn/gemini.js";
 import { ConceptSchema, LessonError, parseLesson, type Lesson, type Step } from "../../src/learn/lesson.js";
-import { codeStructure, hintGivesAway, lessonRuleProblems, looksLikeCode, stepRuleProblems, structureShare } from "../../src/learn/rules.js";
+import { codeStructure, hintGivesAway, hintStrength, lessonRuleProblems, looksLikeCode, nameHint, outlineHint, stepRuleProblems, strongerHints, structureShare } from "../../src/learn/rules.js";
 import { BUILD_STAGES, BUILD_TIME_TEXT, STAGE_LABELS, type BuildStage } from "../../src/learn/stages.js";
 
 const fixture = parseLesson(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures/about-me.lesson.json"), "utf8"))) as Lesson;
@@ -26,7 +26,9 @@ function fakeModel(answers: Partial<Record<ModelJob, unknown[]>>) {
   return { ask, calls };
 }
 
-const runCheck = async (_c: unknown, _s: unknown, files: unknown[]) => files.length > 0;
+// Passes once the step's own code is in the files, fails before that.
+const runCheck = async (_c: unknown, s: { expected: string }, files: { content: string }[]) =>
+  files.length > 0 && (s.expected.trim() === "" || files.some((f) => f.content.replace(/\s+/g, "").includes(s.expected.replace(/\s+/g, ""))));
 const ideaDeps = (ask: AskModel, onStage?: (s: BuildStage) => void) => ({ ask, browser: { render: async () => [] }, runCheck, ...(onStage ? { onStage } : {}) });
 const aboutMe = { request: "a page about me", answers: [] };
 
@@ -84,14 +86,27 @@ describe("rule tests", () => {
 });
 
 describe("the idea builder enforces the rules", () => {
-  it("asks again when hint 3 gives the whole answer, and uses the fixed steps", async () => {
+  it("turns a hint 3 that gives the whole answer into the code's outline, without asking again", async () => {
     const bad = learner.map((s) => (s.id === "intro" ? { ...s, hints: [s.hints[0], s.hints[1], s.expected] as [string, string, string] } : s));
-    const model = fakeModel({ project: [project], steps: [stepsAnswer(bad), stepsAnswer(learner)] });
+    const model = fakeModel({ project: [project], steps: [stepsAnswer(bad)] });
     const r = await buildFromIdea(aboutMe, ideaDeps(model.ask));
-    expect(r.kind).toBe("lesson");
-    const stepCalls = model.calls.filter((c) => c.job === "steps");
-    expect(stepCalls).toHaveLength(2);
-    expect(stepCalls[1]!.prompt).toMatch(/hint 3 contains the whole answer/);
+    if (r.kind !== "lesson") throw new Error("expected a lesson");
+    expect(model.calls.filter((c) => c.job === "steps")).toHaveLength(1);
+    const intro = r.lesson.steps.find((s) => s.id === "intro")!;
+    expect(intro.hints[2]).toBe(outlineHint(intro.expected));
+    expect(lessonRuleProblems(r.lesson.steps)).toEqual([]);
+  });
+
+  it("outlines code by blanking out what the student writes, and never gives the answer's whole shape", () => {
+    const css = "h1 {\n  color: tomato;\n  margin: 0;\n  padding: 4px;\n}\n";
+    const html = '    <h1>Hi, I\'m Sam</h1>\n    <p>I like <b>art</b></p>\n    <img src="me.png" alt="Me">\n';
+    for (const code of [css, html, "<ul>\n</ul>\n<ol>\n</ol>\n"]) {
+      const hint = outlineHint(code);
+      expect(hintGivesAway(hint, code), hint).toBe(false);
+      expect(hint).toContain("…");
+    }
+    expect(outlineHint(html).split("\n")[0]).toBe("    <h1>…</h1>");
+    expect(outlineHint(css)).toMatch(/^h1 \{\n  color: …;/);
   });
 
   it("gives up when the steps still break the rules", async () => {
@@ -127,22 +142,34 @@ describe("the video builder enforces the rules", () => {
     expect(seen).toEqual([...BUILD_STAGES.video]);
   });
 
-  it("asks again when a video part is past the end of the video or a hint gives the answer away", async () => {
+  it("cuts a part running past the video's end and outlines a give-away hint 3, without asking again", async () => {
+    let calls = 0;
+    const ask = (async () => {
+      calls++;
+      const d = draft();
+      const first = d.steps.find((s) => s.who === "learner")!;
+      first.video = { start: 10, end: 99_999 };
+      first.hints = [(first.hints as string[])[0], (first.hints as string[])[1], first.expected];
+      return d;
+    }) as AskJson;
+    const lesson = await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: notes, ask, cache: null });
+    expect(calls).toBe(1);
+    const first = lesson.steps.find((s) => s.who === "learner")!;
+    expect(first.video).toEqual({ start: 10, end: 410 });
+    expect(lessonRuleProblems(lesson.steps)).toEqual([]);
+  });
+
+  it("asks again when a video part starts after the video ends", async () => {
     const calls: string[] = [];
     const ask = (async (req: { content: unknown }) => {
       calls.push(String(req.content));
       const d = draft();
-      if (calls.length === 1) {
-        const first = d.steps.find((s) => s.who === "learner")!;
-        first.video = { start: 10, end: 99_999 };
-        first.hints = [(first.hints as string[])[0], (first.hints as string[])[1], first.expected];
-      }
+      if (calls.length === 1) d.steps.find((s) => s.who === "learner")!.video = { start: 99_000, end: 99_999 };
       return d;
     }) as AskJson;
     const lesson = await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: notes, ask, cache: null });
     expect(calls).toHaveLength(2);
     expect(calls[1]).toMatch(/after the video ends/);
-    expect(calls[1]).toMatch(/hint 3 contains the whole answer/);
     expect(lessonRuleProblems(lesson.steps)).toEqual([]);
   });
 
@@ -159,6 +186,105 @@ describe("the video builder enforces the rules", () => {
 describe("stages", () => {
   it("have a plain label each, and one honest build time phrase", () => {
     for (const s of [...BUILD_STAGES.idea, ...BUILD_STAGES.video]) expect(STAGE_LABELS[s]).toMatch(/^[A-Z][a-z]/);
-    expect(BUILD_TIME_TEXT).toBe("usually a minute or two");
+    expect(BUILD_TIME_TEXT).toBe("about 3 minutes");
+  });
+});
+
+describe("long videos and missing video parts", () => {
+  const recorded = readFileSync(new URL("./fixtures/gemini-video.response.json", import.meta.url), "utf8");
+  const draft = () => JSON.parse(readFileSync(new URL("./fixtures/video-lesson.draft.json", import.meta.url), "utf8")) as { steps: Record<string, unknown>[] };
+  const notes = (url: string): Promise<VideoNotes> =>
+    readVideo(url, { env: { GEMINI_API_KEY: "k" }, fetch: (async () => new Response(recorded, { status: 200 })) as typeof fetch });
+
+  it("gives a learner step with no video part the stretch between its neighbours, without asking again", async () => {
+    let calls = 0;
+    let gap: { before: { end: number }; after: { start: number } } | undefined;
+    const ask = (async () => {
+      calls++;
+      const d = draft();
+      const learners = d.steps.filter((s) => s.who === "learner");
+      const i = d.steps.indexOf(learners[1]!);
+      delete d.steps[i]!.video;
+      const prev = d.steps.slice(0, i).reverse().find((s) => s.video)!.video as { end: number };
+      const next = d.steps.slice(i + 1).find((s) => s.video)!.video as { start: number };
+      gap = { before: prev, after: next };
+      return d;
+    }) as AskJson;
+    const lesson = await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: notes, ask, cache: null });
+    expect(calls).toBe(1);
+    const filled = lesson.steps.filter((s) => s.who === "learner")[1]!;
+    expect(filled.video).toBeDefined();
+    if (gap!.before.end < gap!.after.start) expect(filled.video).toEqual({ start: gap!.before.end, end: gap!.after.start });
+    expect(lessonRuleProblems(lesson.steps)).toEqual([]);
+  });
+
+  it("builds a long video's lesson from its first chapters, and says where it stops", async () => {
+    const seg = (start: number, chapter: string, lines: number) => ({ start, end: start + 30, chapter, action: "types", file: "index.html", code: Array.from({ length: lines }, (_, i) => `<p>${i}</p>`).join("\n") });
+    const long: VideoNotes = {
+      title: "Long",
+      summary: "s",
+      chapters: [
+        { title: "One", start: 0, end: 300 },
+        { title: "Two", start: 300, end: 600 },
+        { title: "Three", start: 600, end: 900 },
+      ],
+      segments: [seg(10, "One", 60), seg(100, "One", 60), seg(320, "Two", 20), seg(620, "Three", 80)],
+    };
+    const part = firstPart(long);
+    expect(part.trimmed).toBe(true);
+    expect(part.until).toBe(600);
+    expect(part.notes.chapters.map((c) => c.title)).toEqual(["One", "Two"]);
+    expect(part.notes.segments).toHaveLength(3);
+    expect(firstPart({ ...long, segments: long.segments.slice(0, 1) }).trimmed).toBe(false);
+
+    let prompt = "";
+    const ask = (async (req: { content: unknown }) => ((prompt = String(req.content)), draft())) as AskJson;
+    await buildFromVideo("https://youtu.be/dQw4w9WgXcQ", { runCheck, readVideo: async () => long, ask, cache: null }).catch(() => {});
+    expect(prompt).toMatch(/covers only its first part, up to 10:00/);
+    expect(prompt).not.toContain('"Three"');
+  });
+});
+
+describe("hints that get stronger", () => {
+  const expected = '    <meta charset="utf-8">\n    <title>About me</title>\n    <link rel="stylesheet" href="style.css">\n';
+
+  it("turns a hint 2 that shows more than hint 3 into the names of what to use", () => {
+    const fixed = strongerHints(["Your page needs a few hidden lines.", expected, outlineHint(expected)], expected);
+    expect(fixed[1]).toBe("Here you need <meta>, <title> and <link>.");
+    expect(fixed[2]).toBe(outlineHint(expected));
+    expect(hintStrength(fixed[1]!, expected)).toBeLessThan(hintStrength(fixed[2]!, expected));
+  });
+
+  it("outlines a give-away hint 3 first, and leaves good hints alone", () => {
+    expect(strongerHints(["a", "b", expected], expected)[2]).toBe(outlineHint(expected));
+    const good = ["Add the hidden info.", "Inside <head>, add a meta, a title and a link.", outlineHint(expected)];
+    expect(strongerHints(good, expected)).toEqual(good);
+    expect(nameHint("h1 {\n  color: red;\n}\n")).toBe("Here you need the property color.");
+    expect(nameHint("  color: red;\n  margin: 0;\n")).toBe("Here you need the properties color and margin.");
+  });
+});
+
+describe("review fixes", () => {
+  it("one-line CSS rules still get useful hints", () => {
+    const code = "h1 { color: #c0392b; }\n";
+    expect(outlineHint(code)).toBe("h1 { color: …; }");
+    expect(nameHint(code)).toBe("Here you need the property color.");
+  });
+
+  it("hint 2 keeps the values a beginner can't guess when it has to be rewritten", () => {
+    const expected = '<meta charset="utf-8">\n<title>Me</title>\n<link rel="stylesheet" href="style.css">\n';
+    const fixed = strongerHints(["Add the hidden info.", expected, outlineHint(expected)], expected);
+    expect(hintStrength(fixed[1]!, expected)).toBeLessThanOrEqual(hintStrength(fixed[2]!, expected));
+    expect(nameHint(expected)).toBe('Here you need <meta>, <title> and <link>, with charset "utf-8", rel "stylesheet" and href "style.css".');
+  });
+
+  it("trims a video whose only chapter is already too long", () => {
+    const seg = (start: number, n: number) => ({ start, end: start + 30, chapter: "All", action: "a", file: "index.html", code: Array.from({ length: n }, (_, i) => `<p>${i}</p>`).join("\n") });
+    const one: VideoNotes = { title: "t", summary: "s", chapters: [{ title: "All", start: 0, end: 900 }], segments: [seg(0, 80), seg(100, 60), seg(200, 90)] };
+    const part = firstPart(one);
+    expect(part.trimmed).toBe(true);
+    expect(part.notes.segments).toHaveLength(2);
+    expect(part.until).toBe(130);
+    expect(part.notes.chapters[0]!.end).toBe(130);
   });
 });

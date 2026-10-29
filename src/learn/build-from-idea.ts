@@ -27,7 +27,8 @@ import {
   type ProjectFile,
   type Step,
 } from "./lesson.js";
-import { stepRuleProblems } from "./rules.js";
+import { repairSteps } from "./rebuild.js";
+import { stepRuleProblems, strongerHints } from "./rules.js";
 import type { OnStage } from "./stages.js";
 import { describeProblems, selfValidateSteps, type CheckProblem, type CheckRunner } from "./validate.js";
 
@@ -237,7 +238,9 @@ function tidySteps(raw: unknown): unknown {
     if (!Array.isArray(hints) || hints.length === 0) return s;
     const three = hints.slice(0, 3);
     while (three.length < 3) three.push(three[three.length - 1]);
-    return { ...s, hints: three };
+    // Hints that don't get stronger are fixed in code (cheaper than asking again): see strongerHints.
+    const expected = (s as { expected?: unknown }).expected;
+    return { ...s, hints: typeof expected === "string" && three.every((h) => typeof h === "string") ? strongerHints(three as string[], expected) : three };
   });
   return { ...(raw as object), steps };
 }
@@ -259,7 +262,13 @@ Rules:
 - Plain HTML, CSS and a little JavaScript only. No frameworks, no build tools, no servers, no forms that send anything.
 - Everything must work offline from the project folder: no links to scripts, fonts, images or styles on the internet.
   For pictures use emoji, CSS shapes, gradients or small inline SVG.
-- Keep it small enough for a beginner: about 40-200 lines in total, short clear code, well indented, one idea per line.
+- It's the student's first project, so keep it small: about 30-70 lines in total (a big ask with many pages or sections
+  can go up to about 120), short clear code, well indented, one idea per line. A student types about one line a minute.
+- Build only what the student asked for, in its simplest form. No extras they didn't ask for: no JavaScript unless they
+  asked for something that moves or reacts to clicks, no animations, no hover effects beyond one, no extra sections.
+- Use few, common tags and CSS properties (h1, p, ul, li, a, img, section, header, footer; color, background, font-family,
+  font-size, margin, padding, border, border-radius, text-align). Reuse them rather than adding new ones.
+- The <head> holds only <meta charset="utf-8">, a <title> and the link to style.css: nothing a beginner can't understand.
 - No code comments: the student types every line, so a comment is a line they type for nothing.
 - index.html is the home page. Use simple file names like style.css and script.js.
 - No console errors, and every link to another page must point at a file in the project.
@@ -272,23 +281,32 @@ Rules:
   Every line of the finished project is typed by the student in some learner step.
 - Each learner step adds 3-10 non-blank lines (never more than 10). Split longer parts into several steps.
 - Teaching order: the page skeleton first, then the content (HTML), then the look (CSS), then any JavaScript. Each step
-  builds on the one before and brings in at most one new idea. Group steps into 2-6 chapters ("Write the page",
+  builds on the one before and brings in at most one new idea: at most 2 tags or CSS properties the student hasn't typed
+  before. A CSS rule with many new properties is split over several steps (the rule with 2 properties, then more inside it).
+  Every tag or property the student types for the first time is named and explained in plain words in that step's
+  instruction or why ("padding is the space inside the box"). Group steps into 2-6 chapters ("Write the page",
   "Add colour"...), chapter ids short.
 - who: "learner" for every code step; "watch" only for a short look at the result, and a watch step adds no code
   (expected is ""). Don't use "stride" steps: setup is done separately.
 - file: the file the step changes. anchor: where the code goes (afterLine, after some text, or inside an element).
-- instruction: plain English: say what to add and where, in words ("under your heading, add a list of 3 hobbies").
+- Each step's code is complete on its own: it closes every tag it opens. For a wrapper like <main> or <section>, one
+  step types the wrapper with its first contents and its closing tag; later steps add more inside it.
+- instruction: plain English: say what to add and where, in words ("under your heading, add a list of 3 hobbies"). Say
+  exactly what to type when a beginner can't guess it (a value like utf-8, a file name, a colour).
   why: one short line on what it gives the student.
 - checks: about behaviour, never exact text. Prefer selectorExists, textIncludes, attribute, cssProperty, parses, fileExists.
   The FIRST check must only be true once this step is done (it must fail on an empty project). Every check must pass on the
   finished project. Use "ai" only when nothing else can decide. A check may have "say": what Stride tells the student
   while it isn't done, in plain words ("I can't see your list of hobbies yet."), never code words like selector or element.
-- hints: exactly 3, each one stronger than the last: (1) a nudge in words, no code; (2) point at the exact spot and name the
-  tag or property to use; (3) part of the code with the rest left as … to fill in. Hint 3 never contains the whole
-  "expected" code: the student must still type part of it themselves.
+- hints: exactly 3, each one stronger than the last, about the whole step (not just one of its lines): (1) a nudge in words,
+  no code; (2) words that point at the exact spot and name every tag or property to use, but no code lines (never the
+  answer itself: that is what hint 3's outline and "Show me" are for);
+  (3) the code's outline with the parts the student wrote themselves (their words, the text inside tags, the values) left as
+  … to fill in. Hint 3 never contains the whole "expected" code and leaves out at least a third of it.
 - concept: on the first step where a new idea appears. explain is ONE short plain sentence (under 25 words) a 14-year-old
   understands, with no jargon (never "DOM", "selector", "parse", "element", "attribute", "render", "syntax"); links has at
   least one MDN page. quiz: optional, at the end of a chapter.
+- After the HTML chapter, add a "watch" step that tells the student to open index.html in their browser to see their page.
 - Step ids are short and unique, like "skeleton" or "nav-links".`;
 
 function ideaText(input: IdeaInput): string {
@@ -373,11 +391,13 @@ async function cutIntoSteps(project: ProjectAnswer, deps: IdeaDeps): Promise<{ c
     system: STEPS_SYSTEM,
     prompt: `Lesson: ${project.title}\n${project.summary}\n\nThe finished project:\n${filesText(project.files)}\n\nCut it into steps.`,
     schema: stepsAnswerSchema(project.files),
-    maxTokens: 20000,
+    maxTokens: 32000, // a whole lesson; streamed (see askJson)
     prepare: tidySteps,
   });
   deps.onStage?.("checks");
-  const steps = await proveChecks(answer.steps, project.files, deps);
+  // Steps typed in order must rebuild the finished site: code fixes late closing tags and works out every anchor.
+  const repaired = repairSteps(answer.steps, project.files).steps;
+  const steps = await proveChecks(repaired, project.files, deps);
   return { chapters: answer.chapters, steps };
 }
 
@@ -424,9 +444,10 @@ async function revalidate(steps: Step[], files: ProjectFile[], runCheck: CheckRu
     const checks = change(s);
     return checks ? { ...s, checks } : null;
   });
-  const toCheck = changed.filter((s): s is Step => s !== null);
-  if (toCheck.length === 0) return steps;
-  const checked = new Map((await selfValidateSteps(toCheck, files, runCheck)).steps.map((s) => [s.id, s]));
+  const toCheck = new Set(changed.filter((s): s is Step => s !== null).map((s) => s.id));
+  if (toCheck.size === 0) return steps;
+  const all = steps.map((s, i) => changed[i] ?? s);
+  const checked = new Map((await selfValidateSteps(all, files, runCheck, toCheck)).steps.map((s) => [s.id, s]));
   return steps.map((s) => checked.get(s.id) ?? s);
 }
 

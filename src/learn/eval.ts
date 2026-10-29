@@ -118,7 +118,31 @@ export type EvalReport = {
   findings: string[]; // plain notes worked out from the real results (see findingsFor)
   messageExamples: { before: string; after: string }[];
   promptChanges: { where: string; change: string; why: string }[];
+  hintChecks?: HintCheckCost[]; // real Haiku check calls made while a student is stuck (GOAL C3: under $0.01 each)
+  before?: BeforeRun; // the earlier run these results are compared with
+  summary?: string[]; // a hand-written account of the runs (EVAL_SUMMARY), shown first
 };
+
+// One real Haiku check call, the kind made when a step needs the AI to decide (an 'ai' check, or levels 1-2 can't).
+export type HintCheckCost = { lesson: string; stepId: string; answer: string; inputTokens: number; outputTokens: number; usd: number };
+
+// The scores of an earlier run, for the before/after table.
+export type BeforeRun = { ranAt: string; cases: Pick<CaseResult, "name" | "status" | "note" | "grade" | "judgement" | "usd" | "estimate">[] };
+
+// The before part of an earlier report.json (only what the comparison needs).
+export function beforeRunFrom(r: Pick<EvalReport, "ranAt" | "cases">): BeforeRun {
+  return {
+    ranAt: r.ranAt,
+    cases: r.cases.map((c) => ({ name: c.name, status: c.status, ...(c.note ? { note: c.note } : {}), ...(c.grade ? { grade: c.grade } : {}), ...(c.judgement ? { judgement: c.judgement } : {}), ...(c.usd !== undefined ? { usd: c.usd } : {}), ...(c.estimate ? { estimate: c.estimate } : {}) })),
+  };
+}
+
+// The average of the five Opus scores, or undefined when the lesson wasn't reviewed.
+export function averageScore(j: LessonJudgement | undefined): number | undefined {
+  if (!j) return undefined;
+  const s = Object.values(j.scores);
+  return s.reduce((n, x) => n + x, 0) / s.length;
+}
 
 export const GEMINI_PRICE_NOTE =
   "Gemini priced at $1.50 per million input tokens and $9.00 per million output + thinking tokens (Google Cloud's published " +
@@ -138,6 +162,39 @@ export const PROMPT_CHANGES: EvalReport["promptChanges"] = [
   { where: "idea + video: checks", change: "Optional plain 'say' wording per check, no code words.", why: "B1: the student never sees a CSS selector. The checker words one itself when it's missing." },
   { where: "video: timestamps", change: "Every learner step has a video part from the notes' times, start < end, inside the video, in order.", why: "A7 'video steps link to the right timestamp'. Enforced in code: parts past the video's end are sent back." },
   { where: "checker: Haiku judge", change: "Reasons in plain words for a 14-year-old, never DOM/selector/element/parse.", why: "B1." },
+  // Round 2: from the first real run (report-before.json).
+  { where: "idea: project (round 2)", change: "First projects of 30-70 lines (up to ~120 for big asks); only what the student asked for, no surprise JavaScript or extras; few common tags/properties; the <head> is just charset, title and the CSS link.", why: "Run 1: 'a page about me' came back at 116 lines / 102 min with a face-switcher nobody asked for; the picture page at 139 lines / 113 min; bakery so big its steps were cut off." },
+  { where: "idea + video: steps (round 2)", change: "At most 2 new tags or CSS properties per step, each named and explained in plain words; long CSS rules split over steps; say exactly what to type when a beginner can't guess it.", why: "Run 1 Opus review: 'faces: arrays, let, if, functions, addEventListener… all at once', 'flex, vh, line-height never explained', 'viewport would mean nothing'." },
+  { where: "idea + video: hints (round 2)", change: "Hints about the whole step; hint 2 names every tag/property with values a beginner can't guess; hint 3 is the outline with the student's own parts as …", why: "Run 1 review: 'hints only cover the <link>', 'hint 3 is basically the full answer'." },
+  { where: "idea + video: steps (round 2)", change: "Each step closes every tag it opens; an idea lesson gets a 'look at your page' step after the HTML.", why: "The real C1 run: a step opened <main> whose </main> came later, so the right answer stayed 'Still typing?'. Also fixed in code (rebuild.ts)." },
+  { where: "code, not prompt (round 2)", change: "Late closing tags, drifting anchors, a give-away hint 3 and a video part past the end are repaired in code; checks are proven on the files as they are right after each step.", why: "Asking Opus again costs $0.20-0.50 a time; run 1 lost $1.06 on three failed builds." },
+];
+
+// What happened over the real runs (2026-10-29), in words. Numbers come from report-before.json, this report and cost.json.
+export const EVAL_SUMMARY: string[] = [
+  "Four real runs with Opus 5.5 (builder and separate reviewer) and Haiku 5.5 (checks): run 1 = the C2 prompts (report-before.json); " +
+    "runs 2-4 = the round-2 prompt and code changes below, run 3 only the 3 videos, run 4 only 'Create Your First HTML/CSS Project' " +
+    "(run 2's rebuild of it had failed, so run 3 still graded its run-1 lesson). Spend: run 1 $2.35, run 2 $3.52, run 3 $0.65, " +
+    "run 4 $0.53, plus $0.74 of Gemini notes = $7.79 of the $8 cap. Nothing else can run without passing the cap.",
+  "Before: 3 of 6 real builds failed (bakery and the 24-minute video cut off at the token limit, one video broke the step rules twice: " +
+    "$1.06 lost). After: all 6 build. Opus review average (wording, step size, order, hints, fidelity): about me 3.2 → 3.4, " +
+    "picture 3.4 → 4.0, 'Create Your First HTML/CSS Project' 2.8 → 3.6; bakery, 'HTML Tutorial' and 'How to Code Your First " +
+    "Website' failed before and score 4.2, 3.8 and 3.4 now.",
+  "Biggest fixes came from code, not prompts: the lesson answer shape broke the API's structured-output limits (400), steps left " +
+    "tags open across steps and anchors drifted (found by the real C1 run), and small rule breaks (a give-away hint 3, a missing or " +
+    "late video part) sent a whole $0.20-0.50 lesson back to Opus. All are repaired in code now (schema-limit.ts, rebuild.ts, rules.ts).",
+  "Worst left (Opus review): hint 2 often gave the full code in the run-2 idea lessons, so 'hints' scored 2-3 (fixed in prompt and " +
+    "code after run 2 — strongerHints — but not re-measured: no budget left); steps that need exact values a beginner can't guess " +
+    "(meta viewport) with hint 3 blanking them out (after the run, hint 2 now keeps such values when code rewrites it); some " +
+    "steps still bring in 3+ new tags; idea lessons still run 68-100 min, so the smaller version is offered first, but the " +
+    "70-minute 'Create Your First HTML/CSS Project' video lesson offers none ('estimate'); 'HTML Tutorial' doesn't rebuild its " +
+    "files exactly ('buildsUp'): a step that wraps code typed earlier (<header> around an existing <h1>) can't be placed as one " +
+    "insertion, so repairSteps leaves that file alone (not fixed). Video timestamps are only checked to lie inside the video, and " +
+    "the reviewer found clips that don't show their step (e.g. para-strong 352-720 s).",
+  "Cost per lesson build (Opus, real): idea lessons $0.46-$0.51, video lessons $0.19-$0.45 for Opus plus $0.22-$0.29 of Gemini " +
+    "notes ($0.42-$0.67 in all). GOAL C3 '< $0.50' holds for 2 of 3 idea builds and 1 of 3 video builds. Cost per hint: the hint " +
+    "text is part of the lesson (free); a check the code can't decide calls Haiku: $0.0001-$0.0002 each (every call in cost.json), " +
+    "well under $0.01.",
 ];
 
 // What a set of video notes holds, for the report.
@@ -154,16 +211,31 @@ export function summarizeNotes(notes: VideoNotes): Pick<VideoNotesResult, "title
 }
 
 // Notes worked out from the real results only. Anything that is a projection says so.
-export function findingsFor(r: Pick<EvalReport, "cases" | "videoNotes" | "claude">): string[] {
+export function findingsFor(r: Pick<EvalReport, "cases" | "videoNotes" | "claude"> & Pick<Partial<EvalReport>, "hintChecks">): string[] {
   const out: string[] = [];
-  const built = r.cases.filter((c) => c.source === "built" && c.grade?.kind === "lesson" && c.usd !== undefined);
+  // Every real build with a measured cost: built in this run, or saved from an earlier one (its cost was kept).
+  const built = r.cases.filter((c) => (c.source === "built" || c.source === "cached") && c.grade?.kind === "lesson" && c.usd !== undefined);
   if (built.length > 0) {
-    const worst = Math.max(...built.map((c) => c.usd!));
-    out.push(`GOAL C3 (build under $0.50): ${built.length} real build(s), most expensive ${dollars(worst)} — ${worst < 0.5 ? "passes" : "FAILS"}.`);
+    const worst = built.reduce((a, b) => (b.usd! > a.usd! ? b : a));
+    const avg = built.reduce((n, c) => n + c.usd!, 0) / built.length;
+    const over = built.filter((c) => c.usd! >= 0.5).map((c) => `${c.name} ${dollars(c.usd!)}`);
+    out.push(
+      `GOAL C3 (build under $0.50): ${built.length} real build(s), average ${dollars(avg)}, most expensive ${dollars(worst.usd!)} (${worst.name}) — ` +
+        `${over.length === 0 ? "passes" : `FAILS for ${over.join(", ")}`}. Video builds add the Gemini notes on top (below).`,
+    );
   } else {
     out.push(
       "GOAL C3 (build under $0.50, hint under $0.01): no real Claude call ran, so there is no real lesson-build or hint cost yet. " +
         "The about-me fixture is hand-written, so it has no cost data at all; it only gives the estimate shown above.",
+    );
+  }
+  if (r.hintChecks && r.hintChecks.length > 0) {
+    const worst = Math.max(...r.hintChecks.map((h) => h.usd));
+    const avg = r.hintChecks.reduce((n, h) => n + h.usd, 0) / r.hintChecks.length;
+    out.push(
+      `GOAL C3 (hint under $0.01): ${r.hintChecks.length} real Haiku check call(s), average ${dollars(avg)}, most expensive ${dollars(worst)} — ` +
+        `${worst < 0.01 ? "passes" : "FAILS"}. The hint text itself is written into the lesson when it's built, so showing a hint costs nothing; ` +
+        "only a check the code can't decide calls Haiku.",
     );
   }
   const notes = r.videoNotes.filter((v) => v.usd !== undefined);
@@ -200,6 +272,11 @@ export function reportMarkdown(r: EvalReport): string {
   out.push("# Stride Learn: lesson quality test (C2)", "");
   out.push(`Ran ${r.ranAt} with \`npm run learn:eval\`. The raw results are in \`report.json\` next to this file.`, "");
   out.push(`**Claude:** ${r.claude.usable ? "working" : "not usable"}: ${r.claude.note}`, "");
+  if (r.summary && r.summary.length > 0) {
+    out.push("## Summary", "");
+    for (const line of r.summary) out.push(`- ${line}`);
+    out.push("");
+  }
 
   out.push("## Lessons", "");
   out.push("| Lesson | Source | Status | Automatic grade | Opus scores (1-5) | Estimate | Build cost |", "|---|---|---|---|---|---|---|");
@@ -268,7 +345,35 @@ export function reportMarkdown(r: EvalReport): string {
   out.push("## Spend", "");
   out.push(`This run: ${dollars(r.spend.thisRun)}. All eval runs so far (cost.json): ${dollars(r.spend.allRuns)}. Hard cap: ${dollars(r.spend.cap)}.`, "");
 
-  out.push("## Prompt changes", "", "Before/after: pending a real run with a working Claude key.", "");
+  if (r.hintChecks && r.hintChecks.length > 0) {
+    out.push("## Hint-time checks (Haiku, real calls)", "");
+    out.push("| Lesson | Step | Haiku said | Tokens in / out | Cost |", "|---|---|---|---|---|");
+    for (const h of r.hintChecks) out.push(`| ${cell(h.lesson)} | ${cell(h.stepId)} | ${cell(h.answer)} | ${h.inputTokens} / ${h.outputTokens} | ${dollars(h.usd)} |`);
+    out.push("");
+  }
+
+  out.push("## Prompt changes", "");
+  if (r.before) {
+    out.push(`Before = the run of ${r.before.ranAt}; after = this run. Opus scores are wording · step size · order · hints · fidelity (1-5), then their average.`, "");
+    out.push("| Lesson | Automatic grade before → after | Opus scores before | Opus scores after | Average before → after | Build cost before → after |", "|---|---|---|---|---|---|");
+    const short = (j?: LessonJudgement) => (j ? `${j.scores.wording} · ${j.scores.stepSize} · ${j.scores.order} · ${j.scores.hints} · ${j.scores.fidelity}` : "—");
+    const avg = (j?: LessonJudgement) => (averageScore(j) === undefined ? "—" : averageScore(j)!.toFixed(1));
+    const g = (x?: Grade) => (x ? `${x.passed}/${x.total}` : "—");
+    const usd = (x?: number) => (x === undefined ? "—" : dollars(x));
+    for (const c of r.cases.filter((x) => x.grade?.kind === "lesson")) {
+      const b = r.before.cases.find((x) => x.name === c.name);
+      if (!b) continue;
+      if (!b.grade) {
+        const why = `build failed${b.note ? `: ${b.note.split(" (")[0]}` : ""}`;
+        out.push(`| ${cell(c.name)} | ${cell(why)} → ${c.grade!.passed}/${c.grade!.total} | — | ${c.judgement ? short(c.judgement) : "—"} | — → ${avg(c.judgement)} | ${usd(b.usd)} lost → ${usd(c.usd)} |`);
+        continue;
+      }
+      out.push(`| ${cell(c.name)} | ${g(b.grade)} → ${g(c.grade)} | ${short(b.judgement)} | ${short(c.judgement)} | ${avg(b.judgement)} → ${avg(c.judgement)} | ${usd(b.usd)} → ${usd(c.usd)} |`);
+    }
+    out.push("");
+  } else {
+    out.push("Before/after: this is the first run with these prompts; the next run compares against it (`--before`).", "");
+  }
   out.push("| Where | Change | Why |", "|---|---|---|");
   for (const p of r.promptChanges) out.push(`| ${cell(p.where)} | ${cell(p.change)} | ${cell(p.why)} |`);
   out.push("");

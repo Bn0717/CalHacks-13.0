@@ -1,0 +1,393 @@
+{
+  "id": "video-zMTId2CUClw",
+  "source": {
+    "kind": "video",
+    "url": "https://www.youtube.com/watch?v=zMTId2CUClw",
+    "videoId": "zMTId2CUClw",
+    "title": "How to Code Your FIRST Website (in 10 minutes)"
+  },
+  "title": "Code Your First Website",
+  "summary": "Build a tiny webpage from scratch with a big heading, bold and slanted words, and some color.",
+  "outcome": "A one-page website with a dark blue heading, a short introduction about you, and a light blue background.",
+  "learns": [
+    "What HTML tags are",
+    "Making headings and paragraphs",
+    "Bold and slanted text",
+    "Adding color with CSS",
+    "Changing fonts"
+  ],
+  "estimate": {
+    "minutes": 26,
+    "linesToType": 19,
+    "steps": 9
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "content": "<style>\n  body {\n    background: lightblue;\n  }\n\n  h1 {\n    font-family: Arial;\n    color: darkblue;\n  }\n</style>\n\n<h1>\n  hello world!!!!!\n</h1>\n\n<p>\n  My name is\n  <strong>Coder Coder.</strong>\n</p>\n\n<p>\n  <em>I really like coding!</em>\n</p>\n"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "start",
+      "title": "Getting Started"
+    },
+    {
+      "id": "html",
+      "title": "Adding HTML"
+    },
+    {
+      "id": "css",
+      "title": "Styling with CSS"
+    },
+    {
+      "id": "wrap",
+      "title": "Wrapping Up"
+    }
+  ],
+  "steps": [
+    {
+      "id": "intro",
+      "chapter": "start",
+      "title": "What we're building",
+      "instruction": "Watch the intro. You'll make a real webpage using just a text editor and a web browser.",
+      "why": "Knowing the goal makes each step make sense.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch for now.",
+        "Nothing to type in this step.",
+        "Move on when you're ready."
+      ],
+      "video": {
+        "start": 0,
+        "end": 35
+      }
+    },
+    {
+      "id": "make-file",
+      "chapter": "start",
+      "title": "Create index.html",
+      "instruction": "Watch how the file is made. Your project already has a file called index.html, which is where your webpage lives. The browser reads it and shows the page.",
+      "why": "Every webpage starts as a plain text file ending in .html.",
+      "who": "watch",
+      "file": "index.html",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch for now.",
+        "The file is named index.html.",
+        "Nothing to type yet."
+      ],
+      "concept": {
+        "title": "HTML and CSS",
+        "explain": "HTML says what is on the page, like words and headings; CSS says how it looks, like colors and fonts.",
+        "links": [
+          {
+            "title": "MDN: Getting started with the web",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web"
+          }
+        ]
+      },
+      "video": {
+        "start": 35,
+        "end": 234
+      }
+    },
+    {
+      "id": "hello",
+      "chapter": "start",
+      "title": "Hello world",
+      "instruction": "Watch the presenter type plain words into the file and see them show up in the browser.",
+      "why": "It shows that whatever you write in the file appears on the page.",
+      "who": "watch",
+      "file": "index.html",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch for now.",
+        "Notice how saving and reloading shows the change.",
+        "Nothing to type yet."
+      ],
+      "video": {
+        "start": 234,
+        "end": 352
+      }
+    },
+    {
+      "id": "para-strong",
+      "chapter": "html",
+      "title": "A paragraph with a bold name",
+      "instruction": "At the top of index.html, add a paragraph. Start it with <p> and end it with </p>. Inside, write 'My name is' on one line, then on the next line put your name between <strong> and </strong> so it shows in bold.",
+      "why": "Tags wrap around words to tell the browser what they are: <p> means a paragraph, <strong> means important (bold) words.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<p>\n  My name is\n  <strong>Coder Coder.</strong>\n</p>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see a paragraph with a bold name yet.",
+          "selector": "p strong"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Write 'My name is' inside your paragraph.",
+          "selector": "p",
+          "text": "My name is"
+        }
+      ],
+      "hints": [
+        "You need a paragraph, and inside it some words plus a bold name.",
+        "Use an opening <p> and closing </p>. Inside, after 'My name is', wrap your name in <strong> and </strong>.",
+        "<p>\n  My name is\n  <strong>…</strong>\n</p>"
+      ],
+      "concept": {
+        "title": "Tags",
+        "explain": "A tag is a word in angle brackets; an opening and closing tag wrap around words to give them meaning.",
+        "links": [
+          {
+            "title": "MDN: The strong tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/strong"
+          },
+          {
+            "title": "MDN: The p tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/p"
+          }
+        ]
+      },
+      "video": {
+        "start": 352,
+        "end": 720
+      }
+    },
+    {
+      "id": "em-para",
+      "chapter": "html",
+      "title": "A slanted sentence",
+      "instruction": "Below your first paragraph's closing </p>, add a second paragraph. Inside it, write 'I really like coding!' wrapped in <em> and </em>. The <em> tag means 'say this with emphasis' and makes the words slanted (italic).",
+      "why": "Emphasis helps some words stand out, just like when you stress a word when talking.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "</p>"
+      },
+      "expected": "<p>\n  <em>I really like coding!</em>\n</p>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your slanted sentence yet.",
+          "selector": "p em"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Write that you like coding in your slanted sentence.",
+          "selector": "em",
+          "text": "coding"
+        }
+      ],
+      "hints": [
+        "Make another paragraph, this time with slanted words.",
+        "After the first </p>, add <p> and </p>, and inside put the sentence between <em> and </em>.",
+        "<p>\n  <em>…</em>\n</p>"
+      ],
+      "concept": {
+        "title": "Emphasis",
+        "explain": "The em tag marks words you want to stress, and browsers show them slanted.",
+        "links": [
+          {
+            "title": "MDN: The em tag",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/em"
+          }
+        ]
+      },
+      "video": {
+        "start": 720,
+        "end": 868
+      }
+    },
+    {
+      "id": "heading",
+      "chapter": "html",
+      "title": "A big heading",
+      "instruction": "At the very top of the file, add a big heading. Start with <h1>, write 'hello world!!!!!' on the next line, and end with </h1>. The h1 tag is the biggest, most important title on a page.",
+      "why": "Headings give your page a clear title so readers know what it's about.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<h1>\n  hello world!!!!!\n</h1>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your big heading yet.",
+          "selector": "h1"
+        },
+        {
+          "type": "textIncludes",
+          "file": "index.html",
+          "say": "Your heading should say hello world.",
+          "selector": "h1",
+          "text": "hello world"
+        }
+      ],
+      "hints": [
+        "Put a big title above everything else.",
+        "At the very top, open with <h1> and close with </h1>, with 'hello world!!!!!' in between.",
+        "<h1>\n  …\n</h1>"
+      ],
+      "concept": {
+        "title": "Headings",
+        "explain": "Heading tags go from h1, the biggest title, down to h6, the smallest.",
+        "links": [
+          {
+            "title": "MDN: Heading tags",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements"
+          }
+        ]
+      },
+      "video": {
+        "start": 868,
+        "end": 973
+      }
+    },
+    {
+      "id": "style-body",
+      "chapter": "css",
+      "title": "Color the background",
+      "instruction": "At the very top of the file, add <style> and </style>. Between them, write a rule for body (the whole page) that sets background to lightblue. The style tag holds CSS, the language for how things look.",
+      "why": "CSS lets you change colors and fonts without touching your words.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "afterLine": 0
+      },
+      "expected": "<style>\n  body {\n    background: lightblue;\n  }\n</style>",
+      "checks": [
+        {
+          "type": "selectorExists",
+          "file": "index.html",
+          "say": "I can't see your style section yet.",
+          "selector": "style"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your page background isn't light blue yet.",
+          "selector": "body",
+          "property": "background-color",
+          "value": "rgb(173, 216, 230)"
+        }
+      ],
+      "hints": [
+        "Add a place for styling at the top, then make the whole page light blue.",
+        "Use <style> and </style>. Inside, write body, curly brackets, and the background property set to lightblue, ending with a semicolon.",
+        "<style>\n  body {\n    background: …;\n  }\n</style>"
+      ],
+      "concept": {
+        "title": "CSS rules",
+        "explain": "A CSS rule names what to style, then lists changes inside curly brackets, like background: lightblue;",
+        "links": [
+          {
+            "title": "MDN: CSS basics",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/CSS_basics"
+          }
+        ]
+      },
+      "video": {
+        "start": 973,
+        "end": 1252
+      }
+    },
+    {
+      "id": "style-h1",
+      "chapter": "css",
+      "title": "Style the heading",
+      "instruction": "Inside the style section, below the body rule's closing }, add a rule for h1. Set font-family to Arial (the letter shape) and color to darkblue (the text color).",
+      "why": "Giving the heading its own font and color makes it stand out.",
+      "who": "learner",
+      "file": "index.html",
+      "anchor": {
+        "after": "  }"
+      },
+      "expected": "  h1 {\n    font-family: Arial;\n    color: darkblue;\n  }",
+      "checks": [
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your heading isn't dark blue yet.",
+          "selector": "h1",
+          "property": "color",
+          "value": "rgb(0, 0, 139)"
+        },
+        {
+          "type": "cssProperty",
+          "file": "index.html",
+          "say": "Your heading isn't using the Arial font yet.",
+          "selector": "h1",
+          "property": "font-family",
+          "value": "Arial"
+        }
+      ],
+      "hints": [
+        "Make a second rule, this time just for the big heading.",
+        "After the body rule, write h1 with curly brackets. Inside, set font-family to Arial and color to darkblue.",
+        "  h1 {\n    font-family: …;\n    color: …;\n  }"
+      ],
+      "concept": {
+        "title": "Fonts and colors",
+        "explain": "font-family picks the letter style and color picks the text color.",
+        "links": [
+          {
+            "title": "MDN: color",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/color"
+          },
+          {
+            "title": "MDN: font-family",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/font-family"
+          }
+        ]
+      },
+      "video": {
+        "start": 1252,
+        "end": 1385
+      }
+    },
+    {
+      "id": "outro",
+      "chapter": "wrap",
+      "title": "You built a website!",
+      "instruction": "Watch the wrap-up. Try changing the colors or words to make the page your own.",
+      "why": "Playing with your code is the best way to learn.",
+      "who": "watch",
+      "expected": "",
+      "checks": [],
+      "hints": [
+        "Just watch.",
+        "Try swapping lightblue for another color.",
+        "Nothing to type."
+      ],
+      "quiz": {
+        "question": "Which language changes how your page looks?",
+        "options": [
+          "HTML",
+          "CSS"
+        ],
+        "answer": 1,
+        "explain": "HTML holds the content, CSS sets colors and fonts."
+      },
+      "leavesOpen": []
+    }
+  ],
+  "createdAt": "2026-10-29T07:13:52.594Z",
+  "version": 1
+}

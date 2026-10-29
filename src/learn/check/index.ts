@@ -64,14 +64,15 @@ export async function checkStep(step: Step, projectFiles: ProjectFile[], deps: C
   let consoleErrors: string[] = [];
 
   // Level 1.
-  const states: State[] = step.checks.map((check) => levelOne(check, fileFor(check, step), files));
+  const open = step.leavesOpen ?? [];
+  const states: State[] = step.checks.map((check) => levelOne(check, fileFor(check, step), files, open));
 
   // Half-typed code in any file this step touches means the student is mid-edit (unless it's a real slip, see parse.ts).
   const touched = new Set([...(step.file ? [norm(step.file)] : []), ...step.checks.map((c) => norm(fileFor(c, step)))]);
   let parseIssue: ParseProblem | undefined;
   for (const path of touched) {
     const content = files.get(path);
-    if (content !== undefined) parseIssue ??= parseProblem(path, content);
+    if (content !== undefined) parseIssue ??= parseProblem(path, content, open);
   }
   const typing = parseIssue && !parseIssue.mistake ? parseIssue : undefined;
   // Nothing typed in the step's own file yet (or no file at all): still "your turn", never "wrong".
@@ -210,7 +211,7 @@ function mentionsTag(check: Check, tag: string): boolean {
 
 // ---------- Level 1 ----------
 
-function levelOne(check: Check, path: string, files: Files): State {
+function levelOne(check: Check, path: string, files: Files, leavesOpen: readonly string[] = []): State {
   if (check.type === "ai") return { kind: "ask", question: check.question };
   const content = files.get(path);
   if (content === undefined) return { kind: "done", passed: false, reason: reasons.missingFile(path) };
@@ -219,7 +220,7 @@ function levelOne(check: Check, path: string, files: Files): State {
     case "fileExists":
       return { kind: "done", passed: true };
     case "parses": {
-      const problem = parseProblem(path, content);
+      const problem = parseProblem(path, content, leavesOpen);
       return { kind: "done", passed: !problem, reason: problem?.message };
     }
     case "cssProperty": {

@@ -256,8 +256,8 @@
   }
 
   // The idea builder's stages and build time, as in src/learn/stages.ts (tests/learn/view.test.ts keeps them the same).
-  const BUILD_STAGES = ["Checking how big your idea is", "Writing the finished website", "Testing it in a hidden browser", "Cutting it into small steps", "Making sure every step can be checked", "Working out how long it takes"];
-  const BUILD_TIME = "usually a minute or two";
+  const BUILD_STAGES = ["Checking how big your idea is", "Writing the finished website", "Trying your site out to make sure it works", "Cutting it into small steps", "Making sure every step can be checked", "Working out how long it takes"];
+  const BUILD_TIME = "about 3 minutes";
 
   // A small drawing of a reference picture (SVG as a data: URL, so it works without files).
   function pictureMock() {

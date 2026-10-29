@@ -59,6 +59,71 @@ export function structureShare(hint: string, expected: string): number {
   return matched / want.length;
 }
 
+// How much of the answer a hint gives: the share of the answer's code pieces (names and symbols) that the hint shows.
+export function hintStrength(hint: string, expected: string): number {
+  const pieces = (text: string) => text.toLowerCase().match(/[a-z][a-z0-9-]*|[<>{}:;="\/]/g) ?? [];
+  const want = pieces(expected);
+  if (want.length === 0) return 0;
+  const left = new Map<string, number>();
+  for (const p of want) left.set(p, (left.get(p) ?? 0) + 1);
+  let shown = 0;
+  for (const p of pieces(hint)) {
+    const n = left.get(p) ?? 0;
+    if (n > 0) {
+      shown++;
+      left.set(p, n - 1);
+    }
+  }
+  return Math.round((shown / want.length) * 100) / 100;
+}
+
+// A hint 2 made from the answer when the model's own shows more than hint 3: which tags or CSS properties to use, by name.
+export function nameHint(expected: string, withValues = true): string {
+  const tags = [...new Set([...expected.matchAll(/<([a-z][a-z0-9]*)[\s>/]/gi)].map((m) => m[1]!.toLowerCase()))];
+  const props = [...new Set([...expected.matchAll(/(?:^|[{;])\s*([a-z-]+)\s*:/gim)].map((m) => m[1]!.toLowerCase()))];
+  const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0]!);
+  // Values a beginner can't guess (charset, rel, href, src…), so a stuck student can still finish from the hints.
+  const fixed = withValues
+    ? [...new Set([...expected.matchAll(/\b(charset|rel|href|src|type|name|content)="([^"]+)"/gi)].map((m) => `${m[1]} "${m[2]}"`))]
+    : [];
+  const values = fixed.length > 0 ? `, with ${list(fixed)}` : "";
+  if (tags.length > 0) return `Here you need ${list(tags.map((t) => `<${t}>`))}${values}.`;
+  if (props.length > 0) return `Here you need ${props.length > 1 ? "the properties" : "the property"} ${list(props)}.`;
+  return "Look at the spot the step points to, and think about which words go there.";
+}
+
+// The 3 hints, made to get stronger when the model's don't: a hint 3 holding the whole answer becomes the code's
+// outline, then a hint 2 showing more than hint 3 becomes the names of what to use.
+export function strongerHints(hints: string[], expected: string): string[] {
+  const out = [...hints];
+  if (out[2] !== undefined && hintGivesAway(out[2], expected)) out[2] = outlineHint(expected);
+  if (out[1] !== undefined && out[2] !== undefined && hintStrength(out[1], expected) > hintStrength(out[2], expected)) {
+    out[1] = nameHint(expected);
+    if (hintStrength(out[1], expected) > hintStrength(out[2], expected)) out[1] = nameHint(expected, false);
+  }
+  return out;
+}
+
+// A hint 3 made from the answer when the model's own gives the whole thing away: the code's outline, with the parts the
+// student writes themselves (text between tags, attribute values, CSS values, quoted text) left as … to fill in.
+export function outlineHint(expected: string): string {
+  const lines = expected.replace(/\n+$/, "").split("\n");
+  const outline = lines.map((line) =>
+    line
+      .replace(/="[^"]*"/g, '="…"')
+      .replace(/>([^<>]*\S[^<>]*)</g, ">…<")
+      .replace(/((?:^|[{;])\s*[a-z-]+\s*:\s*)[^;{}]+;/gi, "$1…;")
+      .replace(/(["'`])(?:(?!\1).)+\1/g, "$1…$1"),
+  );
+  if (!hintGivesAway(outline.join("\n"), expected)) return outline.join("\n");
+  // Still too much of the answer's shape: the outline of the first lines only, the rest left as "…".
+  for (let k = lines.length - 1; k >= 1; k--) {
+    const part = [...outline.slice(0, k), "…"].join("\n");
+    if (!hintGivesAway(part, expected)) return part;
+  }
+  return "…";
+}
+
 // Does this text look like HTML, CSS or JavaScript a beginner would be learning?
 export function looksLikeCode(text: string): boolean {
   return (

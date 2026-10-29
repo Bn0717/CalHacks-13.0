@@ -3,6 +3,9 @@
 //   npm run learn:eval                      build what's missing (needs the Claude key), grade everything
 //   npm run learn:eval -- --video-notes     also read the 3 videos with Gemini (reuses recordings unless --refresh-notes)
 //   npm run learn:eval -- --lesson a.json   grade extra lesson files too
+//   npm run learn:eval -- --rebuild "a page about me"   build that case again instead of using the saved lesson (or --rebuild all)
+//   npm run learn:eval -- --before old-report.json      show before/after scores against an earlier run
+//   npm run learn:eval -- --render          write report.md again from report.json (no model calls, nothing spent)
 // Every call is metered, and the run stops once real spend for this test passes $8 (see SPEND_CAP_USD).
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync } from "node:fs";
@@ -11,15 +14,17 @@ import { dirname, join, resolve } from "node:path";
 import { friendlyError, hasApiKey, loadEnv } from "../ai/client.js";
 import { askJson } from "../ai/json.js";
 import { buildFromIdea, playwrightReference, type AskModel } from "../learn/build-from-idea.js";
-import { buildFromVideo, notesEnd } from "../learn/build-from-video.js";
+import { buildFromVideo, firstPart, notesEnd } from "../learn/build-from-video.js";
 import { lessonCache } from "../learn/cache.js";
 import { checkRunner, haikuJudge, playwrightRenderer } from "../learn/check/index.js";
 import { reasons } from "../learn/check/hint.js";
 import { CostLog, costOf, dollars, geminiUsage, meteredAskJson, meteredLearnModel, readCostFile } from "../learn/cost.js";
 import {
+  beforeRunFrom,
   BudgetError,
   capped,
   EVAL_CASES,
+  EVAL_SUMMARY,
   findingsFor,
   GEMINI_PRICE_NOTE,
   MOCKUP_PATH,
@@ -27,7 +32,9 @@ import {
   reportMarkdown,
   SPEND_CAP_USD,
   summarizeNotes,
+  type BeforeRun,
   type CaseResult,
+  type HintCheckCost,
   type EvalReport,
   type VideoCase,
   type VideoNotesResult,
@@ -35,7 +42,7 @@ import {
 import { readVideo, type GeminiUsage, type VideoNotes } from "../learn/gemini.js";
 import { gradeLesson, gradeTooBig } from "../learn/grade.js";
 import { judgeLesson } from "../learn/judge-lesson.js";
-import { parseLesson, type Lesson } from "../learn/lesson.js";
+import { LessonError, parseLesson, type Lesson } from "../learn/lesson.js";
 import { readPicture } from "../learn/picture.js";
 
 const ROOT = process.env.CALHACK_ROOT ?? process.cwd();
@@ -43,17 +50,20 @@ loadEnv(ROOT);
 
 const say = (text: string): void => void process.stdout.write(`${text}\n`);
 
-type Args = { videoNotes: boolean; refreshNotes: boolean; lessons: string[]; out: string };
+type Args = { videoNotes: boolean; refreshNotes: boolean; lessons: string[]; out: string; rebuild: string[]; before?: string; render: boolean };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { videoNotes: false, refreshNotes: false, lessons: [], out: join(ROOT, "docs/learn/eval") };
+  const a: Args = { videoNotes: false, refreshNotes: false, lessons: [], out: join(ROOT, "docs/learn/eval"), rebuild: [], render: false };
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i]!;
     if (x === "--video-notes") a.videoNotes = true;
     else if (x === "--refresh-notes") a.videoNotes = a.refreshNotes = true;
     else if (x === "--lesson" && argv[i + 1]) a.lessons.push(resolve(argv[++i]!));
     else if (x === "--out" && argv[i + 1]) a.out = resolve(argv[++i]!);
-    else throw new Error(`I don't know "${x}". Try: --video-notes, --refresh-notes, --lesson <file>, --out <folder>`);
+    else if (x === "--rebuild" && argv[i + 1]) a.rebuild.push(argv[++i]!);
+    else if (x === "--before" && argv[i + 1]) a.before = resolve(argv[++i]!);
+    else if (x === "--render") a.render = true;
+    else throw new Error(`I don't know "${x}". Try: --video-notes, --refresh-notes, --lesson <file>, --out <folder>, --rebuild <name|all>, --before <report.json>`);
   }
   return a;
 }
@@ -180,6 +190,21 @@ function messageExamples(): EvalReport["messageExamples"] {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   await mkdir(args.out, { recursive: true });
+  if (args.render) {
+    // The saved results with today's wording (prompt-change list, findings); the numbers are the saved ones.
+    const saved = JSON.parse(await readFile(join(args.out, "report.json"), "utf8")) as EvalReport;
+    const report: EvalReport = {
+      ...saved,
+      promptChanges: PROMPT_CHANGES,
+      summary: EVAL_SUMMARY,
+      findings: [...findingsFor({ ...saved, hintChecks: saved.hintChecks ?? [] }), ...VIDEO_NOTES_CAVEATS],
+      ...(args.before ? { before: beforeRunFrom(JSON.parse(await readFile(args.before, "utf8")) as EvalReport) } : {}),
+    };
+    await writeFile(join(args.out, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    await writeFile(join(args.out, "report.md"), reportMarkdown(report), "utf8");
+    say(`📄 ${join(args.out, "report.md")} (from the saved results)`);
+    return;
+  }
   const costFile = join(args.out, "cost.json");
   const log = new CostLog();
   await log.attach(costFile);
@@ -217,16 +242,55 @@ async function main(): Promise<void> {
   const grade = async (name: string, kind: CaseResult["kind"], source: CaseResult["source"], lesson: Lesson, usd?: number, notes?: VideoNotes) => {
     say(`📝 Grading "${name}"…`);
     const g = await gradeLesson(name, lesson, { runCheck, ...(notes ? { videoSeconds: notesEnd(notes) } : {}) });
-    const result: CaseResult = { name, kind, status: "graded", source, grade: g, estimate: lesson.estimate, ...(usd !== undefined ? { usd } : {}) };
-    if (claudeUsable && !stopped) {
+    const saved = (memo[`${lesson.id}@${lesson.createdAt}`] ??= {}); // a rebuilt lesson keeps its id but not its date
+    if (usd !== undefined) saved.usd = usd;
+    const cost = usd ?? saved.usd;
+    const result: CaseResult = { name, kind, status: "graded", source, grade: g, estimate: lesson.estimate, ...(cost !== undefined ? { usd: cost } : {}) };
+    if (saved.judgement) result.judgement = saved.judgement;
+    else if (claudeUsable && !stopped) {
       try {
-        result.judgement = await judgeLesson(lesson, { ask: capped(log, meteredAskJson(log, `judge:${name}`, askJson)), ...(notes ? { notes } : {}) });
+        // A long video's lesson covers its first part only (firstPart): judge its fidelity against that part.
+        const seen = notes ? firstPart(notes).notes : undefined;
+        result.judgement = await judgeLesson(lesson, { ask: capped(log, meteredAskJson(log, `judge:${name}`, askJson)), ...(seen ? { notes: seen } : {}) });
+        saved.judgement = result.judgement;
       } catch (e) {
         if (e instanceof BudgetError) stopped = e.message;
         else if (!claudeFailed(e)) result.note = `Opus review failed: ${friendlyError(e)}`;
       }
     }
+    await saveMemo();
+    if (source !== "fixture") await hintCheck(name, lesson);
     results.push(result);
+  };
+
+  // Saved per lesson: what its build cost and its Opus review, so grading a saved lesson again doesn't pay for a new review.
+  const memoFile = join(args.out, "memo.json");
+  const memo: Record<string, { usd?: number; judgement?: CaseResult["judgement"] }> = await readFile(memoFile, "utf8").then((t) => JSON.parse(t), () => ({}));
+  const saveMemo = () => writeFile(memoFile, `${JSON.stringify(memo, null, 2)}\n`, "utf8");
+  const hintChecks: HintCheckCost[] = [];
+  const before: BeforeRun | undefined = args.before ? beforeRunFrom(JSON.parse(await readFile(args.before, "utf8")) as EvalReport) : undefined;
+
+  // A real Haiku check, the kind made while a student is stuck: the finished project with this step's code still missing.
+  const hintCheck = async (name: string, lesson: Lesson) => {
+    if (!claudeUsable || stopped) return;
+    const step = lesson.steps.find((s) => s.who === "learner" && s.file?.endsWith(".html") && s.expected.trim());
+    if (!step) return;
+    const code = lesson.files.map((f) => `=== ${f.path} ===\n${f.path === step.file ? f.content.replace(step.expected, "") : f.content}`).join("\n\n");
+    const from = log.entries.length;
+    try {
+      const verdict = await haikuJudge(capped(log, meteredAskJson(log, `hint-check:${name}`, askJson)) as typeof askJson)({
+        stepTitle: step.title,
+        instruction: step.instruction,
+        question: `Has the student done this: ${step.instruction}`,
+        file: step.file!,
+        code,
+        reference: step.expected,
+      });
+      const e = log.entries[from];
+      if (e) hintChecks.push({ lesson: name, stepId: step.id, answer: `${verdict.answer}: ${verdict.reason}`, inputTokens: e.inputTokens, outputTokens: e.outputTokens, usd: e.usd });
+    } catch (e) {
+      if (e instanceof BudgetError) stopped = e.message;
+    }
   };
 
   // What one build cost: the calls recorded while it ran.
@@ -271,7 +335,8 @@ async function main(): Promise<void> {
         continue;
       }
       const notes = c.kind === "video" ? notesById.get(c.videoId) : undefined;
-      const cached = await cache.load(c.name);
+      const rebuild = args.rebuild.includes(c.name) || args.rebuild.includes("all");
+      const cached = rebuild ? null : await cache.load(c.name);
       if (cached) {
         await grade(c.name, c.kind, "cached", cached, undefined, notes);
         continue;
@@ -315,7 +380,8 @@ async function main(): Promise<void> {
         } else if (claudeFailed(e)) {
           results.push({ name: c.name, kind: c.kind, status: "blocked", note: claudeNote });
         } else {
-          results.push({ name: c.name, kind: c.kind, status: "error", note: friendlyError(e), usd: spentSince(from) });
+          const why = e instanceof LessonError && e.problems.length ? ` (${e.problems.slice(0, 3).join("; ")})` : "";
+          results.push({ name: c.name, kind: c.kind, status: "error", note: `${friendlyError(e)}${why}`, usd: spentSince(from) });
         }
       }
     }
@@ -335,9 +401,12 @@ async function main(): Promise<void> {
     cases: results,
     videoNotes,
     spend: { thisRun: log.total().usd, allRuns: log.allTime().usd, cap: SPEND_CAP_USD },
-    findings: [...findingsFor({ cases: results, videoNotes, claude: { usable: claudeUsable, note: claudeNote } }), ...VIDEO_NOTES_CAVEATS],
+    findings: [...findingsFor({ cases: results, videoNotes, claude: { usable: claudeUsable, note: claudeNote }, hintChecks }), ...VIDEO_NOTES_CAVEATS],
     messageExamples: messageExamples(),
     promptChanges: PROMPT_CHANGES,
+    hintChecks,
+    summary: EVAL_SUMMARY,
+    ...(before ? { before } : {}),
   };
   await writeFile(join(args.out, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
   await writeFile(join(args.out, "report.md"), reportMarkdown(report), "utf8");

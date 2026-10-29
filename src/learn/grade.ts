@@ -4,12 +4,16 @@
 import type { TooBig } from "./build-from-idea.js";
 import { JARGON } from "./check/words.js";
 import { estimateFor, linesIn, parseLesson, LessonError, type Lesson, type Step } from "./lesson.js";
-import { hintGivesAway, looksLikeCode, normCode, stepRuleProblems } from "./rules.js";
+import { hintGivesAway, hintStrength, looksLikeCode, normCode, stepRuleProblems } from "./rules.js";
+
+export { hintStrength };
+import { rebuildProblems } from "./rebuild.js";
 import { describeProblems, selfValidateSteps, type CheckRunner } from "./validate.js";
 
 export type CriterionId =
   | "valid"
   | "checks"
+  | "buildsUp"
   | "stepSize"
   | "whoTypes"
   | "estimate"
@@ -41,6 +45,7 @@ export const CONCEPT_MAX_WORDS = 30;
 const TITLES: Record<CriterionId, string> = {
   valid: "Valid lesson",
   checks: "Every check passes on the finished project; the first fails on an empty one",
+  buildsUp: "Typing the steps in order rebuilds the finished project, and no step leaves a tag open",
   stepSize: `Every 🧑 step adds ${STEP_LINES.min}-${STEP_LINES.max} lines`,
   whoTypes: "🧑 steps hold all the code to learn; 🤖/👀 steps add none",
   estimate: "Estimate matches the steps and is in a sensible range",
@@ -74,6 +79,7 @@ export async function gradeLesson(name: string, raw: unknown, deps: GradeDeps): 
     [
       criterion("valid", []),
       await gradeChecks(lesson, deps.runCheck),
+      criterion("buildsUp", rebuildProblems(lesson.steps, lesson.files).map((text, i) => ({ score: /leaves </.test(text) ? 3 - i / 100 : 2 - i / 100, text }))),
       gradeStepSize(lesson),
       gradeWhoTypes(lesson),
       gradeEstimate(lesson),
@@ -174,24 +180,6 @@ function gradeConcepts(lesson: Lesson): Criterion {
     if (!c.links.some((l) => /^https?:\/\//.test(l.url))) bad.push({ score: 2, text: `${id} "${c.title}": no link.` });
   }
   return criterion("concepts", bad);
-}
-
-// How much of the answer a hint gives: the share of the answer's code pieces (names and symbols) that the hint shows.
-export function hintStrength(hint: string, expected: string): number {
-  const pieces = (text: string) => text.toLowerCase().match(/[a-z][a-z0-9-]*|[<>{}:;="\/]/g) ?? [];
-  const want = pieces(expected);
-  if (want.length === 0) return 0;
-  const left = new Map<string, number>();
-  for (const p of want) left.set(p, (left.get(p) ?? 0) + 1);
-  let shown = 0;
-  for (const p of pieces(hint)) {
-    const n = left.get(p) ?? 0;
-    if (n > 0) {
-      shown++;
-      left.set(p, n - 1);
-    }
-  }
-  return Math.round((shown / want.length) * 100) / 100;
 }
 
 function gradeHints(lesson: Lesson): Criterion {
