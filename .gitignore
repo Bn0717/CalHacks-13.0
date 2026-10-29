@@ -7,3 +7,4 @@ downloads/
 .kokoro/
 *.swp
 *.mp4
+.archify
