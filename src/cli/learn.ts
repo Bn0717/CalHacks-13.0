@@ -391,6 +391,8 @@ async function main(): Promise<void> {
       ...(bridge ? { editor: editorLink(bridge) } : {}),
       pace: args.pace,
     });
+    // Warm up the hidden browser while the student reads the first step, so their first check is quick.
+    void renderer.warm?.().catch(() => {});
     await session.start();
     const end = await session.ended;
     await session.settle();

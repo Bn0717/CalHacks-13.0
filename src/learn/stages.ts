@@ -7,7 +7,7 @@ export const STAGE_LABELS: Record<BuildStage, string> = {
   scope: "Checking how big your idea is",
   video: "Watching the video",
   project: "Writing the finished website",
-  browser: "Testing it in a hidden browser",
+  browser: "Trying your site out to make sure it works",
   steps: "Cutting it into small steps",
   checks: "Making sure every step can be checked",
   estimate: "Working out how long it takes",

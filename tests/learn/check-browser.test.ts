@@ -34,6 +34,19 @@ describe.skipIf(!canLaunch)("checker with a real hidden browser", () => {
     }
   });
 
+  it("can warm up ahead of the first check, and still checks normally after", async () => {
+    const warm = playwrightRenderer();
+    try {
+      await warm.warm!();
+      const t = Date.now();
+      const r = await warm.render({ page: "index.html", files: [{ path: "index.html", content: "<h1>Hi</h1>" }], probes: [{ kind: "count", selector: "h1" }] });
+      expect(r.answers[0]).toBe(1);
+      expect(Date.now() - t).toBeLessThan(2000);
+    } finally {
+      await warm.close();
+    }
+  });
+
   it("applies the linked stylesheet and compares computed colours", async () => {
     const tomato: Check = { type: "cssProperty", file: "index.html", selector: "h1", property: "color", value: "rgb(255, 99, 71)" };
     expect((await checkStep(step([tomato]), withCss("h1 { color: tomato; }"), { renderer })).status).toBe("pass");
