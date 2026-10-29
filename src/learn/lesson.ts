@@ -191,6 +191,7 @@ export const LessonSchema = z
         estimate: EstimateSchema,
         why: z.string().min(1),
         stepIds: z.array(z.string().min(1)).optional().describe("The steps of the smaller version, in order."),
+        learns: z.array(z.string().min(1)).optional().describe("What the smaller version teaches, in a few words each."),
       })
       .optional()
       .describe("A smaller version to offer first when the lesson is long."),

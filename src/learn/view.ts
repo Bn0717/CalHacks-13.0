@@ -1,6 +1,6 @@
 // Turns lesson runner state into what the lesson screen draws (LessonView in src/app/protocol.ts).
 // Pure: no model, no files, no window. The app calls these after every runner effect and sends the result on "lesson".
-import type { LessonProgressView, LessonStepMark, LessonStepStatus, LessonStepView, LessonView } from "../app/protocol.js";
+import type { LessonBuildStage, LessonProgressView, LessonStepMark, LessonStepStatus, LessonStepView, LessonView } from "../app/protocol.js";
 import type { Lesson, Progress } from "./lesson.js";
 import { canShowMe, currentStep, type RunnerState } from "./runner.js";
 import type { LessonSummary } from "./summary.js";
@@ -84,21 +84,44 @@ export function stepView(lesson: Lesson, state: RunnerState, extras: StepExtras 
 
 // The estimate screen, with the simpler version offered first when the lesson has one.
 export function estimateView(lesson: Lesson): LessonView {
+  const s = lesson.simpler;
   return {
     screen: "estimate",
     title: lesson.title,
     outcome: lesson.outcome,
     learns: lesson.learns,
     estimate: { ...lesson.estimate },
-    ...(lesson.simpler ? { simpler: { title: lesson.simpler.title, why: lesson.simpler.why, estimate: { ...lesson.simpler.estimate } } } : {}),
+    ...(s ? { simpler: { title: s.title, why: s.why, estimate: { ...s.estimate }, learns: simplerLearns(lesson) } } : {}),
   };
+}
+
+// What the simple version teaches: its own list, or the new ideas in its steps. Never the whole lesson's list,
+// which would promise things the simple version doesn't cover.
+export function simplerLearns(lesson: Lesson): string[] {
+  const s = lesson.simpler;
+  if (!s) return [];
+  if (s.learns && s.learns.length > 0) return [...s.learns];
+  const keep = new Set(s.stepIds ?? []);
+  const out: string[] = [];
+  for (const step of lesson.steps) {
+    const title = step.concept?.title.trim();
+    if (!keep.has(step.id) || !title) continue;
+    if (!out.some((t) => t.toLowerCase() === title.toLowerCase())) out.push(title);
+  }
+  return out;
+}
+
+// The building screen from the builder's stage labels and the one running now (labels.length when all are done).
+export function buildingView(what: string, labels: string[], stage: number, note?: string): LessonView {
+  const stages: LessonBuildStage[] = labels.map((label, i) => ({ label, status: i < stage ? "done" : i === stage ? "running" : "todo" }));
+  return { screen: "building", what, stages, labels: [...labels], stage, ...(note ? { note } : {}) };
 }
 
 // "Welcome back! Step 4: Things you like." or the break screen.
 export function pausedView(lesson: Lesson, progress: Progress, reason: "break" | "welcome-back"): LessonView {
   const index = Math.min(progress.stepIndex, lesson.steps.length - 1);
   const step = lesson.steps[index];
-  const hintsUsed = Object.values(progress.steps).reduce((sum, s) => sum + s.hintsUsed, 0);
+  const hintsUsed = progress.steps[step.id]?.hintsUsed ?? 0; // on this step only: those are the ones still on screen
   return {
     screen: "paused",
     reason,

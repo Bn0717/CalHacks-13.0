@@ -151,8 +151,12 @@ export type BuddyCommand =
  */
 export type LessonView =
   | { screen: "hidden" }
-  /** Building the lesson. Honest progress: the real stages, ticked as they finish (no made-up percentage). */
-  | { screen: "building"; what: string; stages: LessonBuildStage[]; note?: string }
+  /**
+   * Building the lesson. Honest progress: the real stages, ticked as they finish (no made-up percentage).
+   * Either send `stages` with their status, or just the stage labels plus `stage` (the 0-based one running now, or
+   * labels.length when all are done), e.g. straight from a builder's onStage callback.
+   */
+  | { screen: "building"; what: string; stages?: LessonBuildStage[]; labels?: string[]; stage?: number; note?: string }
   /** A starting question with big tap buttons. multi: the student can tap several, then Next. */
   | {
       screen: "question";
@@ -174,7 +178,8 @@ export type LessonView =
       outcome: string;
       learns: string[];
       estimate: LessonEstimateView;
-      simpler?: { title: string; why: string; estimate: LessonEstimateView };
+      /** learns: what the simple version teaches (it's the option the screen highlights, so it shows this list). */
+      simpler?: { title: string; why: string; estimate: LessonEstimateView; learns: string[] };
     }
   /** Stride doing the boring setup, with ticks. ask: a once-only yes/no (e.g. adding Stride's VS Code helper). */
   | { screen: "setup"; items: LessonSetupItem[]; ask?: { question: string; why: string; yes: string; no: string } }

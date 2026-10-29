@@ -6,7 +6,7 @@ import { strideActionInput, type Check, type Lesson, type Progress, type Step, t
 
 // All timing rules in one place, so they're easy to tune after testing with students.
 export const TIMING = {
-  settleMs: 2_000, // check this long after the last edit
+  settleMs: 1_500, // check this long after the last edit (the driver checks right on time, not on the next tick)
   firstHintMs: 10_000, // after a failed check, show hint 1 this long later
   nextHintMs: 30_000, // then the next hint after this long without progress
   offerHintMs: 30_000, // ask "Want a hint?" after this long without progress
@@ -47,7 +47,7 @@ export interface RunnerState {
 
 export type RunnerEvent =
   | { type: "start" } // open the current step (first time, or after resuming)
-  | { type: "edit" }
+  | { type: "edit"; at?: number } // at: when the edit really happened, if the caller noticed it a little late
   | { type: "save" }
   | { type: "tick" } // time has passed; the machine reads `now`
   | { type: "idle"; ms: number } // the same as a tick, for callers that count idle time themselves
@@ -59,7 +59,8 @@ export type RunnerEvent =
   | { type: "continue" } // for watch steps, or a stride step that's done
   | { type: "paceChanged"; pace: Pace }
   | { type: "doForMe" }
-  | { type: "letMeTry" };
+  | { type: "letMeTry" }
+  | { type: "resumed"; awayMs: number }; // back from a break: the time away doesn't count toward hints
 
 export type Effect =
   | { type: "openStep"; index: number; step: Step; welcomeBack: boolean }
@@ -198,7 +199,7 @@ export function reduce(lesson: Lesson, prev: RunnerState, event: RunnerEvent, no
     case "edit": {
       if (step.who !== "learner" || state.phase === "passed") break;
       state.phase = "typing"; // an edit also makes any running check out of date
-      state.lastEditAt = now;
+      state.lastEditAt = Math.min(event.at ?? now, now);
       break;
     }
 
@@ -299,6 +300,19 @@ export function reduce(lesson: Lesson, prev: RunnerState, event: RunnerEvent, no
       break;
     }
 
+    case "resumed": {
+      // Move every "since when" forward by the break, so no hint pops up the moment they come back.
+      const away = Math.max(0, event.awayMs);
+      const shift = (t: number | undefined) => (t === undefined ? undefined : t + away);
+      state.stepOpenedAt += away;
+      state.lastProgressAt += away;
+      state.lastEditAt = shift(state.lastEditAt);
+      state.firstFailAt = shift(state.firstFailAt);
+      state.lastHintAt = shift(state.lastHintAt);
+      state.passedAt = shift(state.passedAt);
+      break;
+    }
+
     case "paceChanged": {
       if (state.progress.pace === event.pace) break;
       state.progress.pace = event.pace;
@@ -393,11 +407,15 @@ export interface RunnerDeps {
   revertCode?: (step: Step) => Promise<void> | void;
   // Every effect, for the UI (step card, hints, cheers, the finish screen).
   onEffect?: (effect: Effect, state: RunnerState) => void;
+  // After every event, with the new state (some changes, like "typing", have no effect of their own).
+  onState?: (state: RunnerState) => void;
 }
 
 export class LessonRunner {
   private stateNow: RunnerState;
   private stopTicking?: () => void;
+  private stopSettle?: () => void; // the one-off timer that checks right when typing has been quiet long enough
+  private pausedAt?: number;
   private pending = new Set<Promise<unknown>>();
   private typing: Promise<unknown> = Promise.resolve(); // Stride's typing runs in order, and checks wait for it
 
@@ -429,6 +447,8 @@ export class LessonRunner {
   stop(): void {
     this.stopTicking?.();
     this.stopTicking = undefined;
+    this.stopSettle?.();
+    this.stopSettle = undefined;
   }
 
   send(event: RunnerEvent): void {
@@ -436,6 +456,42 @@ export class LessonRunner {
     this.stateNow = state;
     for (const effect of effects) this.perform(effect);
     if (state.finished) this.stop();
+    else if (event.type === "edit" && state.phase === "typing" && this.stopTicking) this.checkWhenQuiet();
+    this.deps.onState?.(state);
+  }
+
+  get paused(): boolean {
+    return this.pausedAt !== undefined;
+  }
+
+  // A break: time stops for the lesson (no checks on a timer, no hints), until resume().
+  pause(): void {
+    if (this.paused || !this.stopTicking || this.stateNow.finished) return;
+    this.pausedAt = this.deps.clock.now();
+    this.stop();
+  }
+
+  resume(): void {
+    if (this.pausedAt === undefined) return;
+    const awayMs = this.deps.clock.now() - this.pausedAt;
+    this.pausedAt = undefined;
+    this.stopTicking = this.deps.clock.every(TIMING.tickMs, () => this.send({ type: "tick" }));
+    this.send({ type: "resumed", awayMs });
+    if (this.stateNow.phase === "typing") this.checkWhenQuiet();
+  }
+
+  // The student just typed: look at their code exactly settleMs after this edit, unless they type again first.
+  // (The half-second tick would also start the check, but up to half a second late.)
+  private checkWhenQuiet(): void {
+    this.stopSettle?.();
+    const editAt = this.stateNow.lastEditAt ?? this.deps.clock.now();
+    const wait = Math.max(1, editAt + TIMING.settleMs - this.deps.clock.now());
+    const stop = this.deps.clock.every(wait, () => {
+      stop();
+      if (this.stopSettle === stop) this.stopSettle = undefined;
+      if (this.stateNow.phase === "typing" && this.stateNow.lastEditAt === editAt) this.send({ type: "tick" });
+    });
+    this.stopSettle = stop;
   }
 
   // Waits until every check, tool run and save started so far has finished (handy in tests).

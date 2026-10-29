@@ -3,6 +3,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { LessonView } from "../../src/app/protocol.js";
 import { hasCode, insertAtAnchor } from "../../src/learn/anchor.js";
 import type { Lesson, Step } from "../../src/learn/lesson.js";
 import { createProgressStore } from "../../src/learn/progress.js";
@@ -19,7 +20,7 @@ const fakeCheck: StepChecker = async (step, files) => {
     : { status: "fail", failed: step.checks, hintIndex: 0, message: "Not quite yet." };
 };
 
-async function setup(opts: { lesson?: Lesson; dir?: string; pace?: Pace; editor?: EditorLink; check?: StepChecker } = {}) {
+async function setup(opts: { lesson?: Lesson; dir?: string; pace?: Pace; editor?: EditorLink; check?: StepChecker; screen?: boolean } = {}) {
   const lesson = opts.lesson ?? aboutMe();
   const dir = opts.dir ?? (await mkdtemp(join(tmpdir(), "stride-session-")));
   const clock = fakeClock();
@@ -27,6 +28,7 @@ async function setup(opts: { lesson?: Lesson; dir?: string; pace?: Pace; editor?
   let onChange: ((p: string | null) => void) | undefined;
   let onKey: ((k: string) => void) | undefined;
   const checked: string[][] = [];
+  const views: LessonView[] = [];
   const store = createProgressStore(join(dir, ".stride"));
   const session = new LessonSession({
     lesson,
@@ -41,6 +43,7 @@ async function setup(opts: { lesson?: Lesson; dir?: string; pace?: Pace; editor?
       return (opts.check ?? fakeCheck)(step, files);
     },
     ...(opts.editor ? { editor: opts.editor } : {}),
+    ...(opts.screen ? { onView: (v: LessonView) => views.push(v) } : {}),
     pace: opts.pace ?? "learn",
   });
   const wait = async (ms: number) => {
@@ -59,7 +62,7 @@ async function setup(opts: { lesson?: Lesson; dir?: string; pace?: Pace; editor?
   const press = (k: string) => onKey?.(k);
   await session.start();
   await session.settle();
-  return { lesson, dir, clock, out, text, session, wait, write, read, press, checked, store, change: (p: string | null) => onChange?.(p) };
+  return { lesson, dir, clock, out, text, session, wait, write, read, press, checked, store, views, change: (p: string | null) => onChange?.(p) };
 }
 
 // Writes a learner step's expected code at its anchor, as a student would.
@@ -79,13 +82,14 @@ describe("LessonSession", () => {
     expect(await t.read("index.html")).toBe("");
   });
 
-  it("checks about 2 s after the student stops typing, without any key, then opens the next step", async () => {
+  it("checks within 2 s of the student stopping typing, without any key, then opens the next step", async () => {
     const t = await setup();
     await typeStep(t, t.lesson.steps[1]!);
-    await t.wait(TIMING.settleMs - 200);
-    expect(t.checked).toHaveLength(0); // still inside the quiet time
-    await t.wait(1000); // the quiet time, the file-change pause and the runner's half-second tick
+    await t.wait(TIMING.settleMs - 50);
+    expect(t.checked).toHaveLength(0); // still inside the quiet time: never looked at while typing
+    await t.wait(100); // the quiet time counts from the moment the file changed, so the look starts right on time
     expect(t.checked).toHaveLength(1);
+    expect(TIMING.settleMs).toBeLessThanOrEqual(1_500); // leaves room for the look itself inside ~2 s
     expect(t.text()).toContain("✅ Nice, that works!");
     await t.wait(TIMING.cheerMs + 500);
     expect(t.text()).toContain("Step 3/6 · 🧑 Your turn");
@@ -236,6 +240,125 @@ describe("LessonSession", () => {
     lesson.steps[1]!.file = "../escape.html";
     const t = await setup({ lesson });
     expect(t.text()).toContain("isn't inside the project folder");
+  });
+});
+
+// The step card's state on each screen update, without repeats: "status" or "status+hints".
+function cardStates(views: LessonView[], stepId: string): string[] {
+  const out: string[] = [];
+  for (const v of views) {
+    if (v.screen !== "step" || v.step.id !== stepId) continue;
+    const s = v.status + (v.hints.length ? `+hint${v.hints.length}` : "");
+    if (out.at(-1) !== s) out.push(s);
+  }
+  return out;
+}
+
+describe("LessonSession: the Mac lesson screen (onView)", () => {
+  // Passes the right code; "on the right track" when only the first line is there; otherwise not yet.
+  const tracking: StepChecker = async (step, files) => {
+    const content = files.find((f) => f.path === (step.file ?? "index.html"))?.content ?? "";
+    if (hasCode(content, step.expected)) return { status: "pass", failed: [], hintIndex: 0, message: "Nice, that works!" };
+    const first = step.expected.split("\n")[0]!;
+    if (content.includes(first.trim())) return { status: "partial", failed: step.checks.slice(0, 1), hintIndex: 0, message: "The first line is there. Keep going." };
+    return { status: "fail", failed: step.checks, hintIndex: 0, message: "Not quite yet." };
+  };
+
+  it("a walk through a step sends: your turn → typing → checking → partial → stuck → hint 1 → passed", async () => {
+    const t = await setup({ screen: true, check: tracking });
+    const step = t.lesson.steps[1]!; // skeleton
+    const first = t.views.find((v) => v.screen === "step" && v.step.id === step.id);
+    expect(first).toMatchObject({ screen: "step", status: "your-turn", step: { number: 2, total: 6, title: step.title } });
+    await t.session.settle();
+    expect(t.views.at(-1)).toMatchObject({ step: { line: 1, file: "index.html" }, open: "concept" }); // the line, and its new idea opens once
+
+    await typeStep(t, step, step.expected.split("\n")[0] + "\n"); // half of it
+    await t.wait(TIMING.settleMs + 500);
+    const half = t.views.at(-1)!;
+    expect(half).toMatchObject({ status: "partial", note: "The first line is there. Keep going." });
+
+    await t.write("index.html", "<p>hello</p>\n"); // wrong
+    await t.wait(TIMING.settleMs + 500);
+    expect(t.views.at(-1)).toMatchObject({ status: "stuck", hints: [], note: "Not quite yet." });
+    await t.wait(TIMING.firstHintMs);
+    expect(t.views.at(-1)).toMatchObject({ status: "stuck", hints: [step.hints[0]] });
+
+    await t.write("index.html", step.expected);
+    await t.wait(TIMING.settleMs + 500);
+    expect(t.views.at(-1)).toMatchObject({ status: "passed" });
+    expect(cardStates(t.views, step.id)).toEqual(["your-turn", "typing", "checking", "partial", "typing", "checking", "stuck", "stuck+hint1", "typing+hint1", "checking+hint1", "passed+hint1"]);
+
+    await t.wait(TIMING.cheerMs + 500);
+    expect(t.views.at(-1)).toMatchObject({ screen: "step", status: "your-turn", step: { id: "intro", number: 3 }, hints: [] });
+    expect(t.views.at(-1)).not.toHaveProperty("note"); // the last step's message doesn't follow them
+  });
+
+  it("Pause shows the break screen and stops the clock; Resume brings the step back without a surprise hint", async () => {
+    const t = await setup({ screen: true });
+    t.session.pause();
+    expect(t.views.at(-1)).toMatchObject({ screen: "paused", reason: "break", step: { number: 2 } });
+    await t.wait(TIMING.offerHintMs * 3);
+    expect(t.views.at(-1)).toMatchObject({ screen: "paused", reason: "break" });
+    t.session.resume();
+    expect(t.views.at(-1)).toMatchObject({ screen: "step", status: "your-turn", hintOffered: false });
+    await t.wait(TIMING.offerHintMs - 1_000);
+    expect(t.views.at(-1)).toMatchObject({ hintOffered: false }); // the break didn't count
+    await t.wait(2_000);
+    expect(t.views.at(-1)).toMatchObject({ hintOffered: true });
+  });
+
+  it("coming back to a saved lesson shows Welcome back with this step's hints, then the same step", async () => {
+    const t = await setup();
+    t.press("n"); // skeleton skipped
+    await t.session.settle();
+    t.press("h"); // one hint on "intro"
+    await t.session.settle();
+    t.press("q");
+    await t.session.ended;
+
+    const again = await setup({ dir: t.dir, screen: true });
+    expect(again.views[0]).toMatchObject({ screen: "paused", reason: "welcome-back", step: { number: 3, title: "Say hi" }, hintsUsed: 1 });
+    await again.wait(TIMING.offerHintMs * 2);
+    expect(again.views.at(-1)).toMatchObject({ screen: "paused", reason: "welcome-back" }); // waits for them
+    again.session.resume();
+    expect(again.views.at(-1)).toMatchObject({ screen: "step", status: "your-turn", step: { id: "intro" }, hints: [again.lesson.steps[2]!.hints[0]] });
+  });
+
+  it("the quick question waits for the student, then the lesson carries on", async () => {
+    const lesson = aboutMe();
+    lesson.steps = lesson.steps.slice(0, 3);
+    lesson.steps[1]!.quiz = { question: "Which part do people see?", options: ["<head>", "<body>"], answer: 1, explain: "The body is what shows." };
+    const t = await setup({ lesson, screen: true });
+    await typeStep(t, lesson.steps[1]!);
+    await t.wait(TIMING.settleMs + TIMING.cheerMs + 1_000);
+    expect(t.views.at(-1)).toMatchObject({ screen: "quiz", question: "Which part do people see?" });
+    expect(t.views.at(-1)).not.toHaveProperty("answer");
+    t.session.answerQuiz(1);
+    expect(t.views.at(-1)).toMatchObject({ screen: "quiz", picked: 1, answer: 1, explain: "The body is what shows." });
+    t.session.quizNext();
+    expect(t.views.at(-1)).toMatchObject({ screen: "step", status: "your-turn", step: { id: "intro" } });
+  });
+
+  it("finishing sends the finish screen with how each step went", async () => {
+    const t = await setup({ screen: true });
+    for (const step of t.lesson.steps.filter((s) => s.who === "learner")) {
+      await typeStep(t, step);
+      await t.wait(TIMING.settleMs + TIMING.cheerMs + 1000);
+    }
+    await t.session.ended;
+    expect(t.views.at(-1)).toMatchObject({ screen: "quiz", chapterTitle: "Make it look nice" }); // the last step's quick question first
+    t.session.quizNext(); // skipped
+    expect(t.views.at(-1)).toMatchObject({ screen: "finished", title: t.lesson.title, steps: 5, alone: 5, hinted: 0, shown: 0 });
+  });
+
+  it("Hint and Show me from the screen's buttons go to the runner", async () => {
+    const t = await setup({ screen: true, pace: "fast" });
+    t.session.send({ type: "hintRequested" });
+    expect(t.views.at(-1)).toMatchObject({ screen: "step", hints: [t.lesson.steps[1]!.hints[0]], canShowMe: true });
+    t.session.send({ type: "showMe" });
+    expect(t.views.at(-1)).toMatchObject({ status: "showing" });
+    await t.wait(500);
+    expect(t.views.at(-1)).toMatchObject({ status: "passed" });
   });
 });
 

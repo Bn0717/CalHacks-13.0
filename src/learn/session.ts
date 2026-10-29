@@ -2,15 +2,19 @@
 // It watches the folder, tells the runner when the student typed, reads the files for the checker, types the code for
 // "Show me", does the setup steps that only make files or folders, and prints what happens.
 // Everything from outside (the clock, the folder watcher, the keys, the checker, the editor) is passed in, so tests fake it.
+// With `onView`, it also tells the Mac lesson screen what to draw after every change (src/learn/view.ts builds it).
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parse as parseShell } from "shell-quote";
+import type { LessonView } from "../app/protocol.js";
 import { hasCode, insertAtAnchor, pointLine } from "./anchor.js";
 import type { Lesson, ProjectFile, Progress, Step } from "./lesson.js";
 import { resumeRunner, welcomeBackText, type ProgressStore } from "./progress.js";
 import type { CheckOutcome, Clock, Effect, LessonRunner, Pace, StrideResult } from "./runner.js";
 import { lessonSummary, type LessonSummary } from "./summary.js";
 import { hintText, KEYS_LINE, paceText, stepCard } from "./terminal.js";
+import type { RunnerEvent } from "./runner.js";
+import { finishedView, pausedView, quizView, stepView } from "./view.js";
 
 // ---------- What the session needs from outside ----------
 
@@ -47,7 +51,12 @@ export interface SessionDeps {
   editor?: EditorLink;
   pace?: Pace;
   debounceMs?: number; // wait this long after the last file change before telling the runner (default 200)
+  // The Mac lesson screen: called with what to draw whenever it changes (the app passes showLesson).
+  onView?: (view: LessonView) => void;
 }
+
+// What the screen is holding the lesson on, instead of the step card.
+type Hold = { kind: "break" } | { kind: "welcome-back" } | { kind: "quiz"; stepId: string; picked?: number };
 
 export type SessionEnd = { how: "finished" | "quit"; progress: Progress; summary: LessonSummary };
 
@@ -72,7 +81,15 @@ export class LessonSession {
   private live = new Map<string, string>(); // unsaved text from the editor
   private lastMessage: string | undefined;
   private quiz: Step["quiz"] | undefined;
+  private quizStepId: string | undefined;
   private done = false;
+  private endedHow: SessionEnd["how"] | undefined;
+  private summary: LessonSummary | undefined;
+  // For the screen:
+  private hold: Hold | null = null;
+  private line: number | undefined; // the line to type on, once the file has been read
+  private openConcept = false; // the step's new idea is new to the student: open its card
+  private lastView = "";
 
   constructor(private readonly deps: SessionDeps) {
     this.ended = new Promise((r) => (this.finish = r));
@@ -94,6 +111,7 @@ export class LessonSession {
         runStrideAction: (tool, input) => this.strideAction(tool, input),
         typeCode: (step) => this.typeCode(step),
         onEffect: (effect) => this.onEffect(effect),
+        onState: () => this.showView(),
       },
       this.deps.pace ?? "learn",
     );
@@ -104,9 +122,55 @@ export class LessonSession {
     if (this.runner.state.finished) {
       this.print("You've already finished this lesson. 🎉");
       this.end("finished");
+      this.showView();
       return;
     }
     this.runner.start();
+  }
+
+  // A runner event from the screen's buttons (Hint, Show me, Skip, Do this one for me...).
+  send(event: RunnerEvent): void {
+    if (this.done) return;
+    this.backToWork();
+    this.runner.send(event);
+  }
+
+  // The student pressed Pause: the lesson waits (no hints, no checks) and their place is saved.
+  pause(): void {
+    if (this.done || this.hold) return;
+    this.hold = { kind: "break" };
+    this.runner.pause();
+    this.track(Promise.resolve(this.deps.store.save(this.runner.state.progress)));
+    this.showView();
+  }
+
+  // Back from a break or the welcome-back screen.
+  resume(): void {
+    if (this.done || !this.hold || this.hold.kind === "quiz") return;
+    this.hold = null;
+    this.runner.resume();
+    this.showView();
+  }
+
+  // The chapter's quick question: the student picked an answer (0-based).
+  answerQuiz(choice: number): void {
+    const q = this.quiz;
+    if (!q || choice < 0 || choice >= q.options.length) return;
+    if (this.hold?.kind === "quiz") {
+      if (this.hold.picked !== undefined) return;
+      this.hold = { ...this.hold, picked: choice };
+    } else this.quiz = undefined;
+    this.print(choice === q.answer ? `🎯 Yes! ${q.explain}` : `Not quite: it's "${q.options[q.answer]}". ${q.explain}`);
+    this.showView();
+  }
+
+  // The quick question is done (answered or skipped): carry on with the lesson.
+  quizNext(): void {
+    if (this.hold?.kind !== "quiz") return;
+    this.hold = null;
+    this.quiz = undefined;
+    if (!this.done) this.runner.resume();
+    this.showView();
   }
 
   // Waits for everything started so far (file reads, checks, saves). Handy in tests.
@@ -125,6 +189,7 @@ export class LessonSession {
     const k = key.toLowerCase();
     if (k === "q" || key === "\u0003") return void this.quit();
     if (this.quiz && /^[1-9]$/.test(k)) return this.answerQuiz(Number(k) - 1);
+    this.backToWork();
     if (!step) return;
     switch (k) {
       case "h":
@@ -175,6 +240,7 @@ export class LessonSession {
   fileChanged(path: string | null): void {
     if (this.done) return;
     if (path !== null && isOwn(path)) return;
+    this.backToWork();
     this.pending.add(path ?? "");
     this.lastChangeAt = this.deps.clock.now();
   }
@@ -182,6 +248,7 @@ export class LessonSession {
   private flushChanges(): void {
     if (this.pending.size === 0 || this.deps.clock.now() - this.lastChangeAt < (this.deps.debounceMs ?? 200)) return;
     const paths = [...this.pending];
+    const changedAt = this.lastChangeAt; // the quiet time before a check counts from here, not from now
     this.pending.clear();
     this.track(
       (async () => {
@@ -199,7 +266,7 @@ export class LessonSession {
           }
           typed = true;
         }
-        if (typed && !this.done) this.runner.send({ type: "edit" });
+        if (typed && !this.done) this.runner.send({ type: "edit", at: changedAt });
       })(),
     );
   }
@@ -208,6 +275,7 @@ export class LessonSession {
     if (this.done) return;
     const rel = this.relativeInside(e.path);
     if (rel === null || isOwn(rel)) return;
+    this.backToWork();
     if (e.saved) this.live.delete(rel);
     else this.live.set(rel, e.text);
     this.runner.send({ type: e.saved ? "save" : "edit" });
@@ -292,10 +360,20 @@ export class LessonSession {
     switch (effect.type) {
       case "openStep":
         this.lastMessage = undefined;
-        this.quiz = undefined;
+        this.line = undefined;
+        this.openConcept = isNewIdea(this.deps.lesson, effect.index);
+        // On the screen, the quick question waits for the student; in the terminal it's just there for a moment.
+        if (this.quiz && this.quizStepId && this.deps.onView) {
+          this.hold = { kind: "quiz", stepId: this.quizStepId };
+          this.runner.pause();
+        } else this.quiz = undefined;
         if (effect.welcomeBack) {
           const back = welcomeBackText(this.deps.lesson, this.runner.state.progress);
           if (back) this.print(`👋 ${back}`);
+          if (back && this.deps.onView) {
+            this.hold = { kind: "welcome-back" }; // the lesson waits on "Pick up where I left off"
+            this.runner.pause();
+          }
         }
         this.track(this.openStep(effect.index, effect.step, effect.welcomeBack));
         break;
@@ -310,6 +388,7 @@ export class LessonSession {
         this.print(effect.step.who === "stride" ? "✅ Done." : "✅ Nice, that works!");
         if (effect.step.quiz) {
           this.quiz = effect.step.quiz;
+          this.quizStepId = effect.step.id;
           const q = effect.step.quiz;
           this.print([`❓ Quick question (just for fun): ${q.question}`, ...q.options.map((o, i) => `  ${i + 1}) ${o}`)].join("\n"));
         }
@@ -318,9 +397,13 @@ export class LessonSession {
         if (effect.text === MAC_ONLY) {
           this.print(`🤖 ${MAC_ONLY} Skipping it here.`);
           queueMicrotask(() => !this.done && this.runner.send({ type: "skip" }));
-        } else this.print(effect.text.replace("Press Show me", "Press s"));
+        } else {
+          if (this.runner.state.phase === "stuck") this.lastMessage = effect.text; // e.g. why Stride's setup didn't work
+          this.print(effect.text.replace("Press Show me", "Press s"));
+        }
         break;
       case "finished":
+        if (this.quiz && this.quizStepId && this.deps.onView) this.hold = { kind: "quiz", stepId: this.quizStepId };
         this.end("finished");
         break;
       default:
@@ -348,17 +431,51 @@ export class LessonSession {
     const seen = welcomeBack && step.who === "learner" ? this.runner.state.hintLevel : 0;
     for (let level = 1; level <= seen; level++) this.print(hintText(level, step.hints[level - 1]));
     const editor = this.deps.editor;
-    if (editor?.connected && step.who === "learner" && step.file) {
-      const content = this.live.get(step.file) ?? (await readFile(this.inside(step.file), "utf8").catch(() => ""));
-      editor.highlight(this.inside(step.file), pointLine(content, step.anchor), step.title);
+    const wantLine = (editor?.connected || this.deps.onView) && step.who === "learner" && step.file;
+    if (wantLine) {
+      const content = this.live.get(step.file!) ?? (await readFile(this.inside(step.file!), "utf8").catch(() => ""));
+      const line = pointLine(content, step.anchor);
+      if (editor?.connected) editor.highlight(this.inside(step.file!), line, step.title);
+      if (!this.done && this.runner.state.progress.stepIndex === index) {
+        this.line = line;
+        this.showView();
+      }
     }
   }
 
-  private answerQuiz(choice: number): void {
-    const q = this.quiz!;
-    if (choice >= q.options.length) return;
-    this.quiz = undefined;
-    this.print(choice === q.answer ? `🎯 Yes! ${q.explain}` : `Not quite: it's "${q.options[q.answer]}". ${q.explain}`);
+  // ---------------- The screen ----------------
+
+  // The student is doing something, so the welcome-back screen has done its job.
+  private backToWork(): void {
+    if (this.hold?.kind !== "welcome-back") return;
+    this.hold = null;
+    this.runner.resume();
+    this.showView();
+  }
+
+  // Builds what the screen should show now and sends it, when it changed.
+  private showView(): void {
+    const onView = this.deps.onView;
+    if (!onView || !this.runner) return;
+    const { lesson } = this.deps;
+    const state = this.runner.state;
+    let view: LessonView | null;
+    if (this.hold?.kind === "quiz") view = quizView(lesson, state.progress, this.hold.stepId, this.hold.picked);
+    else if (this.done) view = this.endedHow === "finished" && this.summary ? finishedView(lesson, this.summary) : { screen: "hidden" };
+    else if (this.hold) view = pausedView(lesson, state.progress, this.hold.kind);
+    else {
+      const step = this.runner.step;
+      view = stepView(lesson, state, {
+        ...(this.line !== undefined ? { line: this.line } : {}),
+        ...(this.lastMessage ? { note: this.lastMessage } : {}),
+        ...(this.openConcept && step?.concept ? { open: "concept" as const } : {}),
+      });
+    }
+    if (!view) return;
+    const json = JSON.stringify(view);
+    if (json === this.lastView) return;
+    this.lastView = json;
+    onView(view);
   }
 
   // ---------- Helpers ----------
@@ -369,7 +486,9 @@ export class LessonSession {
     for (const stop of this.stops) stop();
     this.runner.stop();
     const progress = structuredClone(this.runner.state.progress);
-    this.finish({ how, progress, summary: lessonSummary(this.deps.lesson, progress) });
+    this.endedHow = how;
+    this.summary = lessonSummary(this.deps.lesson, progress);
+    this.finish({ how, progress, summary: this.summary });
   }
 
   private print(text: string): void {
@@ -401,6 +520,13 @@ export class LessonSession {
 function isOwn(path: string): boolean {
   const first = path.replace(/\\/g, "/").replace(/^\.\/+/, "").split("/")[0] ?? "";
   return OWN.has(first) || first.endsWith(".tmp");
+}
+
+// Is this step's new idea new to the student (no earlier step had it)?
+function isNewIdea(lesson: Lesson, index: number): boolean {
+  const title = lesson.steps[index]?.concept?.title.trim().toLowerCase();
+  if (!title) return false;
+  return !lesson.steps.slice(0, index).some((s) => s.concept?.title.trim().toLowerCase() === title);
 }
 
 function same(a: string | undefined, b: string): boolean {
