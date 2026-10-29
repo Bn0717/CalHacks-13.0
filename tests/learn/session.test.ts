@@ -110,6 +110,18 @@ describe("LessonSession", () => {
     expect(t.session.state.progress.steps.skeleton?.hintsUsed).toBe(2);
   });
 
+  it("the first lines typed right print as 'keep going', never as a mistake", async () => {
+    const onTrackCheck: StepChecker = async (step, files) =>
+      hasCode(files.find((f) => f.path === (step.file ?? "index.html"))?.content ?? "", step.expected)
+        ? { status: "pass", failed: [], message: "Nice, that works!" }
+        : { status: "fail", failed: step.checks, message: "I can't see a paragraph (<p>) yet.", onTrack: 1, remaining: 1 } as CheckOutcome;
+    const t = await setup({ check: onTrackCheck });
+    await typeStep(t, t.lesson.steps[1]!, "<!DOCTYPE html>\n");
+    await t.wait(TIMING.settleMs + 500);
+    expect(t.text()).toContain("⏳ Good so far, keep going. I can't see a paragraph (<p>) yet.");
+    expect(t.text()).not.toContain("🤔");
+  });
+
   it("a file saved just as it was when the step opened is still 'your turn': no 'not quite', no hint", async () => {
     const t = await setup({ screen: true });
     await typeStep(t, t.lesson.steps[1]!); // skeleton done
