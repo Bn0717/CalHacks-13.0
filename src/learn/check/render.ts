@@ -67,6 +67,9 @@ export function playwrightRenderer(options: { executablePath?: string; timeoutMs
       if (!browser) browser = launch().catch((e: unknown) => ((browser = null), Promise.reject(e)));
       const context = await (await browser).newContext({ serviceWorkers: "block" });
       try {
+        // When this file runs through tsx/esbuild (npm run learn), named helpers inside PROBE_SCRIPT get wrapped in
+        // `__name(...)`, which doesn't exist in the page. Give the page a do-nothing one so the probes still run.
+        await context.addInitScript({ content: "globalThis.__name ??= (fn) => fn;" });
         const page = await context.newPage();
         const consoleErrors: string[] = [];
         page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));

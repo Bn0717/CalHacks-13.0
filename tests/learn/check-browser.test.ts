@@ -1,5 +1,8 @@
 // Runs the checker against a real hidden Chromium. Skipped when no browser can start (e.g. on a machine without one).
+import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 import { checkStep, playwrightRenderer } from "../../src/learn/check/index.js";
 import { parseLesson, type Check, type ProjectFile, type Step } from "../../src/learn/lesson.js";
@@ -56,4 +59,12 @@ describe.skipIf(!canLaunch)("checker with a real hidden browser", () => {
     expect(r.failed.map((c) => c.type)).toEqual(["cssProperty"]);
     expect(r.consoleErrors.join(" ")).toContain("notDefined");
   });
+
+  // tsx (used by npm run learn) wraps named helpers in __name(...), which doesn't exist inside the page.
+  it("still reads styles when the checker runs through tsx", async () => {
+    const tsx = fileURLToPath(new URL("../../node_modules/.bin/tsx", import.meta.url));
+    const script = fileURLToPath(new URL("./fixtures/render-under-tsx.ts", import.meta.url));
+    const { stdout } = await promisify(execFile)(tsx, [script], { timeout: 60_000 });
+    expect(JSON.parse(stdout)).toEqual({ answers: [{ values: [{ value: "rgb(255, 99, 71)", base: "rgb(0, 0, 0)" }], want: "rgb(255, 99, 71)" }], consoleErrors: [] });
+  }, 60_000);
 });

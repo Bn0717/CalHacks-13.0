@@ -4,6 +4,6 @@ import { configDefaults, defineConfig } from "vitest/config";
 // The helper's tests (extensions/vscode/tests) do run here too.
 export default defineConfig({
   test: {
-    exclude: [...configDefaults.exclude, "extensions/*/node_modules/**", "extensions/*/dist/**", "extensions/*/*.vsix"],
+    exclude: [...configDefaults.exclude, ".claude/**", "extensions/*/node_modules/**", "extensions/*/dist/**", "extensions/*/*.vsix"],
   },
 });
