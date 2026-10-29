@@ -115,12 +115,18 @@ try {
     }
     if (buildSeconds) buildSeconds = (Date.now() - buildSeconds) / 1000;
   } else {
-    await waitFor(/Press Enter to start/);
+    // A long lesson offers its smaller version first: the pretend student takes it, like in an idea build.
+    if ((await waitFor(/That's a big one|Press Enter to start/))[0] !== "Press Enter to start") {
+      await waitFor(/Type a number:/);
+      press("1\n");
+      await waitFor(/Press Enter to start/);
+    }
   }
   await sleep(300);
   press("\n");
   await waitFor(/📁 Your project folder/);
-  lesson ??= parseLesson(await readFile(join(dir, ".stride", "lesson.json"), "utf8"));
+  // The lesson as the CLI runs it (the smaller version, when the student took it).
+  lesson = parseLesson(await readFile(join(dir, ".stride", "lesson.json"), "utf8"));
   const plan = mistakePlan(lesson);
   let askedAllHints = false;
 
