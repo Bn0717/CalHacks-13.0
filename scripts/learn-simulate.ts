@@ -1,30 +1,28 @@
 // Plays a pretend student through a terminal lesson, for an end-to-end run without a person.
-//   npx tsx scripts/learn-simulate.ts [lesson.json] [transcript.md]
-// It starts `npm run learn -- --lesson <file>` (the real runner, checker and hidden browser), reads what it prints, and
-// "types" each step by writing the step's expected code into the file at its anchor. Two steps get a wrong try first,
-// to bring out the hints, and one gets a half-typed save first, to show half-typed code isn't called wrong.
+//   npx tsx scripts/learn-simulate.ts [lesson.json] [transcript.md]           a lesson file (no AI call)
+//   npx tsx scripts/learn-simulate.ts --idea "a page about me" [transcript.md]  a real AI build (needs the Claude key)
+// It starts the real terminal CLI (`src/cli/learn.ts`: runner, checker, hidden browser), reads what it prints, and "types"
+// each step by writing the step's expected code into the file at its anchor. Two steps get a wrong try first (a typo made
+// from the step's own code, see src/learn/pretend-student.ts) to bring out the hints, one of them asks for all 3 hints, and
+// one step gets a half-typed save first, to show half-typed code isn't called wrong.
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { insertAtAnchor } from "../src/learn/anchor.js";
-import { parseLesson, type Step } from "../src/learn/lesson.js";
+import { parseLesson, type Lesson, type Step } from "../src/learn/lesson.js";
+import { halfTyped, mistakePlan, wrongTry } from "../src/learn/pretend-student.js";
 
-const lessonFile = resolve(process.argv[2] ?? "tests/learn/fixtures/about-me.lesson.json");
-const transcriptFile = process.argv[3] ? resolve(process.argv[3]) : undefined;
+const argv = process.argv.slice(2);
+const ideaAt = argv.indexOf("--idea");
+const idea = ideaAt >= 0 ? argv.splice(ideaAt, 2)[1] : undefined;
+const lessonFile = idea ? undefined : resolve(argv.shift() ?? "tests/learn/fixtures/about-me.lesson.json");
+const transcriptFile = argv[0] ? resolve(argv[0]) : undefined;
+// The answers to the questions before an idea build: the first option, and the first two for "pick several".
+const ANSWERS = (process.env.SIM_ANSWERS ?? "1|1 2|2").split("|");
 
-// Wrong first tries (a plausible beginner mistake each), and a half-typed save.
-const WRONG: Record<string, string> = {
-  intro: "    <h2>Hi, I'm Sam</h2>\n", // a smaller heading, and no paragraph yet
-  "link-css": "    <style>style.css</style>\n", // the tag from the quiz's wrong answer
-};
-const HALF: Record<string, string> = {
-  hobbies: "    <h2>Things I like</h2>\n    <ul>\n      <li>Drawing</li>\n      <li", // stopped mid-tag
-};
-
-const lesson = parseLesson(await readFile(lessonFile, "utf8"));
 const work = await mkdtemp(join(tmpdir(), "stride-sim-"));
-const dir = join(work, "about-me");
+const dir = join(work, "lesson");
 const started = Date.now();
 const log: string[] = [];
 const stamp = () => `${((Date.now() - started) / 1000).toFixed(1).padStart(5)}s`;
@@ -33,7 +31,8 @@ const student = (text: string) => {
   process.stdout.write(`\x1b[36m🧪 [student] ${text}\x1b[0m\n`);
 };
 
-const child = spawn("npx", ["tsx", "src/cli/learn.ts", "--lesson", lessonFile, "--dir", dir, "--no-editor"], {
+const cliArgs = idea ? [idea] : ["--lesson", lessonFile!];
+const child = spawn("npx", ["tsx", "src/cli/learn.ts", ...cliArgs, "--dir", dir, "--no-editor"], {
   env: { ...process.env, STRIDE_LESSONS_DIR: work, FORCE_COLOR: "0" },
   stdio: ["pipe", "pipe", "pipe"],
 });
@@ -65,12 +64,12 @@ async function waitFor(re: RegExp, timeoutMs = 60_000): Promise<RegExpExecArray>
       return m;
     }
     if (Date.now() > end) throw new Error(`Timed out waiting for ${re}`);
-    await sleep(50);
+    await sleep(20);
   }
 }
 
 const press = (key: string) => {
-  student(key === "\n" ? "presses Enter" : `presses ${key}`);
+  student(key === "\n" ? "presses Enter" : `presses ${key.trim() || key}`);
   child.stdin.write(key);
 };
 
@@ -81,17 +80,45 @@ async function writeStep(step: Step, before: string, code: string, what: string)
   student(`${what} in ${step.file}`);
 }
 
-const stats = { steps: 0, wrong: 0, half: 0, hintsSeen: 0 };
+const stats = { steps: 0, wrong: 0, half: 0, hintsSeen: 0, wrongAccepted: 0 };
+const delays: { step: string; ms: number }[] = []; // last write -> ✅
+let lesson: Lesson | undefined = lessonFile ? parseLesson(await readFile(lessonFile, "utf8")) : undefined;
+let buildSeconds: number | undefined;
 
 try {
-  await waitFor(/Press Enter to start/);
+  if (idea) {
+    // The questions before the build, then the estimate (and the smaller-version offer, if any).
+    let asked = 0;
+    for (;;) {
+      const m = await waitFor(/(\d+)\/(\d+) · [^\n]*\n|That's a big one|Press Enter to start|😕|🔑|🤔/, 20 * 60_000);
+      if (m[0].startsWith("😕") || m[0].startsWith("🔑") || m[0].startsWith("🤔")) throw new Error("the CLI stopped before the lesson");
+      if (m[0] === "Press Enter to start") break;
+      if (m[0] === "That's a big one") {
+        await waitFor(/Type a number:/);
+        press("1\n");
+        continue;
+      }
+      await waitFor(/> $/m, 10_000);
+      await sleep(300);
+      const answer = ANSWERS[asked++] ?? "";
+      if (asked === Number(m[2])) buildSeconds = Date.now();
+      press(`${answer}\n`);
+    }
+    if (buildSeconds) buildSeconds = (Date.now() - buildSeconds) / 1000;
+  } else {
+    await waitFor(/Press Enter to start/);
+  }
   await sleep(300);
   press("\n");
+  await waitFor(/📁 Your project folder/);
+  lesson ??= parseLesson(await readFile(join(dir, ".stride", "lesson.json"), "utf8"));
+  const plan = mistakePlan(lesson);
+  let askedAllHints = false;
 
   for (;;) {
     const m = await waitFor(/Step (\d+)\/(\d+) · (🧑 Your turn|🤖 Stride|👀 Watch)|🎉 You finished/, 120_000);
     if (m[0].startsWith("🎉")) break;
-    const step = lesson.steps[Number(m[1]) - 1]!;
+    const step = lesson.steps.find((s, i) => i === Number(m[1]) - 1 && s)!;
     if (step.who !== "learner") {
       if (step.who === "watch") {
         await sleep(500);
@@ -103,68 +130,114 @@ try {
     await waitFor(/q quit/);
     await sleep(800); // reads the card
     const before = await readFile(join(dir, step.file!), "utf8").catch(() => "");
-    if (HALF[step.id]) {
+    if (plan.half.includes(step.id)) {
       stats.half++;
-      await writeStep(step, before, HALF[step.id]!, "saves half-typed code (stops mid-tag)");
-      await waitFor(/⏳|🤔/, 20_000);
+      await writeStep(step, before, halfTyped(step)!, "saves half-typed code (stops mid-tag)");
+      await waitFor(/⏳|🤔|✅/, 20_000);
       await sleep(4000); // stays away a bit: no hint should come for half-typed code
     }
-    if (WRONG[step.id]) {
+    if (plan.wrong.includes(step.id)) {
       stats.wrong++;
-      await writeStep(step, before, WRONG[step.id]!, "types a wrong first try");
-      await waitFor(/💡 Hint 1\/3/, 30_000);
-      stats.hintsSeen++;
-      if (step.id === "link-css") {
+      await writeStep(step, before, wrongTry(step)!, "types a wrong first try (a typo)");
+      let r = await waitFor(/💡 Hint 1\/3|✅ Nice, that works!|Want a hint\?/, 45_000);
+      if (r[0].startsWith("Want")) {
+        // "Almost there" (part of it is right) brings an offer instead of a hint: take it.
         await sleep(500);
         press("h");
-        await waitFor(/💡 Hint 2\/3/, 10_000);
-        stats.hintsSeen++;
+        r = await waitFor(/💡 Hint 1\/3/, 10_000);
+      }
+      if (r[0].startsWith("✅")) {
+        stats.wrongAccepted++;
+        log.push(`${stamp()} ⚠️ simulator: the wrong try was accepted`);
+        if (step.quiz) await answerQuiz(step);
+        continue;
+      }
+      stats.hintsSeen++;
+      if (!askedAllHints) {
+        // Asks for every hint, to see that hint 3 still leaves part of the code to type.
+        askedAllHints = true;
+        for (const level of [2, 3]) {
+          await sleep(1000);
+          press("h");
+          await waitFor(new RegExp(`💡 Hint ${level}/3`), 10_000);
+          stats.hintsSeen++;
+        }
       }
       await sleep(1000);
     }
     await writeStep(step, before, step.expected, "types the step's code");
-    await waitFor(/✅ Nice, that works!/, 30_000);
-    if (step.quiz) {
-      await waitFor(/Quick question/);
-      await sleep(500);
-      press(String(step.quiz.answer + 1));
-    }
+    const wroteAt = Date.now();
+    await waitFor(/✅ Nice, that works!|💡 Hint|🤔/, 60_000).then(async (r) => {
+      if (!r[0].startsWith("✅")) {
+        log.push(`${stamp()} ⚠️ simulator: the step's own expected code didn't pass first time`);
+        await waitFor(/✅ Nice, that works!/, 90_000);
+      }
+    });
+    delays.push({ step: step.id, ms: Date.now() - wroteAt });
+    if (step.quiz) await answerQuiz(step);
   }
   await waitFor(/💸 AI cost/, 30_000);
 } catch (e) {
   log.push(`${stamp()} ❌ simulator: ${(e as Error).message}`);
   child.kill();
 }
+
+async function answerQuiz(step: Step) {
+  await waitFor(/Quick question/);
+  await sleep(500);
+  press(String(step.quiz!.answer + 1));
+}
+
 const code = await exited;
 if (partial) log.push(`${stamp()} ${partial}`);
-const final = await readFile(join(dir, "index.html"), "utf8").catch(() => "(missing)");
-const css = await readFile(join(dir, "style.css"), "utf8").catch(() => "(missing)");
-const progress = await readFile(join(dir, ".stride", `${lesson.id}.json`), "utf8").catch(() => "(missing)");
+const finished = new Map<string, string>();
+for (const f of lesson?.files ?? []) finished.set(f.path, await readFile(join(dir, f.path), "utf8").catch(() => "(missing)"));
+const progress = lesson ? await readFile(join(dir, ".stride", `${lesson.id}.json`), "utf8").catch(() => "(missing)") : "(missing)";
 const cost = await readFile(join(dir, "cost.json"), "utf8").catch(() => "(missing)");
-const matches = lesson.files.every((f) => (f.path === "index.html" ? final : f.path === "style.css" ? css : "") === f.content);
+const matches = !!lesson && lesson.files.every((f) => finished.get(f.path) === f.content);
+const costUsd = (() => {
+  try {
+    return (JSON.parse(cost) as { total: { usd: number } }).total.usd;
+  } catch {
+    return undefined;
+  }
+})();
+const avg = delays.length ? delays.reduce((n, d) => n + d.ms, 0) / delays.length : 0;
 
-process.stdout.write(`\nexit code ${code} · learner steps ${stats.steps} · wrong tries ${stats.wrong} · hints seen ${stats.hintsSeen} · finished files match the reference: ${matches}\n`);
+process.stdout.write(
+  `\nexit code ${code} · learner steps ${stats.steps} · wrong tries ${stats.wrong} · hints seen ${stats.hintsSeen} · finished files match the reference: ${matches}\n`,
+);
 
-if (transcriptFile) {
+if (transcriptFile && lesson) {
+  const title = idea ? `"${idea}" (real AI build)` : `"${lesson.title}"`;
+  const note = idea
+    ? [
+        "> This lesson was built by the real AI (Opus 5.5 builders, the lesson cache, the real checker with the hidden Chromium",
+        "> render). Only the student is pretend: `scripts/learn-simulate.ts` answers the questions, then writes each 🧑 step's",
+        "> `expected` code into the file at its anchor, with a typo first on two steps (to bring out the hints, asking for all",
+        "> three on one of them) and a half-typed save on one step (to show half-typed code isn't called wrong).",
+      ]
+    : [
+        "> This lesson came from a lesson file (no AI call). Only the student is pretend: `scripts/learn-simulate.ts` writes each",
+        "> 🧑 step's `expected` code into the file at its anchor, with a typo first on two steps and a half-typed save on one.",
+      ];
   const md = [
-    "# Terminal lesson run: \"a page about me\"",
+    `# Terminal lesson run: ${title}`,
     "",
-    "> **Note:** this lesson came from the hand-written fixture `tests/learn/fixtures/about-me.lesson.json`, because",
-    "> `ANTHROPIC_API_KEY` was missing in the cloud session, so the real-AI lesson build couldn't run. **The real-AI run",
-    "> (`npm run learn -- \"a page about me\"` with the key set) is still to do.** Everything else below is real: the terminal",
-    "> CLI (`src/cli/learn.ts`), the lesson runner, the checker with the hidden Chromium render, the folder watcher, progress",
-    "> saving and the cost log. Only the student is pretend: `scripts/learn-simulate.ts` writes each 🧑 step's `expected`",
-    "> code into the file at its anchor, with a wrong first try on two steps (to bring out the hints) and a half-typed save",
-    "> on one step (to show half-typed code isn't called wrong). No AI call was made, so the cost is $0; hint level 3",
-    "> (Haiku) wasn't needed because this lesson has no `ai` checks.",
+    ...note,
     "",
-    `Run: \`npx tsx scripts/learn-simulate.ts ${relativeToRepo(lessonFile)} docs/learn/runs/about-me.md\` on ${new Date(started).toISOString().slice(0, 10)}.`,
+    `Run: \`npx tsx scripts/learn-simulate.ts ${idea ? `--idea "${idea}"` : relativeToRepo(lessonFile!)} ${transcriptFile ? relativeToRepo(transcriptFile) : ""}\` on ${new Date(started).toISOString().slice(0, 10)}.`,
     "",
     "## Result",
     "",
     `- CLI exit code: ${code}`,
-    `- 🧑 steps typed: ${stats.steps}, wrong first tries: ${stats.wrong}, half-typed saves: ${stats.half}, hints shown: ${stats.hintsSeen}`,
+    `- 🧑 steps typed: ${stats.steps}, wrong first tries: ${stats.wrong}${stats.wrongAccepted ? ` (${stats.wrongAccepted} wrongly accepted)` : ""}, half-typed saves: ${stats.half}, hints shown: ${stats.hintsSeen}`,
     `- Finished files match the lesson's reference project: ${matches ? "yes" : "no"}`,
+    ...(buildSeconds !== undefined ? [`- Lesson build (questions answered → estimate shown): ${buildSeconds.toFixed(0)} s`] : []),
+    `- AI cost (cost.json total): ${costUsd === undefined ? "n/a" : `$${costUsd.toFixed(4)}`}`,
+    `- ✅ delay after the last write (correct code): average ${(avg / 1000).toFixed(2)} s, ` +
+      `min ${(Math.min(...delays.map((d) => d.ms)) / 1000).toFixed(2)} s, max ${(Math.max(...delays.map((d) => d.ms)) / 1000).toFixed(2)} s ` +
+      `(${delays.map((d) => `${d.step} ${(d.ms / 1000).toFixed(2)}`).join(", ")})`,
     `- Total time: ${((Date.now() - started) / 1000).toFixed(0)} s`,
     "",
     "## Transcript",
@@ -177,18 +250,7 @@ if (transcriptFile) {
     "",
     "## The student's finished files",
     "",
-    "`index.html`",
-    "",
-    "```html",
-    final.trimEnd(),
-    "```",
-    "",
-    "`style.css`",
-    "",
-    "```css",
-    css.trimEnd(),
-    "```",
-    "",
+    ...[...finished].flatMap(([path, text]) => [`\`${path}\``, "", "```" + (path.split(".").pop() ?? ""), text.trimEnd(), "```", ""]),
     "## Saved progress (`.stride/" + `${lesson.id}.json` + "`)",
     "",
     "```json",
